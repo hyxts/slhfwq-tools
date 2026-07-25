@@ -159,7 +159,7 @@ def get_data():
         next_run = ''
         if last_run:
             try:
-                next_run = (datetime.strptime(last_run, '%Y-%m-%d %H:%M:%S') + timedelta(days=interval)).strftime('%Y-%m-%d')
+                next_run = (datetime.strptime(last_run, '%Y-%m-%d %H:%M:%S') + timedelta(days=interval)).strftime('%Y-%m-%d %H:%M')
             except Exception:
                 next_run = '计算失败'
         else:
@@ -226,7 +226,7 @@ def status():
     next_run = ''
     if last_run:
         try:
-            next_run = (datetime.strptime(last_run, '%Y-%m-%d %H:%M:%S') + timedelta(days=interval)).strftime('%Y-%m-%d')
+            next_run = (datetime.strptime(last_run, '%Y-%m-%d %H:%M:%S') + timedelta(days=interval)).strftime('%Y-%m-%d %H:%M')
         except Exception:
             next_run = '计算失败'
     else:
@@ -633,19 +633,17 @@ def _auto_renew_thread():
             has_creds = username and password
             if has_creds and not _status['running']:
                 should_renew = False
-                next_due_date = None
-                today = _now().date()
 
                 if last_run:
                     try:
-                        last_run_date = datetime.strptime(last_run[:10], '%Y-%m-%d').date()
-                        next_due_date = last_run_date + timedelta(days=interval)
-                        if today >= next_due_date:
+                        last_run_dt = datetime.strptime(last_run, '%Y-%m-%d %H:%M:%S')
+                        last_run_dt = last_run_dt.replace(tzinfo=TZ)
+                        next_run_dt = last_run_dt + timedelta(days=interval)
+                        now = _now()
+                        if now >= next_run_dt:
                             should_renew = True
                         else:
-                            # 睡到下次应续日期的 0 点后
-                            target = datetime.combine(next_due_date, datetime.min.time())
-                            sleep_sec = max(3600, (target - _now()).total_seconds())
+                            sleep_sec = max(3600, (next_run_dt - now).total_seconds())
                     except Exception:
                         should_renew = True
                 else:
@@ -653,14 +651,15 @@ def _auto_renew_thread():
 
                 if not should_renew:
                     next_check = (_now() + timedelta(seconds=sleep_sec)).strftime('%Y-%m-%d %H:%M')
-                    _log(f'[检查] 距上次续期不足 {interval} 天，下次应续日期 {next_due_date}，下次检查 {next_check}')
+                    _log(f'[检查] 距上次续期不足 {interval} 天，下次续期时间 {next_run_dt.strftime("%Y-%m-%d %H:%M")}，下次检查 {next_check}')
                 else:
                     # 防频繁：至少间隔1天
                     blocked = False
                     if last_run:
                         try:
-                            last_run_date = datetime.strptime(last_run[:10], '%Y-%m-%d').date()
-                            if today <= last_run_date:
+                            last_run_dt = datetime.strptime(last_run, '%Y-%m-%d %H:%M:%S')
+                            last_run_dt = last_run_dt.replace(tzinfo=TZ)
+                            if (_now() - last_run_dt).total_seconds() < 86400:
                                 blocked = True
                         except Exception:
                             pass
