@@ -223,6 +223,52 @@ def _build_server_status():
         if os.path.isdir(dpath):
             old_dirs.append(d)
 
+    # 各目录存储详情
+    STORAGE_DIRS = ['人情', '排班', '绩点', '成绩', '倒计时', '服务器', '记账', '部署']
+    dir_sizes = []
+    for dname in STORAGE_DIRS:
+        dpath = os.path.join(BASE_DIR, dname)
+        if not os.path.isdir(dpath):
+            continue
+        sz = _dir_size(dpath)
+        dir_sizes.append({
+            'name': dname,
+            'bytes': sz,
+            'size_str': _size_str(sz),
+            'pct': round(sz / QUOTA * 100, 1),
+        })
+    # 根目录文件（.py, .log, .md 等）
+    root_sz = 0
+    for f in os.listdir(BASE_DIR):
+        fp = os.path.join(BASE_DIR, f)
+        if os.path.isfile(fp) and not f.startswith('.'):
+            try:
+                root_sz += os.path.getsize(fp)
+            except OSError:
+                pass
+    if root_sz > 0:
+        dir_sizes.append({
+            'name': '(根目录文件)',
+            'bytes': root_sz,
+            'size_str': _size_str(root_sz),
+            'pct': round(root_sz / QUOTA * 100, 1),
+        })
+    # 其他目录（不在 STORAGE_DIRS 中的）
+    for dname in os.listdir(BASE_DIR):
+        dpath = os.path.join(BASE_DIR, dname)
+        if not os.path.isdir(dpath) or dname in STORAGE_DIRS or dname.startswith('.') or dname in ('__pycache__', 'backups', '.git'):
+            continue
+        sz = _dir_size(dpath)
+        if sz == 0:
+            continue
+        dir_sizes.append({
+            'name': dname,
+            'bytes': sz,
+            'size_str': _size_str(sz),
+            'pct': round(sz / QUOTA * 100, 1),
+        })
+    dir_sizes.sort(key=lambda x: x['bytes'], reverse=True)
+
     delta = datetime.now(TZ) - START_TIME
     d = delta.days
     h, m = delta.seconds // 3600, (delta.seconds % 3600) // 60
@@ -231,6 +277,7 @@ def _build_server_status():
     return {
         'disk': disk, 'dbs': dbs, 'logs': logs, 'old_dirs': old_dirs,
         'uptime': uptime, 'python': sys.version.split()[0],
+        'dir_sizes': dir_sizes,
     }
 
 
