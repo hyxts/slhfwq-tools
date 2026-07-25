@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 """数据库备份 Blueprint（含每日自动备份、每周自动清理）"""
-import os, shutil, zipfile, threading, time as time_mod
+import os, re, shutil, zipfile, threading, time as time_mod
+from datetime import timedelta
 
 from .utils import _now, _size_str
 from flask import Blueprint, jsonify
@@ -25,8 +26,12 @@ DB_PATHS = [
     ('pa.db', os.path.join(BASE_DIR, '服务器', 'pa.db')),
 ]
 
+_LAST_BACKUP_LOCK = threading.Lock()
+_last_backup_time = None  # datetime，记录上次备份的精确时间
+
 
 def _save_server_backup():
+    global _last_backup_time
     os.makedirs(BACKUP_DIR, exist_ok=True)
     ts = _now().strftime('%Y%m%d_%H%M%S')
     zip_path = os.path.join(BACKUP_DIR, f'backup_{ts}.zip')
@@ -37,20 +42,66 @@ def _save_server_backup():
     backups = sorted([f for f in os.listdir(BACKUP_DIR) if f.endswith('.zip')])
     while len(backups) > MAX_SERVER_BACKUPS:
         os.remove(os.path.join(BACKUP_DIR, backups.pop(0)))
+    with _LAST_BACKUP_LOCK:
+        _last_backup_time = _now()
     return zip_path
 
 
+def _get_last_backup_time():
+    """从备份文件列表中推断上次备份时间，优先用内存记录"""
+    with _LAST_BACKUP_LOCK:
+        if _last_backup_time is not None:
+            return _last_backup_time
+
+    os.makedirs(BACKUP_DIR, exist_ok=True)
+    backups = sorted([f for f in os.listdir(BACKUP_DIR) if f.endswith('.zip')], reverse=True)
+    for f in backups:
+        m = re.search(r'backup_(\d{8})_(\d{6})', f)
+        if m:
+            try:
+                from datetime import datetime
+                s = m.group(1) + m.group(2)
+                dt = datetime.strptime(s, '%Y%m%d%H%M%S')
+                from .utils import TZ
+                dt = dt.replace(tzinfo=TZ)
+                return dt
+            except Exception:
+                continue
+    return None
+
+
 def _auto_backup_thread():
-    """每天定时自动备份一次"""
+    """每天定时自动备份一次，基于上次实际备份时间 + 间隔"""
     while True:
         try:
-            time_mod.sleep(AUTO_BACKUP_INTERVAL)
-            zip_path = _save_server_backup()
-            ts = _now().strftime('%Y-%m-%d %H:%M:%S')
-            print(f'[{ts}] 自动备份完成: {os.path.basename(zip_path)}')
+            now = _now()
+            last = _get_last_backup_time()
+
+            if last is None:
+                # 从未备份过，立即备份
+                zip_path = _save_server_backup()
+                ts = _now().strftime('%Y-%m-%d %H:%M:%S')
+                print(f'[{ts}] 首次自动备份完成: {os.path.basename(zip_path)}')
+                sleep_sec = AUTO_BACKUP_INTERVAL
+            else:
+                next_time = last + timedelta(seconds=AUTO_BACKUP_INTERVAL)
+                if now >= next_time:
+                    zip_path = _save_server_backup()
+                    ts = _now().strftime('%Y-%m-%d %H:%M:%S')
+                    print(f'[{ts}] 自动备份完成: {os.path.basename(zip_path)}')
+                    sleep_sec = AUTO_BACKUP_INTERVAL
+                else:
+                    sleep_sec = max(3600, (next_time - now).total_seconds())
+
+            next_check = (now + timedelta(seconds=sleep_sec)).strftime('%Y-%m-%d %H:%M')
+            ts = now.strftime('%Y-%m-%d %H:%M:%S')
+            print(f'[{ts}] 备份调度: 下次备份时间 {next_check}')
+            time_mod.sleep(sleep_sec)
+
         except Exception as e:
             ts = _now().strftime('%Y-%m-%d %H:%M:%S')
-            print(f'[{ts}] 自动备份失败: {e}')
+            print(f'[{ts}] 自动备份异常: {e}，60秒后重试')
+            time_mod.sleep(60)
 
 
 def start_auto_backup():
@@ -151,19 +202,41 @@ def _do_cleanup():
 
 
 def _auto_clean_thread():
-    """每7天自动清理一次"""
+    """每7天自动清理一次，基于上次实际清理时间 + 间隔"""
     global _last_cleanup
     while True:
         try:
-            time_mod.sleep(AUTO_CLEAN_INTERVAL)
+            now = _now()
+            # 从 _last_cleanup 上次记录推断下次清理时间
+            last_time_str = _last_cleanup.get('time', '-')
+            if last_time_str and last_time_str != '-':
+                try:
+                    from datetime import datetime
+                    last_dt = datetime.strptime(last_time_str, '%Y-%m-%d %H:%M:%S')
+                    from .utils import TZ
+                    last_dt = last_dt.replace(tzinfo=TZ)
+                    next_clean = last_dt + timedelta(seconds=AUTO_CLEAN_INTERVAL)
+                    if now < next_clean:
+                        sleep_sec = max(3600, (next_clean - now).total_seconds())
+                        next_check = (now + timedelta(seconds=sleep_sec)).strftime('%Y-%m-%d %H:%M')
+                        ts = now.strftime('%Y-%m-%d %H:%M:%S')
+                        print(f'[{ts}] 清理调度: 距上次清理不足7天，下次清理 {next_check}')
+                        time_mod.sleep(sleep_sec)
+                        continue
+                except Exception:
+                    pass  # 解析失败则直接执行
+
             results, freed = _do_cleanup()
             ts = _now().strftime('%Y-%m-%d %H:%M:%S')
             with _last_cleanup_lock:
                 _last_cleanup = {'time': ts, 'freed': _size_str(freed), 'results': results}
             print(f'[{ts}] 自动清理完成: 释放 {_size_str(freed)}; {"; ".join(results)}')
+            time_mod.sleep(AUTO_CLEAN_INTERVAL)
+
         except Exception as e:
             ts = _now().strftime('%Y-%m-%d %H:%M:%S')
-            print(f'[{ts}] 自动清理失败: {e}')
+            print(f'[{ts}] 自动清理异常: {e}，60秒后重试')
+            time_mod.sleep(60)
 
 
 def start_auto_clean():
