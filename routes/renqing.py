@@ -82,12 +82,13 @@ def init_db():
             conn.execute('DELETE FROM schema_version')
             conn.execute('INSERT INTO schema_version VALUES (?)', (SCHEMA_VERSION,))
             conn.commit()
-            # Excel 历史数据导入移到后台线程，避免阻塞启动（仅首次 records 为空时执行）
-            xlsx_path = os.path.join(BASE_DIR, '人情', '人情记录.xlsx')
-            if os.path.exists(xlsx_path) and conn.execute('SELECT COUNT(*) FROM records').fetchone()[0] == 0:
-                conn.close()
-                threading.Thread(target=_import_excel_async, args=(xlsx_path,), daemon=True).start()
-                return
+
+        # Excel 历史数据导入 —— 放迁移块之外，确保 conn 必须走统一 commit/close
+        xlsx_path = os.path.join(BASE_DIR, '人情', '人情记录.xlsx')
+        if os.path.exists(xlsx_path) and conn.execute('SELECT COUNT(*) FROM records').fetchone()[0] == 0:
+            conn.close()
+            threading.Thread(target=_import_excel_async, args=(xlsx_path,), daemon=True).start()
+            return
         conn.commit()
         conn.close()
     except Exception as e:

@@ -23,6 +23,14 @@ _LOG_CACHE_TTL = 10  # 日志缓存10秒
 
 
 def init_db():
+    try:
+        _init_db_impl()
+    except Exception as e:
+        import traceback
+        print(f'[init_pa_db ERROR] {e}\n{traceback.format_exc()}', flush=True)
+
+
+def _init_db_impl():
     os.makedirs(PA_DIR, exist_ok=True)
     conn = _get_db()
     conn.execute('''CREATE TABLE IF NOT EXISTS pa_config (
