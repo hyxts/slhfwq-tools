@@ -128,21 +128,31 @@ def reload_via_api(username, api_token):
     url = f'https://www.pythonanywhere.com/api/v0/user/{username}/webapps/{domain}/reload/'
     log(f'API重载: POST {url}')
 
-    try:
-        r = requests.post(url, headers={
-            'Authorization': f'Token {api_token}',
-            'User-Agent': 'QoderDeploy/1.0',
-        }, timeout=30)
-        log(f'API响应: HTTP {r.status_code}')
-        if r.status_code in (200, 202, 204):
-            log('API重载成功')
-            return True
-        else:
-            log(f'API重载失败: {r.text[:200]}')
+    for attempt in range(3):
+        try:
+            r = requests.post(url, headers={
+                'Authorization': f'Token {api_token}',
+                'User-Agent': 'QoderDeploy/1.0',
+            }, timeout=15)
+            log(f'API响应[尝试{attempt+1}/3]: HTTP {r.status_code}')
+            if r.status_code in (200, 202, 204):
+                log('API重载成功')
+                return True
+            # PA 部分状态码可重试（429 频率限制、502/503/504 网关错误）
+            if r.status_code in (429, 502, 503, 504) and attempt < 2:
+                wait = (attempt + 1) * 3
+                log(f'等待{wait}秒后重试...')
+                time.sleep(wait)
+                continue
+            log(f'API重载失败(HTTP {r.status_code}): {r.text[:200]}')
             return False
-    except Exception as e:
-        log(f'API请求异常: {e}')
-        return False
+        except Exception as e:
+            log(f'API请求异常[尝试{attempt+1}/3]: {e}')
+            if attempt < 2:
+                time.sleep(3)
+                continue
+            return False
+    return False
 
 
 def reload_via_web(username, password):
@@ -467,21 +477,43 @@ if __name__ == '__main__':
     username, password, api_token = load_credentials()
     log(f'用户名: {username}, API Token: {"已配置" if api_token else "未配置"}')
 
+    success = False
     # 方式1: PA API（最可靠）
     if username and api_token:
         log('尝试API重载...')
         if reload_via_api(username, api_token):
-            log('===== API重载完成 =====')
-            sys.exit(0)
-        log('API重载失败，尝试网页方式...')
+            success = True
+        else:
+            log('API重载失败，尝试网页方式...')
 
     # 方式2: 网页模拟登录
-    if username and password:
+    if not success and username and password:
         log('尝试网页重载...')
         if reload_via_web(username, password):
-            log('===== 网页重载完成 =====')
-            sys.exit(0)
-        log('网页重载失败')
+            success = True
+        else:
+            log('网页重载失败')
+
+    if success:
+        # 等待并验证新服务可用
+        log('等待新进程启动(最多30秒)...')
+        try:
+            import requests as _req
+            for i in range(10):
+                time.sleep(3)
+                try:
+                    r = _req.get(f'https://{username}.pythonanywhere.com/api/status', timeout=5)
+                    if r.status_code == 200:
+                        log(f'验证成功: 服务已恢复(耗时约{(i+1)*3}秒)')
+                        break
+                except Exception:
+                    if i < 9:
+                        continue
+                    log(f'验证超时: 服务未在30秒内恢复')
+        except Exception as e:
+            log(f'验证异常: {e}')
+        log('===== 重载完成 =====')
+        sys.exit(0)
 
     # 方式3: 所有重载方式都失败
     log('所有重载方式均失败，需要手动处理')
