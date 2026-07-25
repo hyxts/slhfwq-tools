@@ -131,7 +131,7 @@ def check_auth():
         return jsonify({'success': False, 'error': '请求过于频繁'}), 429
 
     # 免登录路径
-    PUBLIC_PREFIXES = ('/static', '/countdown', '/accounting', '/renqing/manifest', '/renqing/icon', '/deploy/manifest', '/deploy/icon', '/api/accounting', '/api/countdown', '/api/pa/', '/api/status', '/api/speedtest/')
+    PUBLIC_PREFIXES = ('/static', '/countdown', '/accounting', '/renqing/manifest', '/renqing/icon', '/deploy/manifest', '/deploy/icon', '/api/accounting', '/api/countdown', '/api/pa/', '/api/status')
     if request.path in ('/login', '/setup') or any(request.path.startswith(p) for p in PUBLIC_PREFIXES):
         return
     if session.get('auth'):
@@ -180,7 +180,6 @@ MODULES = [
     ('routes.pa', 'pa'),
     ('routes.countdown', 'countdown'),
     ('routes.accounting', 'accounting'),
-    ('routes.speedtest', 'speedtest'),
 ]
 
 # 先导入 deploy（独立容错），确保部署 API 最优先可用
@@ -344,11 +343,6 @@ def accounting_icon_192():
 def accounting_icon_512():
     return send_from_directory('记账', 'icon-512.svg')
 
-@app.route('/speedtest')
-@app.route('/speedtest/')
-def speedtest_index():
-    return redirect('/deploy')
-
 # ==================== 启动 ====================
 
 _diag('开始初始化数据库...')
@@ -423,6 +417,5 @@ if __name__ == '__main__':
     print('GPA系统: http://127.0.0.1:5000/gpa')
     print('高中成绩系统: http://127.0.0.1:5000/hsgrades')
     print('个人记账系统: http://127.0.0.1:5000/accounting')
-    print('网速测试: http://127.0.0.1:5000/speedtest')
     print('提示: 使用 127.0.0.1 访问比 localhost 更快（约40倍）')
     app.run(host='0.0.0.0', port=5000, debug=False)

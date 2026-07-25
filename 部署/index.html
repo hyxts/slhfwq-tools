@@ -170,19 +170,6 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
 .hi-item.er{border-left-color:#ef4444}
 .hi-time{color:#999;font-size:11px}
 
-/* 网速测试 */
-.speed-meter{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin:16px 0}
-.speed-item{background:#f8fafc;border-radius:14px;padding:24px 16px;text-align:center;border:2px solid transparent;transition:all .3s}
-.speed-item.testing{border-color:#667eea;background:#eef2ff}
-.speed-item.done{border-color:#22c55e;background:#f0fdf4}
-.speed-label{font-size:13px;color:#666;font-weight:500;margin-bottom:8px}
-.speed-value{font-size:28px;font-weight:800;color:#1f2937;min-height:38px}
-.speed-unit{font-size:13px;color:#888;font-weight:500}
-.speed-sub{font-size:11px;color:#999;margin-top:6px;min-height:16px}
-.speed-progress{text-align:center;font-size:14px;color:#667eea;font-weight:600;margin:12px 0;min-height:20px}
-.speed-start{display:flex;justify-content:center;margin:12px 0}
-.speed-start .btn{width:200px}
-
 /* 底部链接 */
 .btm-links{display:flex;gap:16px;margin-top:20px;padding:14px 0;border-top:1px solid #eee;flex-wrap:wrap}
 .btm-links a{font-size:12px;color:#999;text-decoration:none}
@@ -193,9 +180,6 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
   .metrics-row{grid-template-columns:repeat(2,1fr)}
   .db-cards{grid-template-columns:repeat(3,1fr)}
   .twocol,.twocol-13{grid-template-columns:1fr}
-  .speed-meter{grid-template-columns:repeat(3,1fr);gap:8px}
-  .speed-item{padding:16px 8px}
-  .speed-value{font-size:22px}
 }
 @media (max-width:768px){
   .app-layout{display:block;height:auto;overflow:visible}
@@ -246,7 +230,6 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
       <button class="nb on" onclick="go('overview')">概览</button>
       <button class="nb" onclick="go('pa')">PA续期</button>
       <button class="nb" onclick="go('backup')">数据备份</button>
-      <button class="nb" onclick="go('speed')">网速测试</button>
     </div>
   </div>
 
@@ -394,38 +377,6 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
       </div>
     </div>
 
-    <!-- ====== 网速测试 ====== -->
-    <div class="pg" id="pg-speed">
-      <div class="card">
-        <h3>网速测试</h3>
-        <p style="font-size:12px;color:#888;margin-bottom:4px">下载多源竞速（jsDelivr/BootCDN 国内 + Cloudflare 国际），取最优带宽</p>
-        <div class="speed-start">
-          <button class="btn bs" id="btnSpeed" onclick="runSpeedTest()">开始测试</button>
-        </div>
-        <div class="speed-progress" id="speedStatus"></div>
-        <div class="speed-meter" id="speedMeter">
-          <div class="speed-item" id="spPing">
-            <div class="speed-label">延迟 (Ping)</div>
-            <div class="speed-value">--</div>
-            <div class="speed-unit">ms</div>
-            <div class="speed-sub"></div>
-          </div>
-          <div class="speed-item" id="spDownload">
-            <div class="speed-label">下载速度</div>
-            <div class="speed-value">--</div>
-            <div class="speed-unit">Mbps</div>
-            <div class="speed-sub"></div>
-          </div>
-          <div class="speed-item" id="spUpload">
-            <div class="speed-label">上传速度</div>
-            <div class="speed-value">--</div>
-            <div class="speed-unit">Mbps</div>
-            <div class="speed-sub"></div>
-          </div>
-        </div>
-      </div>
-    </div>
-
     <div class="btm-links">
       <a href="/">礼金记录</a>
       <a href="/paiban">排工考勤</a>
@@ -442,7 +393,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
 function go(p){
   document.querySelectorAll('.pg').forEach(function(x){x.classList.remove('on')});
   document.getElementById('pg-'+p).classList.add('on');
-  var tabs={overview:0,pa:1,backup:2,speed:3};
+  var tabs={overview:0,pa:1,backup:2};
   document.querySelectorAll('.nb').forEach(function(b,i){b.classList.toggle('on',i===tabs[p])});
   if(p==='pa'){paLoadData();loadLogs(currentLogModule)}
   if(p==='backup')loadBackups();
@@ -865,156 +816,6 @@ paLoadData();
 loadServerStatus();
 loadPaSummary();
 loadCommits();
-
-/* ====== 网速测试 ====== */
-function setSpeedResult(id, value, unit, sub){
-  var el = document.getElementById(id);
-  el.querySelector('.speed-value').textContent = value;
-  el.querySelector('.speed-unit').textContent = unit;
-  el.querySelector('.speed-sub').textContent = sub;
-}
-function resetSpeedUI(){
-  ['spPing','spDownload','spUpload'].forEach(function(id){
-    var el = document.getElementById(id);
-    el.classList.remove('testing','done');
-    el.querySelector('.speed-value').textContent = '--';
-    el.querySelector('.speed-sub').textContent = '';
-  });
-  document.getElementById('spPing').querySelector('.speed-unit').textContent = 'ms';
-  document.getElementById('spDownload').querySelector('.speed-unit').textContent = 'Mbps';
-  document.getElementById('spUpload').querySelector('.speed-unit').textContent = 'Mbps';
-}
-
-async function runSpeedTest(){
-  var btn = document.getElementById('btnSpeed');
-  var statusEl = document.getElementById('speedStatus');
-  btn.disabled = true;
-  btn.textContent = '测试中...';
-  resetSpeedUI();
-
-  /* 1. Ping - 6 次并行 */
-  statusEl.textContent = '正在测试延迟...';
-  document.getElementById('spPing').classList.add('testing');
-  try{
-    var pTimes = [];
-    var pingFns = [];
-    for(var pi = 0; pi < 6; pi++){
-      pingFns.push((async function(){
-        var s = performance.now();
-        await fetch('/api/speedtest/ping');
-        pTimes.push(performance.now() - s);
-      })());
-    }
-    await Promise.all(pingFns);
-    var avgPing = pTimes.reduce(function(a,b){return a+b},0) / pTimes.length;
-    var minPing = Math.min.apply(null, pTimes);
-    var maxPing = Math.max.apply(null, pTimes);
-    var jitter = 0;
-    for(var j = 1; j < pTimes.length; j++){ jitter += Math.abs(pTimes[j] - pTimes[j-1]); }
-    jitter = jitter / (pTimes.length - 1);
-    setSpeedResult('spPing', Math.round(avgPing), 'ms', '最快' + Math.round(minPing) + 'ms / 最慢' + Math.round(maxPing) + 'ms / 抖动' + Math.round(jitter) + 'ms');
-    document.getElementById('spPing').classList.remove('testing');
-    document.getElementById('spPing').classList.add('done');
-  }catch(e){
-    setSpeedResult('spPing', '失败', '', '请求超时或网络错误');
-    document.getElementById('spPing').classList.remove('testing');
-  }
-
-  /* 2. 下载 - 多源 CDN 竞速取最优 */
-  statusEl.textContent = '正在测试下载带宽...';
-  document.getElementById('spDownload').classList.add('testing');
-  var bestDown = 0, bestSource = '';
-  // 预设下载目标：{url, size(字节, 已知则填), name}
-  var dlTargets = [
-    // jsDelivr 走腾讯云国内 CDN
-    {url:'https://cdn.jsdelivr.net/npm/vue@3.4.0/dist/vue.global.prod.js', size:130000, name:'jsDelivr(国内)'},
-    {url:'https://cdn.jsdelivr.net/npm/echarts@5.5.0/dist/echarts.min.js', size:1050000, name:'jsDelivr(国内)'},
-    // BootCDN 国内加速
-    {url:'https://cdn.bootcdn.net/ajax/libs/jquery/3.7.1/jquery.min.js', size:88000, name:'BootCDN(国内)'},
-    // Cloudflare 国际 CDN 对照
-    {url:'https://speed.cloudflare.com/__down?bytes=524288', size:524288, name:'Cloudflare(国际)'},
-    {url:'https://speed.cloudflare.com/__down?bytes=1048576', size:1048576, name:'Cloudflare(国际)'},
-  ];
-  // 逐个测试，出错跳过
-  for(var di = 0; di < dlTargets.length; di++){
-    var tgt = dlTargets[di];
-    try{
-      statusEl.textContent = '下载: ' + tgt.name + '...';
-      var dStart = performance.now();
-      var res = await fetch(tgt.url, {cache:'no-store'});
-      var buf = await res.arrayBuffer();
-      var dElapsed = (performance.now() - dStart) / 1000;
-      var actualSize = tgt.size || (buf && buf.byteLength) || 100000;
-      var speed = (actualSize * 8) / dElapsed;
-      if(speed > bestDown){ bestDown = speed; bestSource = tgt.name; }
-    }catch(e){
-      // 该源不可达则跳过
-      continue;
-    }
-  }
-  if(bestDown > 0){
-    // 若 1M 以下文件瞬间下完，追加一个更大文件测真实带宽
-    var lastTgt = dlTargets[dlTargets.length - 1];
-    var lastActual = lastTgt.size || 100000;
-    if(bestDown / 1000000 > 3){
-      try{
-        statusEl.textContent = '下载: 大文件验证...';
-        var bigStart = performance.now();
-        var bigRes = await fetch('https://speed.cloudflare.com/__down?bytes=5242880', {cache:'no-store'});
-        var bigBuf = await bigRes.arrayBuffer();
-        var bigElapsed = (performance.now() - bigStart) / 1000;
-        var bigSpeed = (5242880 * 8) / bigElapsed;
-        if(bigSpeed > bestDown){ bestDown = bigSpeed; bestSource = 'Cloudflare(5MB验证)'; }
-      }catch(e){}
-    }
-    var downMbps = bestDown / 1000000;
-    var srcTag = bestSource ? ' [' + bestSource + ']' : '';
-    if(downMbps >= 1){
-      setSpeedResult('spDownload', downMbps.toFixed(1), 'Mbps', srcTag);
-    } else {
-      setSpeedResult('spDownload', Math.round(bestDown / 1000), 'Kbps', srcTag);
-    }
-    document.getElementById('spDownload').classList.add('done');
-  } else {
-    setSpeedResult('spDownload', '失败', '', '所有 CDN 均不可达');
-  }
-  document.getElementById('spDownload').classList.remove('testing');
-
-  /* 3. 上传 */
-  statusEl.textContent = '正在测试上传带宽...';
-  document.getElementById('spUpload').classList.add('testing');
-  try{
-    var ulSizes = [65536, 131072, 262144]; // 64K, 128K, 256K
-    var bestUp = 0;
-    for(var m = 0; m < ulSizes.length; m++){
-      var us = ulSizes[m];
-      statusEl.textContent = '上传测试: ' + Math.round(us/1024) + 'KB...';
-      var data = new Uint8Array(us);
-      if(window.crypto && crypto.getRandomValues){ crypto.getRandomValues(data); }
-      else{ for(var n = 0; n < us; n++) data[n] = n & 255; }
-      var uStart = performance.now();
-      await fetch('/api/speedtest/upload', {method:'POST', body:data, headers:{'Content-Type':'application/octet-stream'}});
-      var uElapsed = (performance.now() - uStart) / 1000;
-      var uSpeed = (us * 8) / uElapsed;
-      if(uSpeed > bestUp) bestUp = uSpeed;
-    }
-    var upMbps = bestUp / 1000000;
-    if(upMbps >= 1){
-      setSpeedResult('spUpload', upMbps.toFixed(1), 'Mbps', '');
-    } else {
-      setSpeedResult('spUpload', Math.round(bestUp / 1000), 'Kbps', '');
-    }
-    document.getElementById('spUpload').classList.remove('testing');
-    document.getElementById('spUpload').classList.add('done');
-  }catch(e){
-    setSpeedResult('spUpload', '失败', '', '请求超时或网络错误');
-    document.getElementById('spUpload').classList.remove('testing');
-  }
-
-  statusEl.textContent = '测试完成';
-  btn.disabled = false;
-  btn.textContent = '重新测试';
-}
 
 </script>
 </body>
