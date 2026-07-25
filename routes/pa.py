@@ -643,15 +643,16 @@ def _auto_renew_thread():
                         if today >= next_due_date:
                             should_renew = True
                         else:
-                            # 还没到下次续期时间，睡到目标时间
-                            sleep_sec = max(3600, (next_due_date - today).days * 86400)
+                            # 睡到下次应续日期的 0 点后
+                            target = datetime.combine(next_due_date, datetime.min.time())
+                            sleep_sec = max(3600, (target - _now()).total_seconds())
                     except Exception:
                         should_renew = True
                 else:
                     should_renew = True  # 首次运行（从未续期过）
 
                 if not should_renew:
-                    next_check = (datetime.combine(today, datetime.min.time()) + timedelta(seconds=sleep_sec)).strftime('%Y-%m-%d %H:%M')
+                    next_check = (_now() + timedelta(seconds=sleep_sec)).strftime('%Y-%m-%d %H:%M')
                     _log(f'[检查] 距上次续期不足 {interval} 天，下次应续日期 {next_due_date}，下次检查 {next_check}')
                 else:
                     # 防频繁：至少间隔1天
