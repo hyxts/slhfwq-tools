@@ -151,13 +151,34 @@ def init_db():
         if 'event_id' not in existing_cols:
             conn.execute('ALTER TABLE records ADD COLUMN event_id INTEGER DEFAULT NULL')
 
-        # 迁移: 检测 records 表 CHECK 约束是否缺少 应收，若是则重建
+        # 迁移: 检测 records 表 CHECK 约束是否需要更新（缺少 应收 或有旧类型残留）
         records_sql = conn.execute(
             "SELECT sql FROM sqlite_master WHERE type='table' AND name='records'"
         ).fetchone()
-        if records_sql and "'应收'" not in (records_sql[0] or ''):
+        needs_records_mig = False
+        if records_sql and records_sql[0]:
+            rs = records_sql[0] or ''
+            if "'应收'" not in rs or any(t in rs for t in ("'收入'", "'支出'", "'他欠我'", "'我欠他'")):
+                needs_records_mig = True
+
+        if needs_records_mig:
             conn.execute("BEGIN")
-            conn.execute('''CREATE TABLE records_tmp (
+            # 无约束临时表，避免 CHECK 冲突死胡同
+            conn.execute('''CREATE TABLE records_mig (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                account_id INTEGER NOT NULL,
+                type TEXT NOT NULL,
+                amount REAL NOT NULL,
+                category TEXT DEFAULT '',
+                date TEXT NOT NULL,
+                note TEXT DEFAULT '',
+                event_id INTEGER DEFAULT NULL,
+                created_at TEXT DEFAULT (datetime('now','localtime')),
+                FOREIGN KEY (account_id) REFERENCES accounts(id)
+            )''')
+            conn.execute('INSERT INTO records_mig SELECT * FROM records')
+            conn.execute('DROP TABLE records')
+            conn.execute('''CREATE TABLE records (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 account_id INTEGER NOT NULL,
                 type TEXT NOT NULL CHECK(type IN ('付给','收到','应收')),
@@ -169,9 +190,20 @@ def init_db():
                 created_at TEXT DEFAULT (datetime('now','localtime')),
                 FOREIGN KEY (account_id) REFERENCES accounts(id)
             )''')
-            conn.execute('INSERT INTO records_tmp SELECT * FROM records')
-            conn.execute('DROP TABLE records')
-            conn.execute('ALTER TABLE records_tmp RENAME TO records')
+            # 从临时表回迁数据并映射 type 值
+            old_rows = conn.execute('SELECT * FROM records_mig').fetchall()
+            for r in old_rows:
+                new_type = OLD_TO_NEW.get(r['type'], r['type'])
+                if new_type not in ('付给', '收到', '应收'):
+                    new_type = '付给'
+                conn.execute(
+                    '''INSERT INTO records
+                       (id, account_id, type, amount, category, date, note, event_id, created_at)
+                       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)''',
+                    (r['id'], r['account_id'], new_type, r['amount'],
+                     r['category'], r['date'], r['note'], r['event_id'], r['created_at'])
+                )
+            conn.execute('DROP TABLE records_mig')
             conn.execute('COMMIT')
 
         conn.execute('''CREATE TABLE IF NOT EXISTS events (
