@@ -189,32 +189,65 @@ def init_db():
         conn.execute('CREATE INDEX IF NOT EXISTS idx_records_event ON records(event_id)')
         conn.execute('CREATE INDEX IF NOT EXISTS idx_events_account ON events(account_id)')
 
-        # --- categories 表及迁移 ---
-        conn.execute('''CREATE TABLE IF NOT EXISTS categories (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            type TEXT NOT NULL CHECK(type IN ('付给','收到','应收')),
-            name TEXT NOT NULL,
-            sort_order INTEGER DEFAULT 0
-        )''')
+        # --- categories 表 — 带完整迁移逻辑 ---
+        cats_sql = conn.execute(
+            "SELECT sql FROM sqlite_master WHERE type='table' AND name='categories'"
+        ).fetchone()
 
-        # 迁移旧分类
-        old_cats = conn.execute(
-            "SELECT id, type, name FROM categories WHERE type IN ('收入','支出','他欠我','我欠他')"
-        ).fetchall()
-        if old_cats:
-            for c in old_cats:
-                new_type = OLD_TO_NEW.get(c['type'], c['type'])
-                new_name = CAT_MAP.get(c['name'], c['name'])
-                existing = conn.execute(
-                    "SELECT id FROM categories WHERE type=? AND name=?",
-                    (new_type, new_name)
-                ).fetchone()
-                if not existing:
-                    conn.execute(
-                        "INSERT INTO categories (type, name, sort_order) VALUES (?, ?, ?)",
-                        (new_type, new_name, 0)
-                    )
-            conn.execute("DELETE FROM categories WHERE type IN ('收入','支出','他欠我','我欠他')")
+        has_old_constraint = False
+        if cats_sql and cats_sql[0]:
+            sql_text = cats_sql[0]
+            # 检测旧版 CHECK 约束（包含旧四种类型）
+            if ("'收入'" in sql_text or "'支出'" in sql_text
+                    or "'他欠我'" in sql_text or "'我欠他'" in sql_text):
+                has_old_constraint = True
+
+        if has_old_constraint:
+            # 完整迁移：需要绕过旧 CHECK 约束
+            # 1. 把旧数据导出到无约束临时表
+            conn.execute("BEGIN")
+            conn.execute('''CREATE TABLE categories_mig (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                type TEXT NOT NULL,
+                name TEXT NOT NULL,
+                sort_order INTEGER DEFAULT 0
+            )''')
+            conn.execute('INSERT INTO categories_mig (id, type, name, sort_order) '
+                         'SELECT id, type, name, COALESCE(sort_order, 0) FROM categories')
+            # 2. 删旧表，建新表
+            conn.execute('DROP TABLE categories')
+            conn.execute('''CREATE TABLE categories (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                type TEXT NOT NULL CHECK(type IN ('付给','收到','应收')),
+                name TEXT NOT NULL,
+                sort_order INTEGER DEFAULT 0
+            )''')
+            # 3. 迁移数据：类型+分类名一并映射
+            old_rows = conn.execute('SELECT id, type, name, sort_order FROM categories_mig').fetchall()
+            seen = set()
+            for r in old_rows:
+                new_type = OLD_TO_NEW.get(r['type'], r['type'])
+                if new_type not in ('付给', '收到', '应收'):
+                    new_type = '付给'  # 兜底
+                new_name = CAT_MAP.get(r['name'], r['name'])
+                key = (new_type, new_name)
+                if key in seen:
+                    continue
+                seen.add(key)
+                conn.execute(
+                    'INSERT INTO categories (type, name, sort_order) VALUES (?, ?, ?)',
+                    (new_type, new_name, r['sort_order'] or 0)
+                )
+            conn.execute('DROP TABLE categories_mig')
+            conn.execute('COMMIT')
+        else:
+            # 表不存在或已是新格式，直接创建
+            conn.execute('''CREATE TABLE IF NOT EXISTS categories (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                type TEXT NOT NULL CHECK(type IN ('付给','收到','应收')),
+                name TEXT NOT NULL,
+                sort_order INTEGER DEFAULT 0
+            )''')
 
         # 种子数据
         existing_cats = conn.execute('SELECT COUNT(*) FROM categories').fetchone()[0]
@@ -228,7 +261,7 @@ def init_db():
             ]
             conn.executemany('INSERT INTO categories (type, name, sort_order) VALUES (?, ?, ?)', defaults)
 
-        # 迁移: 补充缺失分类
+        # 补充缺失分类
         missing = [
             ('付给', '垫付', 2), ('付给', '还借款', 3), ('付给', '其他', 5),
             ('收到', '分摊', 2), ('收到', '收还款', 3),
@@ -237,23 +270,6 @@ def init_db():
         for t, n, s in missing:
             if not conn.execute("SELECT 1 FROM categories WHERE type=? AND name=?", (t, n)).fetchone():
                 conn.execute("INSERT INTO categories (type, name, sort_order) VALUES (?, ?, ?)", (t, n, s))
-
-        # 迁移: 检测 categories 表 CHECK 约束是否缺少 应收
-        cats_sql = conn.execute(
-            "SELECT sql FROM sqlite_master WHERE type='table' AND name='categories'"
-        ).fetchone()
-        if cats_sql and "'应收'" not in (cats_sql[0] or ''):
-            conn.execute("BEGIN")
-            conn.execute('''CREATE TABLE categories_tmp (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                type TEXT NOT NULL CHECK(type IN ('付给','收到','应收')),
-                name TEXT NOT NULL,
-                sort_order INTEGER DEFAULT 0
-            )''')
-            conn.execute('INSERT INTO categories_tmp SELECT * FROM categories')
-            conn.execute('DROP TABLE categories')
-            conn.execute('ALTER TABLE categories_tmp RENAME TO categories')
-            conn.execute('COMMIT')
 
         conn.commit()
         conn.close()
@@ -759,7 +775,10 @@ def get_categories():
         ).fetchall()
         result = {'付给': [], '收到': [], '应收': []}
         for r in rows:
-            result[r['type']].append({'id': r['id'], 'name': r['name']})
+            t = r['type']
+            if t not in result:
+                result[t] = []  # 防御：未知类型也收纳
+            result[t].append({'id': r['id'], 'name': r['name']})
         for t in result:
             if not result[t]:
                 result[t] = [{'id': 0, 'name': n} for n in CATEGORY_PRESETS.get(t, [])]
