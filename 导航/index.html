@@ -190,6 +190,8 @@ body::before{
 @media(min-width:440px){
   .cards{grid-template-columns:1fr 1fr 1fr}
   .card:nth-child(7){grid-column:1/-1}
+  /* 6张卡时最后一张不跨列 */
+  .cards.len6 .card:nth-child(6){grid-column:auto}
 }
 </style>
 </head>
@@ -219,25 +221,19 @@ body::before{
   <div class="grid-title">功能模块</div>
   <div class="cards">
     <a class="card c0" href="/renqing">
-      <div class="card-label">礼金</div>
+      <div class="card-label">人情</div>
       <div class="card-name">人情记录</div>
       <div class="card-desc">礼金往来 · 事件归档 · 人情统计</div>
       <div class="card-arrow">&rsaquo;</div>
     </a>
-    <a class="card c1" href="/paiban">
-      <div class="card-label">考勤</div>
-      <div class="card-name">排班考勤</div>
-      <div class="card-desc">排工调度 · 工时统计 · 出勤记录</div>
-      <div class="card-arrow">&rsaquo;</div>
-    </a>
-    <a class="card c2" href="/gpa">
-      <div class="card-label">学业</div>
+    <a class="card c1" href="/gpa">
+      <div class="card-label">GPA</div>
       <div class="card-name">绩点计算</div>
-      <div class="card-desc">GPA 算法 · 学分加权 · 成绩换算</div>
+      <div class="card-desc">学分加权 · 绩点换算 · 成绩分析</div>
       <div class="card-arrow">&rsaquo;</div>
     </a>
     <a class="card c3" href="/hsgrades">
-      <div class="card-label">成绩</div>
+      <div class="card-label">高中</div>
       <div class="card-name">成绩管理</div>
       <div class="card-desc">高中成绩 · 趋势分析 · 排名追踪</div>
       <div class="card-arrow">&rsaquo;</div>
@@ -249,7 +245,7 @@ body::before{
       <div class="card-arrow">&rsaquo;</div>
     </a>
     <a class="card c5" href="/accounting">
-      <div class="card-label">财务</div>
+      <div class="card-label">记账</div>
       <div class="card-name">记账本</div>
       <div class="card-desc">收支记录 · 借贷管理 · 分类统计</div>
       <div class="card-arrow">&rsaquo;</div>
@@ -269,6 +265,8 @@ body::before{
 // 卡片依次入场动画
 (function(){
   var cards=document.querySelectorAll('.card');
+  var grid=document.querySelector('.cards');
+  if(cards.length===6) grid.classList.add('len6');
   cards.forEach(function(c,i){
     c.style.opacity='0';
     c.style.transform='translateY(20px)';
