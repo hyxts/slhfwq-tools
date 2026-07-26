@@ -131,7 +131,7 @@ def check_auth():
         return jsonify({'success': False, 'error': '请求过于频繁'}), 429
 
     # 免登录路径
-    PUBLIC_PREFIXES = ('/static', '/countdown', '/accounting', '/renqing/manifest', '/renqing/icon', '/deploy/manifest', '/deploy/icon', '/api/accounting', '/api/countdown', '/api/pa/', '/api/status')
+    PUBLIC_PREFIXES = ('/static', '/countdown', '/accounting', '/renqing/manifest', '/renqing/icon', '/deploy/manifest', '/deploy/icon', '/nav/manifest', '/nav/icon', '/api/accounting', '/api/countdown', '/api/pa/', '/api/status')
     if request.path in ('/login', '/setup') or any(request.path.startswith(p) for p in PUBLIC_PREFIXES):
         return
     if session.get('auth'):
@@ -256,7 +256,12 @@ def handle_404(e):
 
 @app.route('/')
 def index():
-    return send_from_directory('人情', 'index.html')
+    return redirect('/nav')
+
+@app.route('/nav')
+@app.route('/nav/')
+def nav_index():
+    return send_from_directory('导航', 'index.html')
 
 @app.route('/renqing')
 @app.route('/renqing/')
@@ -308,6 +313,18 @@ def pa_index():
 @app.route('/deploy/')
 def deploy_index():
     return send_from_directory('部署', 'index.html')
+
+@app.route('/nav/manifest.json')
+def nav_manifest():
+    return send_from_directory('导航', 'manifest.json')
+
+@app.route('/nav/icon-192.svg')
+def nav_icon_192():
+    return send_from_directory('导航', 'icon-192.svg')
+
+@app.route('/nav/icon-512.svg')
+def nav_icon_512():
+    return send_from_directory('导航', 'icon-512.svg')
 
 @app.route('/deploy/manifest.json')
 def deploy_manifest():

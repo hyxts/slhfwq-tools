@@ -1,0 +1,294 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,user-scalable=no,viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="工具台">
+<meta name="theme-color" content="#0f172a">
+<link rel="manifest" href="/nav/manifest.json">
+<link rel="apple-touch-icon" href="/nav/icon-192.svg">
+<title>个人工具平台</title>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+html,body{width:100%;min-height:100vh;min-height:100dvh}
+body{
+  background:#0f172a;
+  font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",system-ui,sans-serif;
+  color:#e2e8f0;
+  -webkit-font-smoothing:antialiased;
+  -webkit-tap-highlight-color:transparent;
+  overflow-x:hidden;
+}
+/* 背景装饰 */
+body::before{
+  content:'';
+  position:fixed;top:-50%;left:-30%;
+  width:160%;height:160%;
+  background:radial-gradient(ellipse 60% 50% at 30% 20%,rgba(102,126,234,0.12) 0%,transparent 60%),
+             radial-gradient(ellipse 50% 40% at 70% 60%,rgba(118,75,162,0.10) 0%,transparent 60%),
+             radial-gradient(ellipse 40% 30% at 50% 50%,rgba(67,233,123,0.04) 0%,transparent 50%);
+  pointer-events:none;z-index:0;
+}
+.page{
+  position:relative;z-index:1;
+  max-width:480px;margin:0 auto;
+  padding:0 20px 40px;
+  display:flex;flex-direction:column;
+  min-height:100vh;min-height:100dvh;
+}
+
+/* ====== 顶部 Logo 区 ====== */
+.hero{
+  text-align:center;padding:36px 0 8px;
+  position:relative;
+}
+.logo-wrap{
+  display:inline-block;position:relative;
+  width:96px;height:96px;
+}
+.logo-bg{
+  position:absolute;top:-8px;left:-8px;
+  width:112px;height:112px;border-radius:50%;
+  background:radial-gradient(circle,rgba(102,126,234,0.35) 0%,rgba(118,75,162,0.15) 50%,transparent 70%);
+  filter:blur(12px);
+}
+.logo-rect{
+  width:96px;height:96px;border-radius:24px;
+  background:linear-gradient(135deg,#667eea 0%,#764ba2 100%);
+  display:flex;align-items:center;justify-content:center;
+  position:relative;z-index:2;
+  box-shadow:0 8px 32px rgba(102,126,234,0.35),0 2px 8px rgba(0,0,0,0.3);
+}
+.logo-text{
+  font-size:42px;font-weight:900;color:#fff;
+  letter-spacing:-1px;line-height:1;
+}
+.hero-title{
+  font-size:22px;font-weight:700;color:#f1f5f9;
+  margin-top:18px;letter-spacing:1px;
+}
+.hero-sub{
+  font-size:13px;color:#94a3b8;margin-top:4px;
+  letter-spacing:0.5px;
+}
+
+/* ====== 用户信息条 ====== */
+.user-bar{
+  display:flex;align-items:center;justify-content:center;
+  gap:12px;margin:8px 0 20px;
+  font-size:12px;color:#64748b;
+}
+.user-bar a{
+  color:#818cf8;text-decoration:none;font-weight:500;
+}
+.user-bar a:active{opacity:0.7}
+.user-dot{width:5px;height:5px;border-radius:50%;background:#475569}
+
+/* ====== 卡片网格 ====== */
+.grid-title{
+  font-size:12px;font-weight:600;color:#64748b;
+  text-transform:uppercase;letter-spacing:2px;
+  margin-bottom:12px;padding-left:2px;
+}
+.cards{
+  display:grid;
+  grid-template-columns:1fr 1fr;
+  gap:12px;
+  flex:1;
+}
+.card{
+  position:relative;
+  background:rgba(30,41,59,0.7);
+  border:1px solid rgba(71,85,105,0.3);
+  border-radius:16px;
+  padding:20px 16px 16px;
+  text-decoration:none;color:inherit;
+  -webkit-backdrop-filter:blur(12px);
+  backdrop-filter:blur(12px);
+  transition:transform 0.2s ease,border-color 0.2s ease,box-shadow 0.2s ease;
+  overflow:hidden;
+  cursor:pointer;
+  -webkit-user-select:none;user-select:none;
+  display:flex;flex-direction:column;
+}
+.card::before{
+  content:'';
+  position:absolute;top:0;left:0;right:0;
+  height:3px;
+  transition:height 0.2s ease;
+}
+.card:active{
+  transform:scale(0.97);
+}
+.card:active::before{height:6px}
+.card-label{
+  position:relative;z-index:1;
+  font-size:11px;font-weight:600;color:#94a3b8;
+  letter-spacing:1px;margin-bottom:8px;
+}
+.card-name{
+  position:relative;z-index:1;
+  font-size:20px;font-weight:700;color:#f1f5f9;
+  margin-bottom:6px;letter-spacing:0.5px;
+}
+.card-desc{
+  position:relative;z-index:1;
+  font-size:12px;color:#64748b;
+  line-height:1.5;
+}
+.card-arrow{
+  position:absolute;right:14px;bottom:14px;
+  width:24px;height:24px;border-radius:50%;
+  background:rgba(255,255,255,0.06);
+  display:flex;align-items:center;justify-content:center;
+  font-size:14px;color:#475569;
+  transition:background 0.2s,color 0.2s;
+}
+.card:active .card-arrow{
+  background:rgba(255,255,255,0.12);
+  color:#94a3b8;
+}
+
+/* 各卡片主题色 */
+.card.c0::before{background:linear-gradient(90deg,#f472b6,#ec4899)}
+.card.c0 .card-name{color:#f9a8d4}
+.card.c0:active{border-color:rgba(244,114,182,0.4);box-shadow:0 0 24px rgba(244,114,182,0.12)}
+
+.card.c1::before{background:linear-gradient(90deg,#38bdf8,#0ea5e9)}
+.card.c1 .card-name{color:#7dd3fc}
+.card.c1:active{border-color:rgba(56,189,248,0.4);box-shadow:0 0 24px rgba(56,189,248,0.12)}
+
+.card.c2::before{background:linear-gradient(90deg,#34d399,#10b981)}
+.card.c2 .card-name{color:#6ee7b7}
+.card.c2:active{border-color:rgba(52,211,153,0.4);box-shadow:0 0 24px rgba(52,211,153,0.12)}
+
+.card.c3::before{background:linear-gradient(90deg,#fbbf24,#f59e0b)}
+.card.c3 .card-name{color:#fcd34d}
+.card.c3:active{border-color:rgba(251,191,36,0.4);box-shadow:0 0 24px rgba(251,191,36,0.12)}
+
+.card.c4::before{background:linear-gradient(90deg,#a78bfa,#8b5cf6)}
+.card.c4 .card-name{color:#c4b5fd}
+.card.c4:active{border-color:rgba(167,139,250,0.4);box-shadow:0 0 24px rgba(167,139,250,0.12)}
+
+.card.c5::before{background:linear-gradient(90deg,#2dd4bf,#14b8a6)}
+.card.c5 .card-name{color:#5eead4}
+.card.c5:active{border-color:rgba(45,212,191,0.4);box-shadow:0 0 24px rgba(45,212,191,0.12)}
+
+.card.c6::before{background:linear-gradient(90deg,#94a3b8,#64748b)}
+.card.c6 .card-name{color:#cbd5e1}
+.card.c6:active{border-color:rgba(148,163,184,0.4);box-shadow:0 0 24px rgba(148,163,184,0.12)}
+
+/* 底部 */
+.footer{
+  text-align:center;padding:24px 0 8px;
+  font-size:11px;color:#334155;
+  letter-spacing:0.5px;
+}
+/* 大屏单列 */
+@media(min-width:440px){
+  .cards{grid-template-columns:1fr 1fr 1fr}
+  .card:nth-child(7){grid-column:1/-1}
+}
+</style>
+</head>
+<body>
+
+<div class="page">
+  <!-- Logo 区 -->
+  <div class="hero">
+    <div class="logo-wrap">
+      <div class="logo-bg"></div>
+      <div class="logo-rect">
+        <span class="logo-text">PA</span>
+      </div>
+    </div>
+    <div class="hero-title">个人工具平台</div>
+    <div class="hero-sub">PythonAnywhere · 轻量云端工具箱</div>
+  </div>
+
+  <!-- 用户信息 -->
+  <div class="user-bar">
+    <a href="/deploy">管理</a>
+    <span class="user-dot"></span>
+    <a href="/logout">退出</a>
+  </div>
+
+  <!-- 模块导航 -->
+  <div class="grid-title">功能模块</div>
+  <div class="cards">
+    <a class="card c0" href="/renqing">
+      <div class="card-label">礼金</div>
+      <div class="card-name">人情记录</div>
+      <div class="card-desc">礼金往来 · 事件归档 · 人情统计</div>
+      <div class="card-arrow">&rsaquo;</div>
+    </a>
+    <a class="card c1" href="/paiban">
+      <div class="card-label">考勤</div>
+      <div class="card-name">排班考勤</div>
+      <div class="card-desc">排工调度 · 工时统计 · 出勤记录</div>
+      <div class="card-arrow">&rsaquo;</div>
+    </a>
+    <a class="card c2" href="/gpa">
+      <div class="card-label">学业</div>
+      <div class="card-name">绩点计算</div>
+      <div class="card-desc">GPA 算法 · 学分加权 · 成绩换算</div>
+      <div class="card-arrow">&rsaquo;</div>
+    </a>
+    <a class="card c3" href="/hsgrades">
+      <div class="card-label">成绩</div>
+      <div class="card-name">成绩管理</div>
+      <div class="card-desc">高中成绩 · 趋势分析 · 排名追踪</div>
+      <div class="card-arrow">&rsaquo;</div>
+    </a>
+    <a class="card c4" href="/countdown">
+      <div class="card-label">时间</div>
+      <div class="card-name">倒计时</div>
+      <div class="card-desc">公历农历 · 重要日期 · 节日提醒</div>
+      <div class="card-arrow">&rsaquo;</div>
+    </a>
+    <a class="card c5" href="/accounting">
+      <div class="card-label">财务</div>
+      <div class="card-name">记账本</div>
+      <div class="card-desc">收支记录 · 借贷管理 · 分类统计</div>
+      <div class="card-arrow">&rsaquo;</div>
+    </a>
+    <a class="card c6" href="/deploy">
+      <div class="card-label">运维</div>
+      <div class="card-name">管理平台</div>
+      <div class="card-desc">系统状态 · 代码部署 · 数据库监控</div>
+      <div class="card-arrow">&rsaquo;</div>
+    </a>
+  </div>
+
+  <div class="footer">个人工具平台 · Powered by PythonAnywhere</div>
+</div>
+
+<script>
+// 卡片依次入场动画
+(function(){
+  var cards=document.querySelectorAll('.card');
+  cards.forEach(function(c,i){
+    c.style.opacity='0';
+    c.style.transform='translateY(20px)';
+    c.style.transition='opacity 0.4s ease,transform 0.4s ease';
+    setTimeout(function(){
+      c.style.opacity='1';
+      c.style.transform='translateY(0)';
+    },80+i*60);
+  });
+  // 注册 Service Worker（PWA 离线缓存增强）
+  if('serviceWorker' in navigator){
+    // 简单策略：如果已注册则复用
+    navigator.serviceWorker.getRegistrations().then(function(regs){
+      if(regs.length===0){
+        // 不做 SW 注册，保持简洁
+        // 如需离线支持可在此注册
+      }
+    });
+  }
+})();
+</script>
+</body>
+</html>

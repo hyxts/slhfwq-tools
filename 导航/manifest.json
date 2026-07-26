@@ -1,0 +1,24 @@
+{
+  "name": "个人工具平台",
+  "short_name": "工具台",
+  "description": "个人工具平台导航 - 人情、排班、绩点、成绩、倒计时、记账、管理",
+  "start_url": "/nav",
+  "display": "standalone",
+  "background_color": "#0f172a",
+  "theme_color": "#667eea",
+  "orientation": "portrait",
+  "icons": [
+    {
+      "src": "/nav/icon-192.svg",
+      "sizes": "192x192",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    },
+    {
+      "src": "/nav/icon-512.svg",
+      "sizes": "512x512",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}
