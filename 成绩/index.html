@@ -186,6 +186,11 @@ label{display:block;font-size:13px;color:#4b5563;margin-bottom:4px;font-weight:5
   </div>
 
   <div class="card">
+    <h3>不及格科目</h3>
+    <div id="failingSubjects"></div>
+  </div>
+
+  <div class="card">
     <h3>总分趋势</h3>
     <div class="chart-container"><canvas id="totalChart"></canvas></div>
   </div>
@@ -595,6 +600,71 @@ var RANK_GROUPS = {
   three:  { label: '史政地', keys: ['history', 'politics', 'geography'] }
 };
 
+// ==================== 不及格科目 ====================
+var FAIL_THRESHOLD = 60;
+
+function renderFailingSubjects() {
+  var container = document.getElementById('failingSubjects');
+  if (!container) return;
+
+  var activeExams = exams.filter(function(e) {
+    return e.scores && Object.values(e.scores).some(function(v) { return Number(v) > 0; });
+  });
+
+  if (activeExams.length === 0) {
+    container.innerHTML = '<div class="empty-state">暂无成绩数据</div>';
+    return;
+  }
+
+  var lastExam = activeExams[activeExams.length - 1];
+
+  // 收集每场考试的不及格科目
+  var failingList = []; // [{ examName, subject, label, score, effectiveScore }]
+
+  SUBJECTS.forEach(function(s) {
+    var raw = getSubjectScore(lastExam, s.key);
+    var eff = getEffectiveScore(lastExam, s.key);
+
+    // 对于赋分科目，有两个分（原始分和赋分），分别检查
+    if (s.assigned) {
+      if (raw !== null && raw > 0 && raw < FAIL_THRESHOLD) {
+        failingList.push({ examName: lastExam.name, subject: s.key, label: s.label, score: raw, scoreType: '原始分', color: s.color });
+      }
+      var av = getSubjectAssigned(lastExam, s.key);
+      if (av !== null && av > 0 && av < FAIL_THRESHOLD) {
+        failingList.push({ examName: lastExam.name, subject: s.key, label: s.label, score: av, scoreType: '赋分', color: s.color });
+      }
+    } else {
+      if (raw !== null && raw > 0 && raw < FAIL_THRESHOLD) {
+        failingList.push({ examName: lastExam.name, subject: s.key, label: s.label, score: raw, scoreType: '', color: s.color });
+      }
+    }
+  });
+
+  if (failingList.length === 0) {
+    container.innerHTML =
+      '<div style="text-align:center;padding:16px;color:#059669;font-size:15px;font-weight:600;background:#ecfdf5;border-radius:8px">' +
+      '最近考试（' + escapeHtml(lastExam.name) + '）全部及格，继续加油！' +
+      '</div>';
+    return;
+  }
+
+  var html =
+    '<div style="margin-bottom:8px;font-size:13px;color:#64748b">考试：<b style="color:#1e293b">' + escapeHtml(lastExam.name) + '</b>，共 <b style="color:#dc2626">' + failingList.length + '</b> 项不及格</div>' +
+    '<div style="display:flex;flex-wrap:wrap;gap:6px">';
+  failingList.forEach(function(item) {
+    var scoreLabel = item.scoreType ? item.scoreType + ' ' + item.score.toFixed(0) : item.score.toFixed(0);
+    html +=
+      '<div style="background:#fef2f2;border:1px solid #fecaca;border-radius:8px;padding:8px 12px;display:flex;align-items:center;gap:6px">' +
+      '<span class="subj-badge" style="background:' + item.color + '22;color:' + item.color + '">' + item.label + '</span>' +
+      '<span style="color:#dc2626;font-weight:700;font-size:15px">' + scoreLabel + '</span>' +
+      '</div>';
+  });
+  html += '</div>';
+
+  container.innerHTML = html;
+}
+
 function renderOverview() {
   var activeExams = exams.filter(function(e) {
     return e.scores && Object.values(e.scores).some(function(v) { return Number(v) > 0; });
@@ -670,6 +740,7 @@ function renderOverview() {
       '</table>';
   }
 
+  renderFailingSubjects();
   renderTotalChart();
   renderSubjectRankChart();
 }
