@@ -130,7 +130,7 @@ def reload_via_api(username, api_token):
         try:
             r = requests.post(url, headers={
                 'Authorization': f'Token {api_token}',
-                'User-Agent': 'QoderDeploy/1.0',
+                'User-Agent': 'ToolboxDeploy/1.0',
             }, timeout=10)
             log(f'API响应[{attempt+1}/2]: HTTP {r.status_code}')
             if r.status_code in (200, 202, 204):

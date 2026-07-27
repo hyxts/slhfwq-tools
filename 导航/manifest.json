@@ -1,7 +1,7 @@
 {
-  "name": "个人工具平台",
-  "short_name": "工具台",
-  "description": "个人工具平台导航 - 礼金记录、GPA计算、成绩查询、倒计时、记账、运维管理",
+  "name": "个人工具箱",
+  "short_name": "工具箱",
+  "description": "个人工具箱 - 礼金记录、GPA计算、成绩查询、倒计时、记账、运维管理",
   "start_url": "/nav",
   "display": "standalone",
   "background_color": "#0f172a",
