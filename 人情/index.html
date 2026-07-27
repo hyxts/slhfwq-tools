@@ -453,9 +453,8 @@ function renderDaily(){
 }
 
 async function saveDaily(){
-  showLoading();
   const name=$('dName').value.trim(),amt=parseFloat($('dAmt').value);
-  if(!name||!amt||amt<=0){toast('请填写姓名和金额',1);hideLoading();return;}
+  if(!name||!amt||amt<=0){toast('请填写姓名和金额',1);return;}
   const rid=$('dName').dataset.rid;
   const body={event_id:dailyEventId,name,amount:amt,date:getDate(),note:$('dNote').value.trim(),direction:'送'};
   const url=rid?API+'/records/'+rid:API+'/records';
@@ -463,7 +462,6 @@ async function saveDaily(){
   const res=await fetch(url,{method,headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
   if(res.ok){toast(rid?'已更新':'已保存');resetDailyForm();loadDaily();}
   else{const e=await res.json();toast(e.error||'保存失败',1);}
-  hideLoading();
 }
 
 function resetDailyForm(){
@@ -677,7 +675,6 @@ async function loadEvtDataSilent(){
 
 async function savePage(silent=false){
   if(silent && !_pageDirty){return;} // 无变更则跳过
-  showLoading();
   const inputs=$('pageForm').querySelectorAll('input');
   const rows=[];
   for(let i=0;i<inputs.length;i+=3){
@@ -687,11 +684,11 @@ async function savePage(silent=false){
     if(!name||!amt||amt<=0)continue;
     rows.push({id:parseInt(nameInp.dataset.rid)||0,name,amount:amt,note:noteInp.value.trim()});
   }
-  if(rows.length===0){if(!silent)toast('请至少填写一条完整记录',1);hideLoading();return;}
+  if(rows.length===0){if(!silent)toast('请至少填写一条完整记录',1);return;}
 
   const evt=(isUnarchivedMode?unarchivedEvts:events).find(e=>e.id===selEvtId);
   const defaultDate=evt&&evt.event_date?evt.event_date:'';
-  // 批量保存：一次请求完成整个页面的保存
+  // 非阻塞保存：不遮罩UI，只更新本地数据
   const res=await fetch(API+'/records/batch',{
     method:'POST',headers:{'Content-Type':'application/json'},
     body:JSON.stringify({event_id:selEvtId,batch:selBatch,date:defaultDate,records:rows})
@@ -699,7 +696,7 @@ async function savePage(silent=false){
   const data=await res.json();
   if(!silent)toast(data.success?`保存完成: ${rows.length}条`:`保存失败: ${data.error}`,data.success?0:1);
 
-  // 本地更新 evtRecords，无需全量重新拉取
+  // 本地更新 evtRecords
   for(const r of rows){
     if(r.id){
       const idx=evtRecords.findIndex(x=>x.id===r.id);
@@ -709,9 +706,7 @@ async function savePage(silent=false){
     }
   }
   _pageDirty=false;
-  _refreshLocalNav(); // 本地刷新统计和分页导航
-  renderBatchPage();
-  hideLoading();
+  _refreshLocalNav();    // 仅刷新统计数字和分页导航，不重建表单
 }
 
 function _refreshLocalNav(){

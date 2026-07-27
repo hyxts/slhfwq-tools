@@ -390,7 +390,6 @@ async function loadEvtDataSilent(){
 }
 
 async function savePage(silent=false){
-  showLoading();
   const inputs=$('pageForm').querySelectorAll('input');
   const rows=[];
   for(let i=0;i<inputs.length;i+=3){
@@ -398,24 +397,29 @@ async function savePage(silent=false){
     const name=nameInp.value.trim();
     const amt=parseFloat(amtInp.value);
     if(!name||!amt||amt<=0)continue;
-    rows.push({rid:parseInt(nameInp.dataset.rid)||0,name,amount:amt,note:noteInp.value.trim()});
+    rows.push({id:parseInt(nameInp.dataset.rid)||0,name,amount:amt,note:noteInp.value.trim()});
   }
-  if(rows.length===0){if(!silent)toast('请至少填写一条完整记录',1);hideLoading();return;}
+  if(rows.length===0){if(!silent)toast('请至少填写一条完整记录',1);return;}
 
   const evt=events.find(e=>e.id===selEvtId);
   const defaultDate=evt&&evt.event_date?evt.event_date:'';
-  const results=await Promise.allSettled(rows.map(r=>{
-    const body={event_id:selEvtId,name:r.name,amount:r.amount,note:r.note,direction:'收',batch:selBatch,date:defaultDate};
-    const url=r.rid?API+'/records/'+r.rid:API+'/records';
-    const method=r.rid?'PUT':'POST';
-    return fetch(url,{method,headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
-  }));
-  const okCount=results.filter(r=>r.status==='fulfilled'&&r.value.ok).length;
-  const errCount=results.length-okCount;
-  if(!silent)toast(`保存完成: ${okCount}条成功${errCount>0?`, ${errCount}条失败`:''}`,errCount>0?1:0);
-  await loadEvtDataSilent();
+  // 批量保存
+  const res=await fetch(API+'/records/batch',{
+    method:'POST',headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({event_id:selEvtId,batch:selBatch,date:defaultDate,records:rows})
+  });
+  const data=await res.json();
+  if(!silent)toast(data.success?`保存完成: ${rows.length}条`:`保存失败: ${data.error}`,data.success?0:1);
+  // 本地更新后重新渲染
+  for(const r of rows){
+    if(r.id){
+      const idx=evtRecords.findIndex(x=>x.id===r.id);
+      if(idx>=0){evtRecords[idx].name=r.name;evtRecords[idx].amount=r.amount;evtRecords[idx].note=r.note;}
+    }else{
+      evtRecords.push({id:Date.now(),event_id:selEvtId,name:r.name,amount:r.amount,note:r.note,batch:selBatch,direction:'收',date:defaultDate});
+    }
+  }
   renderBatchPage();
-  hideLoading();
 }
 
 async function toggleLock(){

@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """共享工具函数：时区、时间、日志、数据库连接、密码编码、CSRF提取等"""
-import os, re, sqlite3, base64, hashlib, hmac, json
+import os, re, sqlite3, base64, hashlib, hmac, json, threading, queue
 from datetime import datetime, timedelta, timezone
 
 TZ = timezone(timedelta(hours=8))  # 北京时间 UTC+8
@@ -27,15 +27,31 @@ def _size_str(b):
 
 
 def make_logger(log_file):
-    """返回一个绑定到指定日志文件的日志函数"""
+    """返回一个绑定到指定日志文件的日志函数（异步写入，不阻塞请求响应）"""
+    _log_queue = queue.Queue()
+    _dir_ensured = [False]
+
+    def _writer():
+        while True:
+            msg = _log_queue.get()
+            if msg is None:
+                break
+            try:
+                if not _dir_ensured[0]:
+                    os.makedirs(os.path.dirname(log_file), exist_ok=True)
+                    _dir_ensured[0] = True
+                with open(log_file, 'a', encoding='utf-8') as f:
+                    f.write(msg)
+            except Exception:
+                pass
+
+    t = threading.Thread(target=_writer, daemon=True)
+    t.start()
+
     def _log(msg):
         ts = _now().strftime('%Y-%m-%d %H:%M:%S')
-        try:
-            os.makedirs(os.path.dirname(log_file), exist_ok=True)
-            with open(log_file, 'a', encoding='utf-8') as f:
-                f.write(f'[{ts}] {msg}\n')
-        except Exception:
-            pass
+        _log_queue.put(f'[{ts}] {msg}\n')
+
     return _log
 
 
