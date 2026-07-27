@@ -39,7 +39,7 @@ class TestAppBasics(unittest.TestCase):
         self.assertIn('build', data)
 
     def test_api_health(self):
-        r = self.client.get('/api/deploy-ping')
+        r = self.client.get('/api/ping')
         self.assertEqual(r.status_code, 200)
         data = r.get_json()
         self.assertEqual(data.get('status'), 'ok')
@@ -201,7 +201,7 @@ class TestDeployAPI(unittest.TestCase):
 
     def test_ping_no_token(self):
         """没有 token 也能 ping"""
-        r = self.client.get('/api/deploy-ping')
+        r = self.client.get('/api/ping')
         self.assertEqual(r.status_code, 200)
 
     def test_pull_without_token(self):

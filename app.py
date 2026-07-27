@@ -274,6 +274,11 @@ for mod_name, key in MODULES:
     if bp_obj:
         app.register_blueprint(bp_obj)
 
+_LOADED_MODULES = [name for name, bp in [
+    ('renqing', renqing_bp), ('gpa', gpa_bp), ('hsgrades', hsgrades_bp),
+    ('deploy', deploy_bp), ('backup', backup_bp), ('pa', pa_bp),
+    ('countdown', countdown_bp), ('accounting', accounting_bp),
+] if bp]
 
 # ==================== 全局错误处理 ====================
 
@@ -475,7 +480,7 @@ def api_version():
         'version': '3.8.0',
         'build': '2026-07-27',
         'python': sys.version.split()[0],
-        'modules': [name for name, _, _ in _safe_imports if _]
+        'modules': _LOADED_MODULES
     })
 
 # 定期清理过期速率记录和持久化
