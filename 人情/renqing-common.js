@@ -1,6 +1,18 @@
 // ==================== 礼金系统公共模块 ====================
 // 依赖：页面需先定义 const API='/api/renqing'; const $=id=>document.getElementById(id);
 
+// ==================== API 调用（带重试） ====================
+async function fetchRetry(url, opts={}, retries=3){
+  for(let i=0;i<retries;i++){
+    try{const res=await fetch(url,opts);if(!res.ok)throw new Error(res.status);return res;}
+    catch(e){if(i===retries-1)throw e;await new Promise(r=>setTimeout(r,(i+1)*1000));}
+  }
+}
+async function apiGet(path){const r=await fetchRetry(API+path);return r.json();}
+async function apiPost(path,body){const r=await fetchRetry(API+path,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});return r.json();}
+async function apiPut(path,body){const r=await fetchRetry(API+path,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});return r.json();}
+async function apiDelete(path){const r=await fetchRetry(API+path,{method:'DELETE'});return r.json();}
+
 // ==================== 工具函数 ====================
 function escH(s){const d=document.createElement('div');d.textContent=s;return d.innerHTML;}
 function fmtD(d){return d||'-';}

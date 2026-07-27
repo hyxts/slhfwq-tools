@@ -3,7 +3,7 @@
 Flask 后端（主站）
 适用于 PythonAnywhere 部署
 """
-import os, hashlib, traceback, time as time_mod, threading, sys
+import os, hashlib, traceback, time as time_mod, threading, sys, sqlite3
 from flask import Flask, jsonify, send_from_directory, request, session, redirect
 
 # 启动耗时诊断
@@ -115,11 +115,59 @@ def logout():
 
 DEPLOY_TOKEN = os.environ.get('DEPLOY_TOKEN', 'ce952b9ded0733ed')
 
-# 请求频率限制（简单基于内存）
+# 请求频率限制（基于内存 + SQLite 持久化）
 _rate_limits = {}
 RATE_LIMIT_WINDOW = 60       # 60秒窗口
 RATE_LIMIT_MAX_JSON = 30     # API最大请求数
 RATE_LIMIT_MAX_HTML = 60     # 页面最大请求数
+_RATE_DB_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), '.rate_limits.db')
+_RATE_DB_LOCK = threading.Lock()
+
+def _init_rate_db():
+    """初始化速率限制 SQLite 数据库"""
+    try:
+        with _RATE_DB_LOCK:
+            conn = sqlite3.connect(_RATE_DB_PATH)
+            conn.execute('PRAGMA journal_mode=WAL')
+            conn.execute('CREATE TABLE IF NOT EXISTS ratelimit (ip_window TEXT PRIMARY KEY, count INTEGER, updated REAL)')
+            # 加载已有数据到内存
+            rows = conn.execute('SELECT ip_window, count FROM ratelimit').fetchall()
+            for ip_window, count in rows:
+                _rate_limits[ip_window] = count
+            conn.commit()
+            conn.close()
+            return True
+    except Exception:
+        return False
+
+def _flush_rate_db():
+    """将内存中的速率限制写入 SQLite"""
+    try:
+        with _RATE_DB_LOCK:
+            conn = sqlite3.connect(_RATE_DB_PATH)
+            conn.execute('PRAGMA journal_mode=WAL')
+            now = time_mod.time()
+            # 只写入当前窗口的数据
+            current_window = int(now // RATE_LIMIT_WINDOW)
+            for key, count in list(_rate_limits.items()):
+                try:
+                    key_time = int(key.split(':')[-1])
+                    if key_time >= current_window - 1:
+                        conn.execute(
+                            'INSERT OR REPLACE INTO ratelimit(ip_window, count, updated) VALUES(?,?,?)',
+                            (key, count, now)
+                        )
+                except Exception:
+                    pass
+            # 清理超过 5 分钟的旧记录
+            conn.execute('DELETE FROM ratelimit WHERE updated < ?', (now - 300,))
+            conn.commit()
+            conn.close()
+    except Exception:
+        pass
+
+# 启动时加载持久化数据
+_init_rate_db()
 
 @app.before_request
 def check_auth():
@@ -421,7 +469,16 @@ def _deferred_starts():
 
 threading.Thread(target=_deferred_starts, daemon=True).start()
 
-# 定期清理过期的速率限制记录
+@app.route('/api/version')
+def api_version():
+    return jsonify({
+        'version': '3.8.0',
+        'build': '2026-07-27',
+        'python': sys.version.split()[0],
+        'modules': [name for name, _, _ in _safe_imports if _]
+    })
+
+# 定期清理过期速率记录和持久化
 def _clean_rate_limits():
     while True:
         time_mod.sleep(60)  # 每分钟清理
@@ -441,6 +498,8 @@ def _clean_rate_limits():
                     key=lambda k: int(k.split(':')[-1]) if ':' in k else 0)[:500]
                 for k in old_keys:
                     _rate_limits.pop(k, None)
+            # 持久化当前速率数据到 SQLite
+            _flush_rate_db()
         except Exception:
             pass
 

@@ -390,20 +390,6 @@ function setDate(v){
 </script>
 <script src="/renqing/common.js"></script>
 <script>
-// 带重试的 fetch 封装，应对 PythonAnywhere 冷启动超时
-async function fetchRetry(url, opts={}, retries=3){
-  for(let i=0;i<retries;i++){
-    try{const res=await fetch(url,opts);if(!res.ok)throw new Error(res.status);return res;}
-    catch(e){if(i===retries-1)throw e;await new Promise(r=>setTimeout(r,(i+1)*1000));}
-  }
-}
-
-// 统一 API 调用
-async function apiGet(path){const r=await fetchRetry(API+path);return r.json();}
-async function apiPost(path,body){const r=await fetchRetry(API+path,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});return r.json();}
-async function apiPut(path,body){const r=await fetchRetry(API+path,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});return r.json();}
-async function apiDelete(path){const r=await fetchRetry(API+path,{method:'DELETE'});return r.json();}
-
 // ==================== 导航 ====================
 let curPg='daily';
 document.querySelectorAll('nav button, .bottom-nav button').forEach(b=>{

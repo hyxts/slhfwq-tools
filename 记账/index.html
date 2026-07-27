@@ -404,12 +404,12 @@ function cancelEdit(){
     $('btnSave').textContent='添加记录';
     $('btnCancel').style.display='none';
 }
-async function deleteRecord(id){
-    if(!confirm('确定删除？')) return;
+async function deleteRecord(id, skipConfirm){
+    if(!skipConfirm && !confirm('确定删除？')) return;
     const r=await fetch(API+'/records/'+id,{method:'DELETE'});
     const d=await r.json();
     if(d.success){ showToast('已删除'); loadRecords(); loadAccounts(); }
-    else showToast(d.error||'删除失败');
+    else showToast('删除失败: '+(d.error||'未知错误'));
 }
 
 // ====== 对象管理 ======
@@ -621,15 +621,9 @@ function wrapRecordItems(){
         });
         bg.addEventListener('click',()=>{
             const recId=item.dataset.id;
-            if(recId) doDeleteRecord(recId);
+            if(recId) deleteRecord(recId, true);
         });
     });
-}
-async function doDeleteRecord(id){
-    const r=await fetch(API+'/records/'+id,{method:'DELETE'});
-    const d=await r.json();
-    if(d.success){ loadRecords(); showToast('已删除'); }
-    else showToast('删除失败: '+(d.error||'未知错误'));
 }
 </script>
 </body>

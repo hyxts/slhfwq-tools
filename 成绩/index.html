@@ -10,6 +10,7 @@
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%237c3aed'/%3E%3Crect x='6' y='9' width='16' height='3' rx='1.5' fill='%23fff'/%3E%3Crect x='6' y='14' width='12' height='3' rx='1.5' fill='%23fff'/%3E%3Crect x='6' y='19' width='8' height='3' rx='1.5' fill='%23fff'/%3E%3Ccircle cx='24' cy='22' r='5.5' fill='%23f59e0b'/%3E%3Ctext x='24' y='24' text-anchor='middle' font-size='7' font-weight='700' fill='%23fff' font-family='system-ui,sans-serif'%3EA%3C/text%3E%3C/svg%3E">
 <title>高中成绩</title>
 <style>
+:root{--primary:#7c3aed;--bg:#f0f2f5;--card-bg:#ffffff;--text:#1e293b;--text-secondary:#64748b;--border:#e2e8f0;--shadow:0 2px 8px rgba(0,0,0,.06);--success:#059669;--warning:#d97706;--danger:#dc2626}
 *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent;-webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale}
 html,body{min-height:100vh;width:100%;overflow-x:hidden;-webkit-text-size-adjust:100%}
 body{font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text","Helvetica Neue",Arial,sans-serif;background:#f0f2f5;color:#1e293b;overscroll-behavior:none;-webkit-user-select:none;user-select:none;font-size:15px;line-height:1.5}
@@ -297,143 +298,7 @@ label{display:block;font-size:13px;color:#4b5563;margin-bottom:4px;font-weight:5
       </div>
     </div>
 
-    <!-- 语文 -->
-    <div class="form-section-title">语文</div>
-    <div class="form-row-4">
-      <div class="form-group">
-        <label style="color:#b45309">分数</label>
-        <input type="number" step="0.1" id="s_chinese" onchange="autoCalc()">
-      </div>
-      <div class="form-group">
-        <label style="font-size:11px;color:#94a3b8">区排名</label>
-        <input type="number" id="rd_chinese" >
-      </div>
-      <div class="form-group">
-        <label style="font-size:11px;color:#94a3b8">校排名</label>
-        <input type="number" id="rs_chinese" >
-      </div>
-      <div class="form-group">
-        <label style="font-size:11px;color:#94a3b8">班排名</label>
-        <input type="number" id="rc_chinese" >
-      </div>
-    </div>
-
-    <!-- 数学 -->
-    <div class="form-section-title">数学</div>
-    <div class="form-row-4">
-      <div class="form-group">
-        <label style="color:#60a5fa">分数</label>
-        <input type="number" step="0.1" id="s_math" onchange="autoCalc()">
-      </div>
-      <div class="form-group">
-        <label style="font-size:11px;color:#94a3b8">区排名</label>
-        <input type="number" id="rd_math" >
-      </div>
-      <div class="form-group">
-        <label style="font-size:11px;color:#94a3b8">校排名</label>
-        <input type="number" id="rs_math" >
-      </div>
-      <div class="form-group">
-        <label style="font-size:11px;color:#94a3b8">班排名</label>
-        <input type="number" id="rc_math" >
-      </div>
-    </div>
-
-    <!-- 英语 -->
-    <div class="form-section-title">英语</div>
-    <div class="form-row-4">
-      <div class="form-group">
-        <label style="color:#6d28d9">分数</label>
-        <input type="number" step="0.1" id="s_english" onchange="autoCalc()">
-      </div>
-      <div class="form-group">
-        <label style="font-size:11px;color:#94a3b8">区排名</label>
-        <input type="number" id="rd_english" >
-      </div>
-      <div class="form-group">
-        <label style="font-size:11px;color:#94a3b8">校排名</label>
-        <input type="number" id="rs_english" >
-      </div>
-      <div class="form-group">
-        <label style="font-size:11px;color:#94a3b8">班排名</label>
-        <input type="number" id="rc_english" >
-      </div>
-    </div>
-
-    <!-- 历史 -->
-    <div class="form-section-title">历史</div>
-    <div class="form-row-4">
-      <div class="form-group">
-        <label style="color:#b91c1c">分数</label>
-        <input type="number" step="0.1" id="s_history" onchange="autoCalc()">
-      </div>
-      <div class="form-group">
-        <label style="font-size:11px;color:#94a3b8">区排名</label>
-        <input type="number" id="rd_history" >
-      </div>
-      <div class="form-group">
-        <label style="font-size:11px;color:#94a3b8">校排名</label>
-        <input type="number" id="rs_history" >
-      </div>
-      <div class="form-group">
-        <label style="font-size:11px;color:#94a3b8">班排名</label>
-        <input type="number" id="rc_history" >
-      </div>
-    </div>
-
-    <!-- 政治 -->
-    <div class="form-section-title">政治（总分按赋分计算）</div>
-    <div class="form-row">
-      <div class="form-group">
-        <label style="color:#047857">原始分</label>
-        <input type="number" step="0.1" id="s_politics" onchange="autoCalc()">
-      </div>
-      <div class="form-group">
-        <label style="color:#047857;font-weight:700">赋分</label>
-        <input type="number" step="0.1" id="a_politics" onchange="autoCalc()">
-      </div>
-    </div>
-    <div class="form-row">
-      <div class="form-group">
-        <label style="font-size:11px;color:#94a3b8">区排名</label>
-        <input type="number" id="rd_politics" >
-      </div>
-      <div class="form-group">
-        <label style="font-size:11px;color:#94a3b8">校排名</label>
-        <input type="number" id="rs_politics" >
-      </div>
-      <div class="form-group">
-        <label style="font-size:11px;color:#94a3b8">班排名</label>
-        <input type="number" id="rc_politics" >
-      </div>
-    </div>
-
-    <!-- 地理 -->
-    <div class="form-section-title">地理（总分按赋分计算）</div>
-    <div class="form-row">
-      <div class="form-group">
-        <label style="color:#a5b4fc">原始分</label>
-        <input type="number" step="0.1" id="s_geography" onchange="autoCalc()">
-      </div>
-      <div class="form-group">
-        <label style="color:#a5b4fc;font-weight:700">赋分</label>
-        <input type="number" step="0.1" id="a_geography" onchange="autoCalc()">
-      </div>
-    </div>
-    <div class="form-row">
-      <div class="form-group">
-        <label style="font-size:11px;color:#94a3b8">区排名</label>
-        <input type="number" id="rd_geography" >
-      </div>
-      <div class="form-group">
-        <label style="font-size:11px;color:#94a3b8">校排名</label>
-        <input type="number" id="rs_geography" >
-      </div>
-      <div class="form-group">
-        <label style="font-size:11px;color:#94a3b8">班排名</label>
-        <input type="number" id="rc_geography" >
-      </div>
-    </div>
+    <div id="subjectFormContainer"></div>
 
     <div class="form-actions">
       <button class="btn-gray" onclick="closeExamModal()" style="flex:1">取消</button>
@@ -454,6 +319,36 @@ const SUBJECTS = [
   { key: 'politics', label: '政治', color: '#10b981', assigned: true },
   { key: 'geography', label: '地理', color: '#6366f1', assigned: true }
 ];
+
+// ==================== 动态生成科目表单 ====================
+(function initSubjectForms(){
+  var container = document.getElementById('subjectFormContainer');
+  if(!container) return;
+  var h = '';
+  SUBJECTS.forEach(function(s){
+    var title = s.assigned ? s.label + '（总分按赋分计算）' : s.label;
+    h += '<div class="form-section-title">' + title + '</div>';
+    if(s.assigned){
+      h += '<div class="form-row">';
+      h += '<div class="form-group"><label style="color:' + s.color + '">原始分</label><input type="number" step="0.1" id="s_' + s.key + '" onchange="autoCalc()"></div>';
+      h += '<div class="form-group"><label style="color:' + s.color + ';font-weight:700">赋分</label><input type="number" step="0.1" id="a_' + s.key + '" onchange="autoCalc()"></div>';
+      h += '</div>';
+      h += '<div class="form-row">';
+      h += '<div class="form-group"><label style="font-size:11px;color:#94a3b8">区排名</label><input type="number" id="rd_' + s.key + '"></div>';
+      h += '<div class="form-group"><label style="font-size:11px;color:#94a3b8">校排名</label><input type="number" id="rs_' + s.key + '"></div>';
+      h += '<div class="form-group"><label style="font-size:11px;color:#94a3b8">班排名</label><input type="number" id="rc_' + s.key + '"></div>';
+      h += '</div>';
+    }else{
+      h += '<div class="form-row-4">';
+      h += '<div class="form-group"><label style="color:' + s.color + '">分数</label><input type="number" step="0.1" id="s_' + s.key + '" onchange="autoCalc()"></div>';
+      h += '<div class="form-group"><label style="font-size:11px;color:#94a3b8">区排名</label><input type="number" id="rd_' + s.key + '"></div>';
+      h += '<div class="form-group"><label style="font-size:11px;color:#94a3b8">校排名</label><input type="number" id="rs_' + s.key + '"></div>';
+      h += '<div class="form-group"><label style="font-size:11px;color:#94a3b8">班排名</label><input type="number" id="rc_' + s.key + '"></div>';
+      h += '</div>';
+    }
+  });
+  container.innerHTML = h;
+})();
 
 function showToast(msg, type) {
   var t = document.createElement('div');

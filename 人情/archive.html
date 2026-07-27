@@ -228,14 +228,6 @@ const $=id=>document.getElementById(id);
 </script>
 <script src="/renqing/common.js"></script>
 <script>
-// 带重试的 fetch 封装，应对 PythonAnywhere 冷启动超时
-async function fetchRetry(url, opts={}, retries=3){
-  for(let i=0;i<retries;i++){
-    try{const res=await fetch(url,opts);if(!res.ok)throw new Error(res.status);return res;}
-    catch(e){if(i===retries-1)throw e;await new Promise(r=>setTimeout(r,(i+1)*1000));}
-  }
-}
-async function apiGet(path){const r=await fetchRetry(API+path);return r.json();}
 $('modal').addEventListener('click',e=>{if(e.target===$('modal'))hideModal();});
 
 // ==================== 事件收礼（归档库专用） ====================
