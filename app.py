@@ -119,6 +119,10 @@ RATE_LIMIT_MAX_HTML = 60     # 页面最大请求数
 
 @app.before_request
 def check_auth():
+    # 部署健康检查：最先放行，不走频率限制、认证、任何其他逻辑
+    if request.path == '/api/ping':
+        return
+
     # 频率限制
     client_ip = request.remote_addr or 'unknown'
     path = request.path
@@ -129,15 +133,14 @@ def check_auth():
     limit = RATE_LIMIT_MAX_JSON if path.startswith('/api/') else RATE_LIMIT_MAX_HTML
     if _rate_limits[rate_key] > limit:
         return jsonify({'success': False, 'error': '请求过于频繁'}), 429
-
     # 免登录路径
     PUBLIC_PREFIXES = ('/static', '/countdown', '/accounting', '/renqing/manifest', '/renqing/icon', '/deploy/manifest', '/deploy/icon', '/nav/manifest', '/nav/icon', '/api/accounting', '/api/countdown', '/api/pa/', '/api/status')
-    if request.path in ('/login', '/setup') or any(request.path.startswith(p) for p in PUBLIC_PREFIXES):
+    if request.path in ('/login', '/setup', '/api/ping') or any(request.path.startswith(p) for p in PUBLIC_PREFIXES):
         return
     if session.get('auth'):
         return
     # 部署/续期接口允许令牌认证
-    if request.path in ('/api/git-pull', '/api/status', '/api/restore-db',
+    if request.path in ('/api/git-pull', '/api/status', '/api/ping', '/api/restore-db',
                          '/api/backup/restore-latest', '/api/renqing/db-check') or \
        request.path.startswith('/api/backup/') or \
        request.path.startswith('/api/cleanup'):

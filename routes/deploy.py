@@ -10,6 +10,22 @@ bp = Blueprint('deploy', __name__)
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 START_TIME = datetime.now(TZ)  # 服务启动时间
 
+# 服务启动后的"就绪"时间戳（reload 后延迟记录，用于判断是否已就绪）
+_READY_TS = START_TIME
+
+
+@bp.route('/api/ping')
+def ping():
+    """极轻量健康检查：不连DB、不做任何IO，纯返回启动信息。
+    部署流程用此端点快速判断服务是否已启动就绪。"""
+    delta = (datetime.now(TZ) - _READY_TS).total_seconds()
+    return jsonify({
+        'success': True,
+        'status': 'ok',
+        'uptime_seconds': round(delta, 1),
+        'started_at': _READY_TS.isoformat() if hasattr(_READY_TS, 'isoformat') else str(_READY_TS),
+    })
+
 _STATUS_CACHE = {'data': None, 'timestamp': 0}
 _STATUS_CACHE_LOCK = threading.Lock()
 _STATUS_CACHE_TTL = 300  # 缓存5分钟，避免频繁重建状态
