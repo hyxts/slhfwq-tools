@@ -8,7 +8,7 @@ TZ = timezone(timedelta(hours=8))  # 北京时间 UTC+8
 # 中文/英文目录映射
 FOLDER_MAP = {
     'countdown': '倒计时', 'gpa': '绩点', 'hsgrades': '成绩',
-    'paiban': '排班', 'pa': '服务器', 'renqing': '人情', 'deploy': '部署',
+    'pa': '服务器', 'renqing': '人情', 'deploy': '部署',
     'accounting': '记账',
 }
 
@@ -144,7 +144,7 @@ def decode_pw(encoded, salt_path):
         return ''
 
 
-# === JsonStore：简单 JSON 数据存取（替代 paiban/gpa/hsgrades 重复代码） ===
+# === JsonStore：简单 JSON 数据存取（替代 gpa/hsgrades 重复代码） ===
 
 class JsonStore:
     """通用 JSON 键值存储，基于 SQLite 单表单行"""

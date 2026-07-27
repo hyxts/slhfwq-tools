@@ -172,7 +172,6 @@ def _safe_import_extra(module_name, attrs):
 
 MODULES = [
     ('routes.renqing', 'renqing'),
-    ('routes.paiban', 'paiban'),
     ('routes.gpa', 'gpa'),
     ('routes.hsgrades', 'hsgrades'),
     ('routes.backup', 'backup'),
@@ -189,9 +188,9 @@ prebuild_status = deploy_extra[0] if deploy_extra else None
 if deploy_bp:
     app.register_blueprint(deploy_bp)
 
-renqing_bp = paiban_bp = gpa_bp = hsgrades_bp = None
+renqing_bp = gpa_bp = hsgrades_bp = None
 backup_bp = pa_bp = countdown_bp = accounting_bp = None
-init_renqing_db = init_paiban_db = init_gpa_db = init_hsgrades_db = None
+init_renqing_db = init_gpa_db = init_hsgrades_db = None
 init_pa_db = init_countdown_db = init_accounting_db = None
 start_auto_backup = start_auto_clean = start_auto_renew = None
 
@@ -201,8 +200,6 @@ for mod_name, key in MODULES:
     bp_obj, init_fn = _safe_import(mod_name)
     if key == 'renqing':
         renqing_bp, init_renqing_db = bp_obj, init_fn
-    elif key == 'paiban':
-        paiban_bp, init_paiban_db = bp_obj, init_fn
     elif key == 'gpa':
         gpa_bp, init_gpa_db = bp_obj, init_fn
     elif key == 'hsgrades':
@@ -289,11 +286,6 @@ def renqing_icon_192():
 def renqing_icon_512():
     return send_from_directory('人情', 'icon-512.svg')
 
-@app.route('/paiban')
-@app.route('/paiban/')
-def paiban_index():
-    return send_from_directory('排班', 'index.html')
-
 @app.route('/gpa')
 @app.route('/gpa/')
 def gpa_index():
@@ -365,7 +357,6 @@ def accounting_icon_512():
 _diag('开始初始化数据库...')
 _SAFE_INITS = [
     ('renqing', init_renqing_db),
-    ('paiban', init_paiban_db),
     ('gpa', init_gpa_db),
     ('hsgrades', init_hsgrades_db),
     ('pa', init_pa_db),
@@ -430,7 +421,6 @@ _thread.start()
 
 if __name__ == '__main__':
     print('礼金记录系统: http://127.0.0.1:5000')
-    print('排工考勤系统: http://127.0.0.1:5000/paiban')
     print('GPA系统: http://127.0.0.1:5000/gpa')
     print('高中成绩系统: http://127.0.0.1:5000/hsgrades')
     print('个人记账系统: http://127.0.0.1:5000/accounting')

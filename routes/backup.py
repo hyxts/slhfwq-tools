@@ -18,7 +18,6 @@ MAX_LOG_LINES = 200                # 日志最多保留行数
 # 数据库路径
 DB_PATHS = [
     ('gifts.db', os.path.join(BASE_DIR, '人情', 'gifts.db')),
-    ('paiban.db', os.path.join(BASE_DIR, '排班', 'paiban.db')),
     ('gpa.db', os.path.join(BASE_DIR, '绩点', 'gpa.db')),
     ('hsgrades.db', os.path.join(BASE_DIR, '成绩', 'hsgrades.db')),
     ('countdown.db', os.path.join(BASE_DIR, '倒计时', 'countdown.db')),
@@ -305,7 +304,6 @@ def restore_backup(filename):
     try:
         db_targets = {
             'gifts.db': os.path.join(BASE_DIR, '人情', 'gifts.db'),
-            'paiban.db': os.path.join(BASE_DIR, '排班', 'paiban.db'),
             'gpa.db': os.path.join(BASE_DIR, '绩点', 'gpa.db'),
             'hsgrades.db': os.path.join(BASE_DIR, '成绩', 'hsgrades.db'),
             'countdown.db': os.path.join(BASE_DIR, '倒计时', 'countdown.db'),

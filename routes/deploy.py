@@ -162,8 +162,8 @@ def _build_server_status():
     subdir_sizes = {}  # dname -> bytes
     root_file_sz = 0
     other_dirs = {}  # 不在 STORAGE_DIRS 中的其他目录
-    STORAGE_DIRS_SET = frozenset(['人情', '排班', '绩点', '成绩', '倒计时', '服务器', '记账', '部署'])
-    KNOWN_DB_DIRS = ['人情', '排班', '绩点', '成绩', '倒计时', '服务器', '记账']
+    STORAGE_DIRS_SET = frozenset(['人情', '绩点', '成绩', '倒计时', '服务器', '记账', '部署'])
+    KNOWN_DB_DIRS = ['人情', '绩点', '成绩', '倒计时', '服务器', '记账']
 
     try:
         for entry in os.scandir(BASE_DIR):
@@ -409,7 +409,7 @@ def restore_db():
         if not db_name or not content_b64:
             return jsonify({'success': False, 'error': '缺少 db_name 或 content'}), 400
         # 安全检查：只允许恢复已知的数据库文件
-        allowed_prefixes = ['倒计时/', '绩点/', '成绩/', '排班/', '服务器/', '人情/', '部署/', '记账/']
+        allowed_prefixes = ['倒计时/', '绩点/', '成绩/', '服务器/', '人情/', '部署/', '记账/']
         if not any(db_name.startswith(p) for p in allowed_prefixes):
             return jsonify({'success': False, 'error': f'不允许的路径: {db_name}'}), 403
         if '..' in db_name or db_name.startswith('/'):

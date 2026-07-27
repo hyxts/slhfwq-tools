@@ -302,7 +302,6 @@ def all_logs():
     if module == 'all':
         log_files = {
             '人情': os.path.join(BASE_DIR, '人情', 'renqing.log'),
-            '排班': os.path.join(BASE_DIR, '排班', 'paiban.log'),
             '绩点': os.path.join(BASE_DIR, '绩点', 'gpa.log'),
             '成绩': os.path.join(BASE_DIR, '成绩', 'hsgrades.log'),
             '倒计时': os.path.join(BASE_DIR, '倒计时', 'countdown.log'),

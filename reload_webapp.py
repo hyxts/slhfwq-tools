@@ -12,7 +12,7 @@ try:
 except ImportError:
     FOLDER_MAP = {
         'countdown': '倒计时', 'gpa': '绩点', 'hsgrades': '成绩',
-        'paiban': '排班', 'pa': '服务器', 'renqing': '人情', 'deploy': '部署',
+        'pa': '服务器', 'renqing': '人情', 'deploy': '部署',
     }
     def db_has_data(db_path):
         try:
@@ -318,7 +318,6 @@ def restore_from_backup():
     import zipfile
     db_targets = {
         'gifts.db': os.path.join(BASE_DIR, '人情', 'gifts.db'),
-        'paiban.db': os.path.join(BASE_DIR, '排班', 'paiban.db'),
         'gpa.db': os.path.join(BASE_DIR, '绩点', 'gpa.db'),
         'hsgrades.db': os.path.join(BASE_DIR, '成绩', 'hsgrades.db'),
         'countdown.db': os.path.join(BASE_DIR, '倒计时', 'countdown.db'),
@@ -390,7 +389,7 @@ def show_backup_summary():
             with _zf.ZipFile(zp, 'r') as zz:
                 names = zz.namelist()
                 parts = [f'{len(names)}个文件']
-                for key in ['countdown.db', 'gpa.db', 'gifts.db', 'hsgrades.db', 'paiban.db']:
+                for key in ['countdown.db', 'gpa.db', 'gifts.db', 'hsgrades.db']:
                     if key in names:
                         sz = zz.getinfo(key).file_size
                         parts.append(f'{key}={sz}B')
