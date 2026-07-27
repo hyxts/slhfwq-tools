@@ -622,7 +622,7 @@ function renderBatchPage(){
             if(document.querySelector('.ac-dd.show'))return;
             e.preventDefault();
             if(i+1<inputs.length){inputs[i+1].focus();}
-            else{savePage(true).then(()=>gotoNextPage());}
+            else{gotoNextPage();}
           }
         });
       });
@@ -632,12 +632,12 @@ function renderBatchPage(){
 }
 
 async function gotoNextPage(){
+  // 先保存当前页数据，不管前面页是否还有空行都保存到当前批次
+  await savePage(true);
   const curBatch=selBatch;
   selBatch=curBatch+1;
   _gotoBatch=selBatch;
   renderBatchPage();
-  // 后台静默刷新数据
-  loadEvtDataSilent();
 }
 
 async function loadEvtDataSilent(){
@@ -662,7 +662,8 @@ async function loadEvtDataSilent(){
       $('evtLockBtn').textContent=evt.locked?'解锁':'锁定';
       $('evtArchiveBtn').textContent=evt.archived?'取消归档':'归档';
       const batches=[...new Set(evtRecords.map(r=>r.batch))].sort((a,b)=>a-b);
-      if(!batches.includes(selBatch))selBatch=batches[batches.length-1]||1;
+      if(_gotoBatch!==null){selBatch=_gotoBatch;_gotoBatch=null;}
+      else if(!batches.includes(selBatch))selBatch=batches[batches.length-1]||1;
       const ps=evt.page_size||12;
       $('batchNav').innerHTML=batches.length?batches.map(b=>{
         const br=evtRecords.filter(r=>r.batch===b);
