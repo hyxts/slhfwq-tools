@@ -403,7 +403,7 @@ async function apiGet(path){const r=await fetchRetry(API+path);return r.json();}
 async function apiPost(path,body){const r=await fetchRetry(API+path,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});return r.json();}
 async function apiPut(path,body){const r=await fetchRetry(API+path,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});return r.json();}
 async function apiDelete(path){const r=await fetchRetry(API+path,{method:'DELETE'});return r.json();}
-</script>
+
 // ==================== 导航 ====================
 let curPg='daily';
 document.querySelectorAll('nav button, .bottom-nav button').forEach(b=>{
