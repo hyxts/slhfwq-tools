@@ -183,7 +183,6 @@ MODULES = [
     ('routes.pa', 'pa'),
     ('routes.countdown', 'countdown'),
     ('routes.accounting', 'accounting'),
-    ('routes.service_manager', 'service_manager'),
 ]
 
 # 先导入 deploy（独立容错），确保部署 API 最优先可用
@@ -224,19 +223,6 @@ for mod_name, key in MODULES:
     if bp_obj:
         app.register_blueprint(bp_obj)
 
-# 注册后台服务到服务管理器
-try:
-    from routes.service_manager import register_service
-    if start_auto_renew:
-        register_service('auto_renew', 'PA自动续期', '定时续期PythonAnywhere账号，防止过期', start_auto_renew, default_enabled=True)
-    if start_auto_backup:
-        register_service('auto_backup', '每日数据备份', '每天自动备份所有数据库到backups目录', start_auto_backup, default_enabled=True)
-    if start_auto_clean:
-        register_service('auto_clean', '每周自动清理', '清理日志文件、缓存和废弃目录', start_auto_clean, default_enabled=True)
-except Exception as e:
-    import traceback as _tb
-    _diag(f'服务注册异常: {e}')
-    print(f'[服务注册异常] {e}\n{_tb.format_exc()}', flush=True)
 
 # ==================== 全局错误处理 ====================
 
@@ -413,21 +399,15 @@ def _deferred_starts():
     """延迟启动后台服务和缓存：先让 worker 就绪接受请求，再异步启动"""
     import time as _time
     _time.sleep(3)  # 等待 PA worker 确认就绪
-    # 使用服务管理器：只启动已启用的服务
-    try:
-        from routes.service_manager import auto_start_enabled
-        auto_start_enabled()
-    except Exception as e:
-        _diag(f'[延迟] 服务启动失败: {e}')
-        # 兜底：直接启动（兼容旧逻辑，服务未注册时）
-        for _name, _fn in _SAFE_STARTS:
-            if _fn:
-                try:
-                    _fn()
-                    _diag(f'[延迟] {_name} 启动(兜底)')
-                except Exception as e2:
-                    _diag(f'[延迟] {_name} 失败: {e2}')
-    _diag('[延迟] 后台服务启动完毕')
+    for _name, _fn in _SAFE_STARTS:
+        if _fn:
+            try:
+                _fn()
+                _diag(f'[延迟] {_name} 启动')
+            except Exception as e:
+                _diag(f'[延迟] {_name} 失败: {e}')
+    else:
+        _diag(f'[延迟] 后台服务启动完毕')
     if prebuild_status:
         try:
             prebuild_status()

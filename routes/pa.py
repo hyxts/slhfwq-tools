@@ -620,12 +620,10 @@ def _renew_thread(username, password, api_token=''):
             _status['running'] = False
 
 
-def _auto_renew_thread(stop_event=None):
+def _auto_renew_thread():
     """基于上次成功续期时间 + 周期判断，自适应检查间隔"""
-    from .service_manager import sleep_check
     # 启动后先等待60秒，让服务完全就绪，避免网页抓取影响首次请求响应
-    if sleep_check(stop_event, 60):
-        return
+    time_mod.sleep(60)
     while True:
         try:
             cfg = _load_config()
@@ -688,16 +686,14 @@ def _auto_renew_thread(stop_event=None):
                     _log('[检查] 未配置账号或认证方式')
                     sleep_sec = 86400  # 未配置，24小时后再检查
 
-            if sleep_check(stop_event, sleep_sec):
-                return
+            time_mod.sleep(sleep_sec)
         except Exception as e:
             ts = _now().strftime('%Y-%m-%d %H:%M:%S')
             print(f'[{ts}] PA自动续期检查异常: {e}')
             _log(f'[错误] 自动续期检查异常: {e}')
-            if sleep_check(stop_event, 86400):
-                return
+            time_mod.sleep(86400)
 
 
-def start_auto_renew(stop_event=None):
-    t = threading.Thread(target=_auto_renew_thread, args=(stop_event,), daemon=True)
+def start_auto_renew():
+    t = threading.Thread(target=_auto_renew_thread, daemon=True)
     t.start()
