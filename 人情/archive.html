@@ -227,14 +227,23 @@ const API='/api/renqing';
 const $=id=>document.getElementById(id);
 </script>
 <script src="/renqing/common.js"></script>
-<script>$('modal').addEventListener('click',e=>{if(e.target===$('modal'))hideModal();});
+<script>
+// 带重试的 fetch 封装，应对 PythonAnywhere 冷启动超时
+async function fetchRetry(url, opts={}, retries=3){
+  for(let i=0;i<retries;i++){
+    try{const res=await fetch(url,opts);if(!res.ok)throw new Error(res.status);return res;}
+    catch(e){if(i===retries-1)throw e;await new Promise(r=>setTimeout(r,(i+1)*1000));}
+  }
+}
+async function apiGet(path){const r=await fetchRetry(API+path);return r.json();}
+$('modal').addEventListener('click',e=>{if(e.target===$('modal'))hideModal();});
 
 // ==================== 事件收礼（归档库专用） ====================
 let events=[],unarchivedEvts=[],selEvtId=null,selBatch=null,evtRecords=[],_gotoBatch=null,isUnarchivedMode=false;
 
 async function loadEvents(){
   try{
-    const allEvts=await fetch(API+'/events').then(r=>r.json());
+    const allEvts=await apiGet('/events');
     const nonDaily=allEvts.filter(e=>e.event_type!=='日常');
     events=nonDaily.filter(e=>e.archived);
     unarchivedEvts=nonDaily.filter(e=>!e.archived);
@@ -267,16 +276,17 @@ async function loadEventDetail(){
   $('evtLockBtn').textContent=evt.locked?'解锁':'锁定';
   $('evtArchiveBtn').textContent='取消归档';
 
-  const [recs, allEvts]=await Promise.all([
-    fetch(API+'/records?event_id='+selEvtId).then(r=>r.json()),
-    fetch(API+'/events').then(r=>r.json())
-  ]);
+  let recs=[],allEvts=[];
+  try{recs=await apiGet('/records?event_id='+selEvtId);}catch(e){}
+  try{allEvts=await apiGet('/events');}catch(e){}
   evtRecords=recs;
-  const nonDaily=allEvts.filter(e=>e.event_type!=='日常');
-  events=nonDaily.filter(e=>e.archived);
-  unarchivedEvts=nonDaily.filter(e=>!e.archived);
-  renderEvtGrid();
-  const refreshed=events.find(e=>e.id===selEvtId);
+  if(allEvts.length){
+    const nonDaily=allEvts.filter(e=>e.event_type!=='日常');
+    events=nonDaily.filter(e=>e.archived);
+    unarchivedEvts=nonDaily.filter(e=>!e.archived);
+    renderEvtGrid();
+  }
+  const refreshed=events.find(e=>e.id===selEvtId)||evt;
 
   const total=evtRecords.reduce((s,r)=>s+(r.amount||0),0);
   const isDaily=(refreshed||evt).event_type==='日常'||(refreshed||evt).name==='流水';
@@ -365,12 +375,15 @@ function renderBatchPage(){
 
 async function loadEvtDataSilent(){
   try{
-    evtRecords=await fetch(API+'/records?event_id='+selEvtId).then(r=>r.json());
-    const allEvts=await fetch(API+'/events').then(r=>r.json());
+    evtRecords=await apiGet('/records?event_id='+selEvtId);
+    let allEvts=[];
+    try{allEvts=await apiGet('/events');}catch(e){}
+    if(allEvts.length){
     const nonDaily=allEvts.filter(e=>e.event_type!=='日常');
     events=nonDaily.filter(e=>e.archived);
     unarchivedEvts=nonDaily.filter(e=>!e.archived);
     renderEvtGrid();
+    }
     const evt=events.find(e=>e.id===selEvtId);
     if(evt){
       const total=evtRecords.reduce((s,r)=>s+(r.amount||0),0);
@@ -431,7 +444,7 @@ async function toggleLock(){
   const res=await fetch(API+'/events/'+selEvtId+'/lock',{method:'POST'});
   if(res.ok){
     toast('已切换锁定状态');
-    const allEvts=await fetch(API+'/events').then(r=>r.json());
+    const allEvts=await apiGet('/events');
     const nonDaily=allEvts.filter(e=>e.event_type!=='日常');
     events=nonDaily.filter(e=>e.archived);
     unarchivedEvts=nonDaily.filter(e=>!e.archived);
@@ -439,7 +452,7 @@ async function toggleLock(){
     const evt=events.find(e=>e.id===selEvtId);
     if(evt){
       $('evtLockBtn').textContent=evt.locked?'解锁':'锁定';
-      evtRecords=await fetch(API+'/records?event_id='+selEvtId).then(r=>r.json());
+      evtRecords=await apiGet('/records?event_id='+selEvtId);
       $('evtTitle').innerHTML=`${escH(evt.name)} <span style="font-size:12px;color:#999">(${escH(evtTypeLabel(evt.event_type))}${evt.event_date?' | '+evt.event_date:''})</span>`;
       renderBatchPage();
     }
@@ -534,11 +547,11 @@ let dailyRecords=[],dailyEventId=null,selDailyYear=null;
 
 async function loadDailyArchive(){
   try{
-    const evts=await fetch(API+'/events').then(r=>r.json());
+    const evts=await apiGet('/events');
     const dailyEvt=evts.find(e=>e.event_type==='日常'||e.name==='流水');
     if(!dailyEvt){$('dailyYearGrid').innerHTML='<div class="empty-hint">暂无日常随礼数据</div>';return;}
     dailyEventId=dailyEvt.id;
-    dailyRecords=await fetch(API+'/records?event_id='+dailyEventId).then(r=>r.json());
+    dailyRecords=await apiGet('/records?event_id='+dailyEventId);
     dailyRecords=dailyRecords.filter(r=>!r.direction||r.direction==='送');
     renderDailyYears();
   }catch(e){$('dailyYearGrid').innerHTML='<div class="empty-hint">加载失败</div>';}

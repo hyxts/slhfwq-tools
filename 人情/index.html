@@ -390,6 +390,20 @@ function setDate(v){
 </script>
 <script src="/renqing/common.js"></script>
 <script>
+// 带重试的 fetch 封装，应对 PythonAnywhere 冷启动超时
+async function fetchRetry(url, opts={}, retries=3){
+  for(let i=0;i<retries;i++){
+    try{const res=await fetch(url,opts);if(!res.ok)throw new Error(res.status);return res;}
+    catch(e){if(i===retries-1)throw e;await new Promise(r=>setTimeout(r,(i+1)*1000));}
+  }
+}
+
+// 统一 API 调用
+async function apiGet(path){const r=await fetchRetry(API+path);return r.json();}
+async function apiPost(path,body){const r=await fetchRetry(API+path,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});return r.json();}
+async function apiPut(path,body){const r=await fetchRetry(API+path,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});return r.json();}
+async function apiDelete(path){const r=await fetchRetry(API+path,{method:'DELETE'});return r.json();}
+</script>
 // ==================== 导航 ====================
 let curPg='daily';
 document.querySelectorAll('nav button, .bottom-nav button').forEach(b=>{
@@ -424,14 +438,14 @@ $('dNote').addEventListener('keydown',e=>{
 
 async function loadDaily(){
   try{
-    const evts=await fetch(API+'/events').then(r=>r.json());
+    const evts=await apiGet('/events');
     const dailyEvt=evts.find(e=>e.event_type==='日常'||e.name==='流水');
     if(!dailyEvt){$('dYearTabs').innerHTML='';$('dSummary').innerHTML='';$('dList').innerHTML='<tr><td colspan="5" style="text-align:center;padding:20px;color:#999">暂无日常事件</td></tr>';return;}
     dailyEventId=dailyEvt.id;
     dailyLocked=dailyEvt.locked;
     $('dLockBtn').textContent=dailyLocked?'解锁':'锁定';
 
-    const recs=await fetch(API+'/records?event_id='+dailyEventId).then(r=>r.json());
+    const recs=await apiGet('/records?event_id='+dailyEventId);
     dailyRecords=recs.filter(r=>!r.direction||r.direction==='送');
 
     dailyYear=new Date().getFullYear().toString();
@@ -502,7 +516,7 @@ let events=[],unarchivedEvts=[],selEvtId=null,selBatch=null,evtRecords=[],_gotoB
 
 async function loadEvents(){
   try{
-    const allEvts=await fetch(API+'/events').then(r=>r.json());
+    const allEvts=await apiGet('/events');
     const nonDaily=allEvts.filter(e=>e.event_type!=='日常');
     events=nonDaily.filter(e=>e.archived);
     unarchivedEvts=nonDaily.filter(e=>!e.archived);
@@ -513,7 +527,7 @@ async function loadEvents(){
     const stillExists=merged.find(e=>e.id===selEvtId);
     if(stillExists)loadEventDetail();
     else{$('evtDetail').style.display='none';selEvtId=null;}
-  }catch(e){toast('加载事件列表失败',1);}
+  }catch(e){toast('加载事件列表失败，请刷新重试',1);}
 }
 
 function renderEvtGrid(){/* 已归档事件移至归档库页面 */}
@@ -542,19 +556,20 @@ async function loadEventDetail(){
   $('evtLockBtn').textContent=evt.locked?'解锁':'锁定';
   $('evtArchiveBtn').textContent=evt.archived?'取消归档':'归档';
 
-  // 并行加载记录和最新事件列表
-  const [recs, allEvts]=await Promise.all([
-    fetch(API+'/records?event_id='+selEvtId).then(r=>r.json()),
-    fetch(API+'/events').then(r=>r.json())
-  ]);
+  // 并行加载记录和最新事件列表（分开捕获错误，一个失败不拖累另一个）
+  let recs=[],allEvts=[];
+  try{recs=await apiGet('/records?event_id='+selEvtId);}catch(e){}
+  try{allEvts=await apiGet('/events');}catch(e){}
   evtRecords=recs;
-  const nonDaily=allEvts.filter(e=>e.event_type!=='日常');
-  events=nonDaily.filter(e=>e.archived);
-  unarchivedEvts=nonDaily.filter(e=>!e.archived);
-  renderEvtGrid();
-  renderUnarchivedGrid();
-  // 更新当前事件引用（在正确的列表中查找）
-  const refreshed=(isUnarchivedMode?unarchivedEvts:events).find(e=>e.id===selEvtId);
+  if(allEvts.length){
+    const nonDaily=allEvts.filter(e=>e.event_type!=='日常');
+    events=nonDaily.filter(e=>e.archived);
+    unarchivedEvts=nonDaily.filter(e=>!e.archived);
+    renderEvtGrid();
+    renderUnarchivedGrid();
+  }
+  // 更新当前事件引用（在正确的列表中查找，找不到则用传入的evt兜底）
+  const refreshed=(isUnarchivedMode?unarchivedEvts:events).find(e=>e.id===selEvtId)||evt;
 
   // 统计
   const total=evtRecords.reduce((s,r)=>s+(r.amount||0),0);
@@ -658,14 +673,17 @@ async function gotoNextPage(){
 
 async function loadEvtDataSilent(){
   try{
-    evtRecords=await fetch(API+'/records?event_id='+selEvtId).then(r=>r.json());
-    const allEvts=await fetch(API+'/events').then(r=>r.json());
-    const nonDaily=allEvts.filter(e=>e.event_type!=='日常');
-    events=nonDaily.filter(e=>e.archived);
-    unarchivedEvts=nonDaily.filter(e=>!e.archived);
-    renderEvtGrid();
-    renderUnarchivedGrid();
-    // 更新统计面板（无需重新渲染整个 detail），在正确的列表中查找
+    evtRecords=await apiGet('/records?event_id='+selEvtId);
+    let allEvts=[];
+    try{allEvts=await apiGet('/events');}catch(e){}
+    if(allEvts.length){
+      const nonDaily=allEvts.filter(e=>e.event_type!=='日常');
+      events=nonDaily.filter(e=>e.archived);
+      unarchivedEvts=nonDaily.filter(e=>!e.archived);
+      renderEvtGrid();
+      renderUnarchivedGrid();
+    }
+    // 更新统计面板，在正确的列表中查找
     const evt=(isUnarchivedMode?unarchivedEvts:events).find(e=>e.id===selEvtId);
     if(evt){
       const total=evtRecords.reduce((s,r)=>s+(r.amount||0),0);
@@ -749,8 +767,8 @@ async function toggleLock(){
   const res=await fetch(API+'/events/'+selEvtId+'/lock',{method:'POST'});
   if(res.ok){
     toast('已切换锁定状态');
-    // 只需刷新事件列表+轻量更新当前详情，避免全量 reload
-    const allEvts=await fetch(API+'/events').then(r=>r.json());
+    // 只刷新事件列表+轻量更新当前详情，避免全量 reload
+    const allEvts=await apiGet('/events');
     const nonDaily=allEvts.filter(e=>e.event_type!=='日常');
     events=nonDaily.filter(e=>e.archived);
     unarchivedEvts=nonDaily.filter(e=>!e.archived);
@@ -759,8 +777,7 @@ async function toggleLock(){
     const evt=(isUnarchivedMode?unarchivedEvts:events).find(e=>e.id===selEvtId);
     if(evt){
       $('evtLockBtn').textContent=evt.locked?'解锁':'锁定';
-      // 锁定/解锁需要重新渲染礼薄以切换只读/编辑模式
-      evtRecords=await fetch(API+'/records?event_id='+selEvtId).then(r=>r.json());
+      evtRecords=await apiGet('/records?event_id='+selEvtId);
       $('evtTitle').innerHTML=`${escH(evt.name)} <span style="font-size:12px;color:#999">(${escH(evtTypeLabel(evt.event_type))}${evt.event_date?' | '+evt.event_date:''})</span>`;
       renderBatchPage();
     }
@@ -852,7 +869,7 @@ async function deleteEvt(){
 // ==================== 数据总览 ====================
 async function loadStats(){
   try{
-    const dash=await fetch(API+'/dashboard').then(r=>r.json());
+    const dash=await apiGet('/dashboard');
     const ov=dash.overview;
     $('sSummary').innerHTML=`
       <div class="stat-card"><div class="slabel">总收到</div><div class="svalue">${fmtA(ov.total_rec)} 元</div></div>
@@ -865,7 +882,7 @@ async function loadStats(){
       <td>${escH(evtTypeLabel(e.event_type))}</td><td>${e.record_count}</td><td class="amt">${fmtA(e.total_amount)}</td>
     </tr>`).join('');
 
-    const bal=await fetch(API+'/balance').then(r=>r.json());
+    const bal=await apiGet('/balance');
     const oweThem=bal.owe_them||[],oweMe=bal.owe_me||[],even=bal.even||[];
     const all=[...oweThem.map(x=>({...x,label:'我欠对方'})),...oweMe.map(x=>({...x,label:'对方欠我'})),...even.map(x=>({...x,label:'持平'}))];
     $('sBalTable').innerHTML=all.length?all.map(x=>`<tr>
@@ -892,7 +909,7 @@ async function loadPersonDetail(){
   const box=$('sPersonDetail');
   if(!name){box.innerHTML='';return;}
   try{
-    const d=await fetch(API+'/person?name='+encodeURIComponent(name)).then(r=>r.json());
+    const d=await apiGet('/person?name='+encodeURIComponent(name));
     if(!d||!d.name){box.innerHTML='<div style="color:#999;padding:8px">未找到该人员记录</div>';return;}
     const net=d.total_rec-d.total_send;
     const tag=net>0?'我欠对方':net<0?'对方欠我':'持平';
