@@ -40,6 +40,13 @@ DEFAULT_COURSES_SEM1 = [
 ]
 
 
+def _safe_json_load(val, default=None):
+    """安全解析 JSON，失败时返回默认值"""
+    if not val: return default or []
+    try: return json.loads(val)
+    except (json.JSONDecodeError, TypeError): return default or []
+
+
 def init_db():
     try:
         os.makedirs(os.path.dirname(GPA_DB_PATH), exist_ok=True)
@@ -57,9 +64,8 @@ def init_db():
                           json.dumps(DEFAULT_COURSES_SEM1, ensure_ascii=False)))
         else:
             changed = False
-            try: cur_courses = json.loads(existing[2] or '[]')
-            except (json.JSONDecodeError, TypeError): cur_courses = []
-            has_sem1 = any(c.get('semesterId') == 'sem-1' for c in cur_courses if isinstance(c, dict))
+        cur_courses = _safe_json_load(existing[2])
+        has_sem1 = any(c.get('semesterId') == 'sem-1' for c in cur_courses if isinstance(c, dict))
             if not has_sem1:
                 cur_courses.extend(DEFAULT_COURSES_SEM1)
                 changed = True
@@ -77,19 +83,14 @@ def init_db():
 
 @bp.route('/api/gpa/data', methods=['GET'])
 def get_data():
-    conn = None
+    conn = _get_db()
     try:
-        conn = _get_db()
         row = conn.execute('SELECT id, semesters, courses, updated_at FROM gpa_data LIMIT 1').fetchone()
         if not row:
             return jsonify({'success': False, 'error': '无数据'}), 404
-        try: cur_courses = json.loads(row[2] or '[]')
-        except (json.JSONDecodeError, TypeError): cur_courses = []
-        try: cur_semesters = json.loads(row[1] or '[]')
-        except (json.JSONDecodeError, TypeError): cur_semesters = []
         return jsonify({'success': True, 'data': {
-            'semesters': cur_semesters,
-            'courses': cur_courses,
+            'semesters': _safe_json_load(row[1]),
+            'courses': _safe_json_load(row[2]),
             'updated_at': row[3]
         }})
     except Exception as e:
@@ -97,35 +98,27 @@ def get_data():
         print(f'[gpa_get_data ERROR] {e}\n{traceback.format_exc()}', flush=True)
         return jsonify({'success': False, 'error': '服务器错误'}), 500
     finally:
-        if conn:
-            conn.close()
+        conn.close()
 
 
 @bp.route('/api/gpa/data', methods=['POST'])
 def save_data():
     data = request.get_json(silent=True) or {}
-    # 防止意外覆盖：至少需要明确传入数据字段
     if 'semesters' not in data and 'courses' not in data:
         return jsonify({'success': False, 'error': '缺少数据'}), 400
-    conn = None
+    conn = _get_db()
     try:
-        conn = _get_db()
-        parts = []
-        params = []
-        if 'semesters' in data:
-            parts.append("semesters = ?")
-            params.append(json.dumps(data.get('semesters', []), ensure_ascii=False))
-        if 'courses' in data:
-            parts.append("courses = ?")
-            params.append(json.dumps(data.get('courses', []), ensure_ascii=False))
-        parts.append("updated_at = datetime('now','localtime')")
-        conn.execute(f"UPDATE gpa_data SET {', '.join(parts)}", params)
+        sets, vals = [], []
+        for field in ('semesters', 'courses'):
+            if field in data:
+                sets.append(f'{field} = ?')
+                vals.append(json.dumps(data.get(field, []), ensure_ascii=False))
+        conn.execute(f"UPDATE gpa_data SET {', '.join(sets)}, updated_at = datetime('now','localtime')", vals)
         conn.commit()
         _log(f'保存GPA数据: {len(data.get("semesters",[]))}学期 {len(data.get("courses",[]))}课程')
         return jsonify({'success': True})
     finally:
-        if conn:
-            conn.close()
+        conn.close()
 
 
 @bp.route('/api/gpa/manifest')

@@ -20,6 +20,13 @@ DEFAULT_EXAMS = [
 ]
 
 
+def _safe_json_load(val, default=None):
+    """安全解析 JSON"""
+    if not val: return default or []
+    try: return json.loads(val)
+    except (json.JSONDecodeError, TypeError): return default or []
+
+
 def init_db():
     try:
         os.makedirs(os.path.dirname(HSGRADES_DB_PATH), exist_ok=True)
@@ -34,12 +41,10 @@ def init_db():
             conn.execute('INSERT INTO hsgrades_data (exams) VALUES (?)',
                          (json.dumps(DEFAULT_EXAMS, ensure_ascii=False),))
         else:
-            try: cur_exams = json.loads(existing[1] or '[]')
-            except (json.JSONDecodeError, TypeError): cur_exams = []
+            cur_exams = _safe_json_load(existing[1])
             if len(cur_exams) == 0:
-                cur_exams = list(DEFAULT_EXAMS)
-                conn.execute('''UPDATE hsgrades_data SET exams = ?, updated_at = datetime('now','localtime')''',
-                             (json.dumps(cur_exams, ensure_ascii=False),))
+                conn.execute("UPDATE hsgrades_data SET exams = ?, updated_at = datetime('now','localtime')",
+                             (json.dumps(DEFAULT_EXAMS, ensure_ascii=False),))
         conn.commit()
         conn.close()
     except Exception as e:
@@ -49,21 +54,18 @@ def init_db():
 
 @bp.route('/api/hsgrades/data', methods=['GET'])
 def get_data():
-    conn = None
+    conn = _get_db()
     try:
-        conn = _get_db()
         row = conn.execute('SELECT id, exams FROM hsgrades_data LIMIT 1').fetchone()
         if not row:
             return jsonify({'success': False, 'error': '无数据'}), 404
-        data = json.loads(row[1] or '[]')
-        return jsonify({'success': True, 'data': {'exams': data}})
+        return jsonify({'success': True, 'data': {'exams': _safe_json_load(row[1])}})
     except Exception as e:
         import traceback
         print(f'[hsgrades_get_data ERROR] {e}\n{traceback.format_exc()}', flush=True)
         return jsonify({'success': False, 'error': '服务器错误'}), 500
     finally:
-        if conn:
-            conn.close()
+        conn.close()
 
 
 @bp.route('/api/hsgrades/data', methods=['POST'])
@@ -71,19 +73,15 @@ def save_data():
     data = request.get_json(silent=True) or {}
     if 'exams' not in data:
         return jsonify({'success': False, 'error': '缺少数据'}), 400
-    conn = None
+    conn = _get_db()
     try:
-        conn = _get_db()
-        conn.execute('''UPDATE hsgrades_data SET
-            exams = ?,
-            updated_at = datetime('now','localtime')
-        ''', (json.dumps(data.get('exams', []), ensure_ascii=False),))
+        conn.execute("UPDATE hsgrades_data SET exams = ?, updated_at = datetime('now','localtime')",
+                     (json.dumps(data.get('exams', []), ensure_ascii=False),))
         conn.commit()
         _log(f'保存成绩数据: {len(data.get("exams",[]))}场考试')
         return jsonify({'success': True})
     finally:
-        if conn:
-            conn.close()
+        conn.close()
 
 
 # ==================== PWA ====================

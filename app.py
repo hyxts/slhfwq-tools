@@ -462,8 +462,7 @@ def _deferred_starts():
                 _diag(f'[延迟] {_name} 启动')
             except Exception as e:
                 _diag(f'[延迟] {_name} 失败: {e}')
-    else:
-        _diag(f'[延迟] 后台服务启动完毕')
+    _diag(f'[延迟] 后台服务启动完毕')
     if prebuild_status:
         try:
             prebuild_status()

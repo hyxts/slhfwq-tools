@@ -210,21 +210,17 @@ def list_events():
         rows = c.execute('''SELECT e.*,COUNT(r.id) as record_count,COALESCE(SUM(r.amount),0) as total_amount
             FROM events e LEFT JOIN records r ON e.id=r.event_id GROUP BY e.id ORDER BY CASE WHEN e.event_type='日常' THEN 0 ELSE 1 END, e.event_date DESC, e.id DESC''').fetchall()
         events = [dict(r) for r in rows]
-        # 批次统计
+        # 批次统计：一次 SQL 完成所有事件的 batch_stats
         eids = [e['id'] for e in events]
+        bm = {}
         if eids:
-            ph = ','.join('?' for _ in eids)
             br = c.execute(f'''SELECT event_id, batch, COUNT(*) as cnt, SUM(amount) as total
-                FROM records WHERE event_id IN ({ph}) AND batch IS NOT NULL
+                FROM records WHERE event_id IN ({','.join('?' for _ in eids)}) AND batch IS NOT NULL
                 GROUP BY event_id, batch ORDER BY event_id, batch''', eids).fetchall()
-            bm = {}
             for b in br:
                 bm.setdefault(b['event_id'], []).append({'batch': b['batch'], 'cnt': b['cnt'], 'total': b['total']})
-            for e in events:
-                e['batch_stats'] = bm.get(e['id'], [])
-        else:
-            for e in events:
-                e['batch_stats'] = []
+        for e in events:
+            e['batch_stats'] = bm.get(e['id'], [])
         return jsonify(events)
     finally:
         c.close()
@@ -276,34 +272,28 @@ def update_event(eid):
         except: pass
 
 
-@bp.route('/events/<int:eid>/lock', methods=['POST'])
-def toggle_lock(eid):
+def _toggle_event_flag(eid, field, label_map):
     c = _get_db()
     try:
-        r = c.execute("SELECT locked FROM events WHERE id=?", (eid,)).fetchone()
+        r = c.execute(f"SELECT {field} FROM events WHERE id=?", (eid,)).fetchone()
         if not r: return jsonify({'success': False, 'error': '不存在'}), 404
-        new_lock = 0 if r['locked'] else 1
-        c.execute("UPDATE events SET locked=? WHERE id=?", (new_lock, eid))
+        new_val = 0 if r[field] else 1
+        c.execute(f"UPDATE events SET {field}=? WHERE id=?", (new_val, eid))
         c.commit()
-        _log(f'{"锁定" if new_lock else "解锁"}事件: ID:{eid}')
-        return jsonify({'success': True})
+        _log(f'{label_map.get(new_val, "切换")}事件: ID:{eid}')
+        return jsonify({'success': True, field: bool(new_val)})
     finally:
         c.close()
+
+
+@bp.route('/events/<int:eid>/lock', methods=['POST'])
+def toggle_lock(eid):
+    return _toggle_event_flag(eid, 'locked', {0: '解锁', 1: '锁定'})
 
 
 @bp.route('/events/<int:eid>/archive', methods=['POST'])
 def toggle_archive(eid):
-    c = _get_db()
-    try:
-        r = c.execute("SELECT archived FROM events WHERE id=?", (eid,)).fetchone()
-        if not r: return jsonify({'success': False, 'error': '不存在'}), 404
-        new_archive = 0 if r['archived'] else 1
-        c.execute("UPDATE events SET archived=? WHERE id=?", (new_archive, eid))
-        c.commit()
-        _log(f'{"归档" if new_archive else "取消归档"}事件: ID:{eid}')
-        return jsonify({'success': True, 'archived': bool(new_archive)})
-    finally:
-        c.close()
+    return _toggle_event_flag(eid, 'archived', {0: '取消归档', 1: '归档'})
 
 
 @bp.route('/events/<int:eid>', methods=['DELETE'])
@@ -336,11 +326,11 @@ def list_records():
         if eid: q += ' AND r.event_id=?'; p.append(eid)
         s = request.args.get('search')
         if s: q += ' AND (r.name LIKE ? OR r.note LIKE ?)'; p += [f'%{s}%']*2
-        evt_name = None
+        is_flow = False
         if eid:
             evt = c.execute('SELECT name, event_type FROM events WHERE id=?', (eid,)).fetchone()
-            if evt: evt_name = evt['name']
-        if evt_name and (evt_name == '流水' or evt['event_type'] == '日常'):
+            if evt: is_flow = (evt['name'] == '流水' or evt['event_type'] == '日常')
+        if is_flow:
             q += ' ORDER BY r.batch DESC, r.date DESC NULLS LAST, r.id DESC'
         else:
             q += ' ORDER BY r.batch ASC, r.id ASC'

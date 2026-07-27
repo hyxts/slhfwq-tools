@@ -30,9 +30,8 @@ _get_db = make_db(DB_FILE)
 
 def init_db():
     os.makedirs(CD_DIR, exist_ok=True)
-    conn = None
+    conn = _get_db()
     try:
-        conn = _get_db()
         conn.execute('''CREATE TABLE IF NOT EXISTS events (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             name TEXT NOT NULL,
@@ -47,15 +46,13 @@ def init_db():
             created_at TEXT DEFAULT (datetime('now','localtime')),
             updated_at TEXT DEFAULT (datetime('now','localtime'))
         )''')
-        # 为旧表补充新字段（先查已有列名再决定是否 ALTER，避免异常驱动）
         existing_cols = set(r[1] for r in conn.execute("PRAGMA table_info(events)").fetchall())
         for col, defval in [('display_mode', "'full'"), ('category', "'custom'")]:
             if col not in existing_cols:
                 conn.execute(f"ALTER TABLE events ADD COLUMN {col} TEXT DEFAULT {defval}")
         conn.commit()
     finally:
-        if conn:
-            conn.close()
+        conn.close()
 
 
 # ==================== 农历公历转换 ====================
@@ -280,16 +277,15 @@ def list_events():
                 exact_age, int_age = calc_age(solar_date, cal_type)
 
             # 日期描述
-            date_desc = ''
             if repeat_annual:
+                leap_prefix = '闰' if (cal_type == 'lunar' and is_leap) else ''
                 if cal_type == 'lunar':
-                    leap_str = '闰' if is_leap else ''
-                    date_desc = f'每年农历{leap_str}{e["month"]}月{e["day"]}日'
+                    date_desc = f'每年农历{leap_prefix}{e["month"]}月{e["day"]}日'
                 else:
                     date_desc = f'每年{e["month"]}月{e["day"]}日'
             elif cal_type == 'lunar':
-                leap_str = '闰' if is_leap else ''
-                date_desc = f'农历{leap_str}{e["month"]}月{e["day"]}日'
+                leap_prefix = '闰' if is_leap else ''
+                date_desc = f'农历{leap_prefix}{e["month"]}月{e["day"]}日'
                 if HAS_LUNAR and this_year_date:
                     date_desc += f'（{this_year_date.strftime("%Y-%m-%d")}）'
             else:

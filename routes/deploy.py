@@ -43,15 +43,12 @@ def _find_wsgi_file():
 
 def _needs_reload(changed_files):
     """检查变更文件列表中是否有 Python 文件（需要重启才能生效）"""
-    PY_EXTS = ('.py',)
-    STATIC_EXTS = ('.html', '.css', '.js', '.svg', '.png', '.jpg', '.json', '.md', '.txt', '.ico')
-    has_py = False
-    has_static = False
+    STATIC_EXTS = {'.html', '.css', '.js', '.svg', '.png', '.jpg', '.json', '.md', '.txt', '.ico'}
+    has_py = has_static = False
     for f in changed_files:
         f = f.strip()
-        if not f:
-            continue
-        if f.endswith(PY_EXTS):
+        if not f: continue
+        if f.endswith('.py'):
             has_py = True
         elif any(f.endswith(ext) for ext in STATIC_EXTS):
             has_static = True
