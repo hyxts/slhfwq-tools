@@ -229,6 +229,15 @@ ERROR_LOG_MAX_LINES = 200
 ERROR_LOG_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), '500_error.log')
 _ERROR_LOG_LOCK = threading.Lock()
 
+@app.errorhandler(OSError)
+def handle_os_error(e):
+    """客户端断开静默处理：不写日志不traceback，直接丢弃"""
+    err_str = str(e).lower()
+    if 'write error' in err_str or isinstance(e, (BrokenPipeError, ConnectionResetError)):
+        return ''  # 客户端已断开，无需响应
+    return handle_500(e)
+
+
 @app.errorhandler(500)
 def handle_500(e):
     err_msg = str(e)

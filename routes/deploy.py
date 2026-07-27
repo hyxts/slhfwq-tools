@@ -31,9 +31,67 @@ _STATUS_CACHE_LOCK = threading.Lock()
 _STATUS_CACHE_TTL = 300  # 缓存5分钟，避免频繁重建状态
 
 
+def _find_wsgi_file():
+    """查找 PA 的 WSGI 配置文件（用于触发重载）"""
+    import glob as _glob
+    # PA 标准路径：/var/www/<domain>_wsgi.py
+    candidates = _glob.glob('/var/www/*_wsgi.py')
+    if candidates:
+        return candidates[0]
+    return None
+
+
+def _needs_reload(changed_files):
+    """检查变更文件列表中是否有 Python 文件（需要重启才能生效）"""
+    PY_EXTS = ('.py',)
+    STATIC_EXTS = ('.html', '.css', '.js', '.svg', '.png', '.jpg', '.json', '.md', '.txt', '.ico')
+    has_py = False
+    has_static = False
+    for f in changed_files:
+        f = f.strip()
+        if not f:
+            continue
+        if f.endswith(PY_EXTS):
+            has_py = True
+        elif any(f.endswith(ext) for ext in STATIC_EXTS):
+            has_static = True
+    return has_py, has_static
+
+
+def _trigger_pa_reload():
+    """触发 PA 重载：方式1 touch WSGI 文件（最快），方式2 后台脚本"""
+    wsgi_file = _find_wsgi_file()
+    if wsgi_file:
+        try:
+            subprocess.run(['touch', wsgi_file], timeout=5)
+            return '重载已触发(touch WSGI)'
+        except Exception:
+            pass
+    # Fallback: 后台运行 reload_webapp.py
+    reload_script = os.path.join(BASE_DIR, 'reload_webapp.py')
+    if os.path.exists(reload_script):
+        try:
+            py_exe = sys.executable
+            if 'uwsgi' in py_exe.lower():
+                py_exe = os.path.join(os.path.dirname(py_exe), 'python3')
+                if not os.path.exists(py_exe):
+                    py_exe = '/usr/bin/python3'
+            subprocess.Popen(
+                [py_exe, reload_script],
+                cwd=BASE_DIR,
+                stdout=open(os.path.join(BASE_DIR, 'reload_stdout.log'), 'a'),
+                stderr=open(os.path.join(BASE_DIR, 'reload_stderr.log'), 'a'),
+                start_new_session=True)
+            return '重载已触发(后台脚本)'
+        except Exception as e:
+            return f'重载启动异常: {e}'
+    return '重载脚本未找到'
+
+
 @bp.route('/api/git-pull', methods=['POST'])
 def git_pull():
     reload_msg = ''
+    changed_files = []
     try:
         force = request.args.get('force', '0') == '1'
         if not force:
@@ -43,6 +101,15 @@ def git_pull():
             except Exception:
                 pass
 
+        # 记录 pull 前的 HEAD，用于后续判断哪些文件变更
+        old_head = ''
+        try:
+            old_r = subprocess.run(['git', 'rev-parse', 'HEAD'], cwd=BASE_DIR,
+                                   capture_output=True, text=True, timeout=10)
+            old_head = old_r.stdout.strip()
+        except Exception:
+            pass
+
         if force:
             subprocess.run(['git', 'fetch', '--all'], cwd=BASE_DIR, capture_output=True, text=True, timeout=30)
             r = subprocess.run(['git', 'reset', '--hard', 'origin/master'], cwd=BASE_DIR, capture_output=True, text=True, timeout=30)
@@ -50,7 +117,34 @@ def git_pull():
             r = subprocess.run(['git', 'pull'], cwd=BASE_DIR, capture_output=True, text=True, timeout=30)
 
         if r.returncode == 0 and 'Already up to date' not in r.stdout:
-            # 代码有变更，先清理旧目录（迁移数据库到新中文目录）
+            # 检查变更文件列表，智能决定是否需要重载
+            changed_files = []
+            need_reload = True  # 默认需要重载
+            changed_summary = ''
+            if old_head:
+                try:
+                    diff_r = subprocess.run(
+                        ['git', 'diff', '--name-only', old_head, 'HEAD'],
+                        cwd=BASE_DIR, capture_output=True, text=True, timeout=10)
+                    if diff_r.returncode == 0 and diff_r.stdout.strip():
+                        changed_files = [f.strip() for f in diff_r.stdout.strip().split('\n') if f.strip()]
+                        has_py, has_static = _needs_reload(changed_files)
+                        if has_py and has_static:
+                            changed_summary = f'{len(changed_files)}个文件变更(含Python)'
+                            need_reload = True
+                        elif has_py:
+                            changed_summary = f'{len(changed_files)}个Python文件变更'
+                            need_reload = True
+                        elif has_static:
+                            changed_summary = f'{len(changed_files)}个静态文件变更'
+                            need_reload = False
+                        else:
+                            changed_summary = f'{len(changed_files)}个文件变更'
+                            need_reload = False
+                except Exception:
+                    pass
+
+            # 清理旧目录
             cleanup_msg = ''
             try:
                 for old_n, new_n in FOLDER_MAP.items():
@@ -74,8 +168,7 @@ def git_pull():
             except Exception as e:
                 cleanup_msg = f'清理异常: {e}'
 
-            # 清除 .pyc 缓存，确保子进程从磁盘加载最新 .py 文件
-            reload_script = os.path.join(BASE_DIR, 'reload_webapp.py')
+            # 清除 .pyc 缓存
             pycache = os.path.join(BASE_DIR, '__pycache__')
             if os.path.isdir(pycache):
                 try:
@@ -84,26 +177,14 @@ def git_pull():
                             os.remove(os.path.join(pycache, f))
                 except Exception:
                     pass
-            if os.path.exists(reload_script):
-                try:
-                    # PA生产环境sys.executable指向uwsgi，需找真正的python
-                    py_exe = sys.executable
-                    if 'uwsgi' in py_exe.lower():
-                        py_exe = os.path.join(os.path.dirname(py_exe), 'python3')
-                        if not os.path.exists(py_exe):
-                            py_exe = '/usr/bin/python3'
-                    # fire-and-forget: 不阻塞API响应，重载脚本在后台执行
-                    subprocess.Popen(
-                        [py_exe, reload_script],
-                        cwd=BASE_DIR,
-                        stdout=open(os.path.join(BASE_DIR, 'reload_stdout.log'), 'a'),
-                        stderr=open(os.path.join(BASE_DIR, 'reload_stderr.log'), 'a'),
-                        start_new_session=True)
-                    reload_msg = '重载已触发(后台执行)'
-                except Exception as e:
-                    reload_msg = f'重载启动异常: {e}'
+
+            # 智能重载：只有 Python 文件变更才触发
+            if need_reload:
+                reload_msg = _trigger_pa_reload()
+                if changed_summary:
+                    reload_msg = f'{changed_summary} - {reload_msg}'
             else:
-                reload_msg = '重载脚本未找到'
+                reload_msg = f'{changed_summary} - 无需重载(即时生效)'
         elif r.returncode == 0:
             reload_msg = '代码已是最新，无需重载'
         else:
@@ -114,7 +195,8 @@ def git_pull():
             'stdout': r.stdout.strip(),
             'stderr': r.stderr.strip(),
             'cleanup': cleanup_msg if force else '',
-            'reload': reload_msg or ('执行失败' if r.returncode != 0 else '')
+            'reload': reload_msg or ('执行失败' if r.returncode != 0 else ''),
+            'changed_files': changed_files,
         })
     except subprocess.TimeoutExpired:
         return jsonify({'success': False, 'error': 'Git pull 超时'}), 408
