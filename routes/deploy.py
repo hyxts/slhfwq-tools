@@ -456,19 +456,27 @@ def cleanup_old_folders():
     """清理服务器上的旧英文名文件夹和废弃目录"""
     results = []
 
-    # 1. 清理废弃目录（傲视小助手等）
-    ORPHAN_DIRS = ['傲视小助手', '__pycache__']
-    for dname in ORPHAN_DIRS:
-        dpath = os.path.join(BASE_DIR, dname)
-        if os.path.isdir(dpath):
+    # 1. 动态检测并清理无关联模块的遗留目录
+    KNOWN_MODULE_DIRS = {'人情', '绩点', '成绩', '倒计时', '服务器', '记账', '部署', '导航', 'routes', 'backups'}
+    SYSTEM_RESERVED = {'.git', '.codebuddy', '__pycache__', '.venv', 'venv', 'env', '.env'}
+    SKIP_CLEANUP = KNOWN_MODULE_DIRS | SYSTEM_RESERVED
+    try:
+        for entry in os.scandir(BASE_DIR):
+            if not entry.is_dir(follow_symlinks=False):
+                continue
+            dname = entry.name
+            if dname.startswith('.') or dname in SKIP_CLEANUP:
+                continue
             try:
                 sz = sum(os.path.getsize(os.path.join(r, f))
-                         for r, _, fs in os.walk(dpath) for f in fs
+                         for r, _, fs in os.walk(entry.path) for f in fs
                          if os.path.isfile(os.path.join(r, f)))
-                shutil.rmtree(dpath)
-                results.append(f'已清理废弃目录: {dname}/ ({_size_str(sz)})')
+                shutil.rmtree(entry.path)
+                results.append(f'已清理遗留目录: {dname}/ ({_size_str(sz)})')
             except Exception as e:
                 results.append(f'清理失败 {dname}: {e}')
+    except OSError:
+        pass
 
     # 2. 清理旧英文名文件夹
     for old_name, new_name in FOLDER_MAP.items():
