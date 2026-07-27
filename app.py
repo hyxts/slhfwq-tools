@@ -14,6 +14,7 @@ def _diag(msg):
 
 app = Flask(__name__)
 app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024
+app.config['JSON_AS_ASCII'] = False  # JSON 直接输出中文，避免 \uXXXX 乱码
 
 app.secret_key = os.environ.get('FLASK_SECRET_KEY', os.urandom(24).hex())
 
