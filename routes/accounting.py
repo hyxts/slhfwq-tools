@@ -71,7 +71,8 @@ def _auto_settle_if_needed(conn, event_id):
 
 
 def init_db():
-    """初始化数据库 — 双向模型 (付给/收到)"""
+    """初始化数据库 — 双向模型 (付给/收到)
+    使用 PRAGMA user_version 跳过已完成的迁移检查，大幅减少启动开销"""
     try:
         os.makedirs(DB_DIR, exist_ok=True)
         conn = _get_db()
@@ -83,17 +84,20 @@ def init_db():
             created_at TEXT DEFAULT (datetime('now','localtime'))
         )''')
 
-        # --- records 表 — 含旧表迁移逻辑 ---
-        col_def = conn.execute(
-            "SELECT sql FROM sqlite_master WHERE type='table' AND name='records'"
-        ).fetchone()
+        # 检查迁移版本，跳过已完成的迁移（优化启动速度）
+        ver = conn.execute("PRAGMA user_version").fetchone()[0]
+        MIGRATED = ver >= 2
 
+        # --- records 表 — 含旧表迁移逻辑 ---
         need_migrate = False
-        if col_def:
-            sql_text = col_def[0] or ''
-            # 如果还是旧四种类型，需要迁移
-            if "'收入'" in sql_text and "'付给'" not in sql_text:
-                need_migrate = True
+        if not MIGRATED:
+            col_def = conn.execute(
+                "SELECT sql FROM sqlite_master WHERE type='table' AND name='records'"
+            ).fetchone()
+            if col_def:
+                sql_text = col_def[0] or ''
+                if "'收入'" in sql_text and "'付给'" not in sql_text:
+                    need_migrate = True
 
         if need_migrate:
             # 迁移: 重建表为新二类型
@@ -152,14 +156,15 @@ def init_db():
             conn.execute('ALTER TABLE records ADD COLUMN event_id INTEGER DEFAULT NULL')
 
         # 迁移: 检测 records 表 CHECK 约束是否需要更新（缺少 应收 或有旧类型残留）
-        records_sql = conn.execute(
-            "SELECT sql FROM sqlite_master WHERE type='table' AND name='records'"
-        ).fetchone()
         needs_records_mig = False
-        if records_sql and records_sql[0]:
-            rs = records_sql[0] or ''
-            if "'应收'" not in rs or any(t in rs for t in ("'收入'", "'支出'", "'他欠我'", "'我欠他'")):
-                needs_records_mig = True
+        if not MIGRATED:
+            records_sql = conn.execute(
+                "SELECT sql FROM sqlite_master WHERE type='table' AND name='records'"
+            ).fetchone()
+            if records_sql and records_sql[0]:
+                rs = records_sql[0] or ''
+                if "'应收'" not in rs or any(t in rs for t in ("'收入'", "'支出'", "'他欠我'", "'我欠他'")):
+                    needs_records_mig = True
 
         if needs_records_mig:
             conn.execute("BEGIN")
@@ -222,17 +227,16 @@ def init_db():
         conn.execute('CREATE INDEX IF NOT EXISTS idx_events_account ON events(account_id)')
 
         # --- categories 表 — 带完整迁移逻辑 ---
-        cats_sql = conn.execute(
-            "SELECT sql FROM sqlite_master WHERE type='table' AND name='categories'"
-        ).fetchone()
-
         has_old_constraint = False
-        if cats_sql and cats_sql[0]:
-            sql_text = cats_sql[0]
-            # 检测旧版 CHECK 约束（包含旧四种类型）
-            if ("'收入'" in sql_text or "'支出'" in sql_text
-                    or "'他欠我'" in sql_text or "'我欠他'" in sql_text):
-                has_old_constraint = True
+        if not MIGRATED:
+            cats_sql = conn.execute(
+                "SELECT sql FROM sqlite_master WHERE type='table' AND name='categories'"
+            ).fetchone()
+            if cats_sql and cats_sql[0]:
+                sql_text = cats_sql[0]
+                if ("'收入'" in sql_text or "'支出'" in sql_text
+                        or "'他欠我'" in sql_text or "'我欠他'" in sql_text):
+                    has_old_constraint = True
 
         if has_old_constraint:
             # 完整迁移：需要绕过旧 CHECK 约束
@@ -303,6 +307,8 @@ def init_db():
             if not conn.execute("SELECT 1 FROM categories WHERE type=? AND name=?", (t, n)).fetchone():
                 conn.execute("INSERT INTO categories (type, name, sort_order) VALUES (?, ?, ?)", (t, n, s))
 
+        # 标记迁移完成，后续启动跳过 sqlite_master 解析
+        conn.execute("PRAGMA user_version = 2")
         conn.commit()
         conn.close()
     except Exception as e:

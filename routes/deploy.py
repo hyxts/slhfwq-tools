@@ -152,18 +152,47 @@ def _dir_size(path):
 
 
 def _build_server_status():
-    """构建服务器状态数据（内部函数，不使用缓存）"""
+    """构建服务器状态数据（内部函数，不使用缓存）
+    优化：单次遍历收集所有目录大小，避免重复扫描"""
     QUOTA = 512 * 1024 * 1024
-    used = _dir_size(BASE_DIR)
-    free = max(0, QUOTA - used)
-    pct = round(used / QUOTA * 100, 1)
-    disk = {'total': _size_str(QUOTA), 'used': _size_str(used), 'free': _size_str(free), 'pct': pct,
+    SKIP_DIRS = frozenset(['.git', '__pycache__', 'backups'])
+
+    # 一次遍历：收集总大小 + 各一级子目录大小 + 根目录文件大小
+    total_used = 0
+    subdir_sizes = {}  # dname -> bytes
+    root_file_sz = 0
+    other_dirs = {}  # 不在 STORAGE_DIRS 中的其他目录
+    STORAGE_DIRS_SET = frozenset(['人情', '排班', '绩点', '成绩', '倒计时', '服务器', '记账', '部署'])
+    KNOWN_DB_DIRS = ['人情', '排班', '绩点', '成绩', '倒计时', '服务器', '记账']
+
+    try:
+        for entry in os.scandir(BASE_DIR):
+            try:
+                if entry.is_file(follow_symlinks=False) and not entry.name.startswith('.'):
+                    sz = entry.stat().st_size
+                    total_used += sz
+                    root_file_sz += sz
+                elif entry.is_dir(follow_symlinks=False) and entry.name not in SKIP_DIRS and not entry.name.startswith('.'):
+                    sz = _dir_size(entry.path)
+                    total_used += sz
+                    if sz > 0:
+                        if entry.name in STORAGE_DIRS_SET:
+                            subdir_sizes[entry.name] = sz
+                        else:
+                            other_dirs[entry.name] = sz
+            except OSError:
+                pass
+    except Exception:
+        # 回退到旧的 _dir_size(BASE_DIR) 方式
+        total_used = _dir_size(BASE_DIR)
+
+    free = max(0, QUOTA - total_used)
+    pct = round(total_used / QUOTA * 100, 1)
+    disk = {'total': _size_str(QUOTA), 'used': _size_str(total_used), 'free': _size_str(free), 'pct': pct,
             'warn': pct > 80}
 
-    # 直接扫描已知的数据库和日志目录，避免 os.walk 遍历整个项目树
-    KNOWN_DB_DIRS = ['人情', '排班', '绩点', '成绩', '倒计时', '服务器', '记账']
+    # 数据库信息（只读查询，不做 WAL 设置，数据库创建时已设好）
     KNOWN_DB_ROOTS = [(d, os.path.join(BASE_DIR, d)) for d in KNOWN_DB_DIRS]
-
     dbs = []
     for dirname, dirpath in KNOWN_DB_ROOTS:
         if not os.path.isdir(dirpath):
@@ -173,22 +202,20 @@ def _build_server_status():
                 full_path = os.path.join(dirpath, f)
                 try:
                     sz = os.path.getsize(full_path)
-                    c = sqlite3.connect(full_path, timeout=5)
-                    c.execute("PRAGMA journal_mode=WAL")
+                    c = sqlite3.connect(full_path, timeout=2)
                     tables = [t[0] for t in c.execute(
                         "SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'"
                     ).fetchall()]
-                    # 只统计前5个表的行数，避免大表扫描阻塞
                     rows = 0
                     for t in tables[:5]:
                         rows += c.execute(f"SELECT COUNT(*) FROM [{t}]").fetchone()[0]
                     c.close()
-                    name = f'{dirname}/{f}'
-                    dbs.append({'name': name, 'size': _size_str(sz), 'rows': rows})
+                    dbs.append({'name': f'{dirname}/{f}', 'size': _size_str(sz), 'rows': rows})
                 except Exception:
                     pass
     dbs.sort(key=lambda x: x['name'])
 
+    # 日志
     logs = []
     for dirname, dirpath in KNOWN_DB_ROOTS:
         if not os.path.isdir(dirpath):
@@ -200,11 +227,9 @@ def _build_server_status():
                     sz = os.path.getsize(full_path)
                     with open(full_path, 'r', encoding='utf-8') as lf:
                         lines = sum(1 for _ in lf)
-                    name = f'{dirname}/{f}'
-                    logs.append({'name': name, 'size': _size_str(sz), 'lines': lines})
+                    logs.append({'name': f'{dirname}/{f}', 'size': _size_str(sz), 'lines': lines})
                 except Exception:
                     pass
-    # 也扫描根目录的日志
     for f in os.listdir(BASE_DIR):
         if f.endswith('.log'):
             full_path = os.path.join(BASE_DIR, f)
@@ -223,48 +248,21 @@ def _build_server_status():
         if os.path.isdir(dpath):
             old_dirs.append(d)
 
-    # 各目录存储详情
-    STORAGE_DIRS = ['人情', '排班', '绩点', '成绩', '倒计时', '服务器', '记账', '部署']
+    # 存储分布（从已收集的单次遍历数据构建，无需再次扫描）
     dir_sizes = []
-    for dname in STORAGE_DIRS:
-        dpath = os.path.join(BASE_DIR, dname)
-        if not os.path.isdir(dpath):
-            continue
-        sz = _dir_size(dpath)
+    for dname, sz in subdir_sizes.items():
         dir_sizes.append({
-            'name': dname,
-            'bytes': sz,
-            'size_str': _size_str(sz),
+            'name': dname, 'bytes': sz, 'size_str': _size_str(sz),
             'pct': round(sz / QUOTA * 100, 1),
         })
-    # 根目录文件（.py, .log, .md 等）
-    root_sz = 0
-    for f in os.listdir(BASE_DIR):
-        fp = os.path.join(BASE_DIR, f)
-        if os.path.isfile(fp) and not f.startswith('.'):
-            try:
-                root_sz += os.path.getsize(fp)
-            except OSError:
-                pass
-    if root_sz > 0:
+    if root_file_sz > 0:
         dir_sizes.append({
-            'name': '(根目录文件)',
-            'bytes': root_sz,
-            'size_str': _size_str(root_sz),
-            'pct': round(root_sz / QUOTA * 100, 1),
+            'name': '(根目录文件)', 'bytes': root_file_sz,
+            'size_str': _size_str(root_file_sz), 'pct': round(root_file_sz / QUOTA * 100, 1),
         })
-    # 其他目录（不在 STORAGE_DIRS 中的）
-    for dname in os.listdir(BASE_DIR):
-        dpath = os.path.join(BASE_DIR, dname)
-        if not os.path.isdir(dpath) or dname in STORAGE_DIRS or dname.startswith('.') or dname in ('__pycache__', 'backups', '.git'):
-            continue
-        sz = _dir_size(dpath)
-        if sz == 0:
-            continue
+    for dname, sz in other_dirs.items():
         dir_sizes.append({
-            'name': dname,
-            'bytes': sz,
-            'size_str': _size_str(sz),
+            'name': dname, 'bytes': sz, 'size_str': _size_str(sz),
             'pct': round(sz / QUOTA * 100, 1),
         })
     dir_sizes.sort(key=lambda x: x['bytes'], reverse=True)
@@ -284,8 +282,7 @@ def _build_server_status():
 def prebuild_status():
     """启动时预构建状态缓存，延迟执行避免与启动争抢 I/O"""
     try:
-        time_mod.sleep(30)  # 等待服务器稳定后再开始
-        data = _build_server_status()
+        time_mod.sleep(5)  # 等待服务器稳定后再开始（30s太长，PA worker可能在30s内被重启）
         with _STATUS_CACHE_LOCK:
             _STATUS_CACHE['data'] = data
             _STATUS_CACHE['timestamp'] = time_mod.time()
