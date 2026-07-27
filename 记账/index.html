@@ -6,17 +6,17 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
 <meta name="apple-mobile-web-app-title" content="债务追踪">
-<meta name="theme-color" content="#0f172a">
+<meta name="theme-color" content="#f8fafc">
 <link rel="apple-touch-icon" href="/accounting/icon-192.svg">
 <link rel="icon" type="image/svg+xml" href="/accounting/icon-512.svg">
 <link rel="manifest" href="/accounting/manifest.json">
 <title>债务往来追踪</title>
 <style>
 :root {
-    --primary:#60a5fa; --bg:#0f172a; --card-bg:#1e293b; --text:#e2e8f0; --text-secondary:#94a3b8;
-    --border:rgba(148,163,184,.15); --success:#4ade80; --danger:#FF3B30;
-    --pay:#60a5fa; --recv:#fbbf24; --receivable:#a78bfa; --positive:#4ade80; --negative:#f87171;
-    --shadow:0 2px 12px rgba(0,0,0,.3);
+    --primary:#4f46e5; --bg:#f0f2f5; --card-bg:#ffffff; --text:#1e293b; --text-secondary:#64748b;
+    --border:#e2e8f0; --success:#10b981; --danger:#ef4444;
+    --pay:#3b82f6; --recv:#d97706; --receivable:#7c3aed; --positive:#059669; --negative:#dc2626;
+    --shadow:0 1px 3px rgba(0,0,0,.06);
 }
 * { margin:0; padding:0; box-sizing:border-box; }
 body { font-family:-apple-system,"Segoe UI",Roboto,"Helvetica Neue",Arial,"PingFang SC","Microsoft YaHei",sans-serif; background:var(--bg); color:var(--text); -webkit-text-size-adjust:100%; -webkit-font-smoothing:antialiased; }
@@ -50,12 +50,12 @@ button { padding:10px 20px; border:none; border-radius:8px; font-size:14px; font
 .btn-sm { padding:4px 10px; font-size:12px; min-height:auto; }
 .record-item { display:flex; align-items:center; gap:10px; font-size:13px; padding:12px 14px; border-bottom:1.5px solid #adb5bd; background:#fff; }
 .record-row:last-child .record-item { border-bottom:none; }
-.record-item:nth-child(even) { background:#334155; }
+.record-item:nth-child(even) { background:#f8fafc; }
 #recordList { border:1px solid #c8cdd3; border-radius:10px; overflow:hidden; background:#fff; }
 .rec-dir { font-size:11px; padding:2px 8px; border-radius:10px; font-weight:600; white-space:nowrap; }
-.rec-dir.pay { background:#DBEAFE; color:var(--pay); }
+.rec-dir.pay { background:#DBEAFE; color:#2563eb; }
 .rec-dir.recv { background:#FEF3C7; color:#B45309; }
-.rec-dir.receivable { background:#EDE9FE; color:var(--receivable); }
+.rec-dir.receivable { background:#EDE9FE; color:#6d28d9; }
 .rec-body { flex:1; min-width:0; }
 .rec-body .rec-name { font-weight:500; }
 .rec-body .rec-meta { font-size:11px; color:var(--text-secondary); }

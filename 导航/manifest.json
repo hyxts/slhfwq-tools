@@ -4,8 +4,8 @@
   "description": "个人工具箱 - 礼金记录、GPA计算、成绩查询、倒计时、记账、运维管理",
   "start_url": "/nav",
   "display": "standalone",
-  "background_color": "#0f172a",
-  "theme_color": "#667eea",
+  "background_color": "#f8fafc",
+  "theme_color": "#4f46e5",
   "orientation": "portrait",
   "icons": [
     {

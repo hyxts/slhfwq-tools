@@ -6,16 +6,16 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="mobile-web-app-capable" content="yes">
-<meta name="theme-color" content="#0f172a">
+<meta name="theme-color" content="#f8fafc">
 <link rel="apple-touch-icon" href="/deploy/icon-192.svg">
 <link rel="icon" type="image/svg+xml" href="/deploy/icon-512.svg">
 <link rel="manifest" href="/deploy/manifest.json">
 <title>管理后台</title>
 <style>
 *{margin:0;padding:0;box-sizing:border-box}
-body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#0f172a;color:#e2e8f0}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#f0f2f5;color:#1e293b}
 .app-layout{display:flex;height:100vh;overflow:hidden}
-.sidebar{width:220px;flex-shrink:0;background:linear-gradient(180deg,#4f46e5 0%,#4338ca 40%,#312e81 100%);color:#fff;display:flex;flex-direction:column;overflow-y:auto}
+.sidebar{width:220px;flex-shrink:0;background:linear-gradient(180deg,#6366f1 0%,#4f46e5 40%,#4338ca 100%);color:#fff;display:flex;flex-direction:column;overflow-y:auto}
 .hdr{padding:24px 20px 16px;display:flex;align-items:center;gap:10px;border-bottom:1px solid rgba(255,255,255,.1);margin-bottom:8px}
 .hdr h1{font-size:17px;font-weight:600;color:#fff}
 .hdr svg{flex-shrink:0}
@@ -27,8 +27,8 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
 .pg{display:none}.pg.on{display:block}
 
 /* 通用卡片 */
-.card{background:#1e293b;border-radius:12px;padding:20px 24px;margin-bottom:16px;box-shadow:0 2px 8px rgba(0,0,0,.3);border:1px solid rgba(148,163,184,.12)}
-.card h3{font-size:16px;margin-bottom:14px;color:#e2e8f0;font-weight:600}
+.card{background:#ffffff;border-radius:12px;padding:20px 24px;margin-bottom:16px;box-shadow:0 1px 3px rgba(0,0,0,.06);border:1px solid #e2e8f0}
+.card h3{font-size:16px;margin-bottom:14px;color:#1e293b;font-weight:600}
 
 /* 按钮 */
 .btn{padding:10px 20px;border:none;border-radius:10px;cursor:pointer;font-size:14px;font-weight:600;display:block;width:100%;min-height:44px;margin-bottom:8px;transition:all .15s;-webkit-appearance:none;appearance:none}
@@ -52,19 +52,19 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
 .output.info{color:#89b4fa}
 
 /* 提交列表 */
-.commit-list{background:#1e293b;border-radius:8px;padding:4px 0;max-height:280px;overflow-y:auto}
+.commit-list{background:#ffffff;border:1px solid #e2e8f0;border-radius:8px;padding:4px 0;max-height:280px;overflow-y:auto}
 .commit-item{display:flex;align-items:flex-start;padding:6px 12px;font-size:12px;border-bottom:1px solid rgba(148,163,184,.1);gap:8px}
 .commit-item:last-child{border-bottom:none}
 .commit-hash{font-family:Consolas,monospace;color:#a5b4fc;font-size:11px;flex-shrink:0;min-width:52px}
 .commit-date{color:#64748b;font-size:11px;flex-shrink:0;min-width:68px;text-align:right}
-.commit-message{color:#e2e8f0;word-break:break-all;flex:1}
+.commit-message{color:#1e293b;word-break:break-all;flex:1}
 .loading{text-align:center;padding:12px;color:#64748b;font-size:13px}
 .empty{text-align:center;padding:35px;color:#94a3b8}
 
 /* 列表项 */
-.list-item{display:flex;align-items:center;justify-content:space-between;padding:10px 12px;background:#1e293b;border-radius:8px;margin-bottom:6px;font-size:13px}
+.list-item{display:flex;align-items:center;justify-content:space-between;padding:10px 12px;background:#ffffff;border:1px solid #e2e8f0;border-radius:8px;margin-bottom:6px;font-size:13px}
 .list-info{flex:1;min-width:0}
-.list-name{font-weight:600;color:#e2e8f0;margin-bottom:2px;word-break:break-all}
+.list-name{font-weight:600;color:#1e293b;margin-bottom:2px;word-break:break-all}
 .list-meta{color:#64748b;font-size:11px}
 .list-actions{display:flex;gap:6px;flex-shrink:0}
 
@@ -76,57 +76,57 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
 
 /* 概览 - 指标卡 4列 */
 .metrics-row{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:16px}
-.metric-card{background:#1e293b;border-radius:14px;padding:20px;box-shadow:0 2px 8px rgba(0,0,0,.3);border:1px solid rgba(148,163,184,.12);display:flex;flex-direction:column;align-items:center;justify-content:center}
+.metric-card{background:#ffffff;border-radius:14px;padding:20px;box-shadow:0 1px 3px rgba(0,0,0,.06);border:1px solid #e2e8f0;display:flex;flex-direction:column;align-items:center;justify-content:center}
 .metric-card.actions{align-items:stretch;justify-content:center;gap:8px}
 .metric-card.actions .btn{width:100%;margin-bottom:0;font-size:13px;min-height:38px}
-.metric-label{font-size:12px;color:#94a3b8;font-weight:500;margin-bottom:6px;text-align:center}
-.metric-value{font-size:22px;font-weight:800;color:#e2e8f0;text-align:center}
-.metric-sub{font-size:11px;color:#64748b;margin-top:4px;text-align:center}
+.metric-label{font-size:12px;color:#64748b;font-weight:500;margin-bottom:6px;text-align:center}
+.metric-value{font-size:22px;font-weight:800;color:#1e293b;text-align:center}
+.metric-sub{font-size:11px;color:#94a3b8;margin-top:4px;text-align:center}
 
 /* 磁盘环形图 */
 .gauge-wrap{position:relative;width:90px;height:90px}
 .gauge-wrap svg{transform:rotate(-90deg)}
-.gauge-bg{fill:none;stroke:#e9ecef;stroke-width:8}
-.gauge-fg{fill:none;stroke:#667eea;stroke-width:8;stroke-linecap:round;transition:stroke-dashoffset .8s ease,stroke .8s}
+.gauge-bg{fill:none;stroke:#e2e8f0;stroke-width:8}
+.gauge-fg{fill:none;stroke:#6366f1;stroke-width:8;stroke-linecap:round;transition:stroke-dashoffset .8s ease,stroke .8s}
 .gauge-fg.warn{stroke:#f59e0b}
 .gauge-fg.danger{stroke:#ef4444}
-.gauge-center{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);font-size:20px;font-weight:800;color:#e2e8f0}
+.gauge-center{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);font-size:20px;font-weight:800;color:#1e293b}
 
-/* PA状态摘要状态字 */
+/* PA状态摘要 */
 .pa-summary-status{font-size:12px;font-weight:600;padding:3px 10px;border-radius:12px;display:inline-block;margin-top:4px}
-.pa-summary-status.ok{background:rgba(34,197,94,.15);color:#34d399}
-.pa-summary-status.warn{background:rgba(251,191,36,.15);color:#d97706}
-.pa-summary-status.err{background:rgba(239,68,68,.15);color:#dc2626}
-.pa-summary-status.none{background:#334155;color:#94a3b8}
+.pa-summary-status.ok{background:rgba(16,185,129,.12);color:#059669}
+.pa-summary-status.warn{background:rgba(245,158,11,.12);color:#d97706}
+.pa-summary-status.err{background:rgba(239,68,68,.12);color:#dc2626}
+.pa-summary-status.none{background:#f1f5f9;color:#64748b}
 
 /* 存储分布条 */
 .storage-list{display:flex;flex-direction:column;gap:6px;margin-top:10px}
 .storage-item{display:flex;align-items:center;gap:10px;font-size:13px}
 .storage-name{width:90px;text-align:right;color:#94a3b8;font-weight:500;flex-shrink:0}
-.storage-bar-wrap{flex:1;height:20px;background:#334155;border-radius:6px;overflow:hidden;position:relative}
+.storage-bar-wrap{flex:1;height:20px;background:#f1f5f9;border-radius:6px;overflow:hidden;position:relative}
 .storage-bar{height:100%;border-radius:6px;transition:width .5s ease;min-width:2px}
 .storage-bar.b0{background:#6366f1}.storage-bar.b1{background:#764ba2}.storage-bar.b2{background:#f093fb}
 .storage-bar.b3{background:#4facfe}.storage-bar.b4{background:#43e97b}.storage-bar.b5{background:#fa709a}
 .storage-bar.b6{background:#f6d365}.storage-bar.b7{background:#f5576c}.storage-bar.b8{background:#a18cd1}
-.storage-bar.b9{background:#36d1dc}.storage-bar.bo{background:#334155}
-.storage-val{width:75px;text-align:left;color:#e2e8f0;font-weight:600;flex-shrink:0;font-size:12px}
+.storage-bar.b9{background:#36d1dc}.storage-bar.bo{background:#e2e8f0}
+.storage-val{width:75px;text-align:left;color:#1e293b;font-weight:600;flex-shrink:0;font-size:12px}
 .storage-pct{width:44px;text-align:right;color:#64748b;font-size:11px;flex-shrink:0}
 
 /* 数据库卡片 */
 .db-cards{display:grid;grid-template-columns:repeat(6,1fr);gap:10px;margin-top:10px}
-.db-card{background:#1e293b;border-radius:10px;padding:14px;text-align:center;border:2px solid transparent;transition:all .2s;cursor:default}
-.db-card:hover{border-color:#a5b4fc;background:rgba(99,102,241,.1);transform:translateY(-2px);box-shadow:0 4px 12px rgba(102,126,234,.12)}
-.db-card-name{font-size:12px;color:#a5b4fc;font-weight:600;margin-bottom:6px}
-.db-card-rows{font-size:20px;font-weight:800;color:#e2e8f0}
+.db-card{background:#ffffff;border-radius:10px;padding:14px;text-align:center;border:2px solid transparent;transition:all .2s;cursor:default}
+.db-card:hover{border-color:#818cf8;background:rgba(99,102,241,.06);transform:translateY(-2px);box-shadow:0 4px 12px rgba(99,102,241,.08)}
+.db-card-name{font-size:12px;color:#6366f1;font-weight:600;margin-bottom:6px}
+.db-card-rows{font-size:20px;font-weight:800;color:#1e293b}
 .db-card-size{font-size:11px;color:#64748b;margin-top:3px}
 
 /* 程序网格 */
 .app-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-top:10px}
-.app-item{padding:20px 16px;background:#1e293b;border-radius:14px;text-align:center;cursor:pointer;transition:all .2s;border:2px solid transparent}
-.app-item:hover{background:rgba(99,102,241,.1);border-color:#a5b4fc;transform:translateY(-2px);box-shadow:0 6px 16px rgba(102,126,234,.18)}
+.app-item{padding:20px 16px;background:#ffffff;border-radius:14px;text-align:center;cursor:pointer;transition:all .2s;border:2px solid transparent}
+.app-item:hover{background:rgba(99,102,241,.06);border-color:#818cf8;transform:translateY(-2px);box-shadow:0 6px 16px rgba(99,102,241,.1)}
 .app-icon{width:52px;height:52px;border-radius:14px;display:flex;align-items:center;justify-content:center;margin:0 auto 10px}
-.app-name{font-size:15px;font-weight:700;color:#e2e8f0;margin-bottom:4px}
-.app-desc{font-size:12px;color:#94a3b8}
+.app-name{font-size:15px;font-weight:700;color:#1e293b;margin-bottom:4px}
+.app-desc{font-size:12px;color:#64748b}
 
 /* 双栏布局 */
 .twocol{display:grid;grid-template-columns:1fr 1fr;gap:14px}
@@ -141,7 +141,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
 
 /* 自动刷新倒计时 */
 .auto-refresh{text-align:right;font-size:11px;color:#64748b;padding:4px 0;margin-top:-10px;margin-bottom:10px}
-.auto-refresh span{font-weight:600;color:#a5b4fc}
+.auto-refresh span{font-weight:600;color:#6366f1}
 
 /* PA 续期 - 状态卡 */
 .pa-status-card{background:linear-gradient(135deg,#667eea,#7c3aed);color:#fff;border-radius:14px;padding:24px;margin-bottom:16px;box-shadow:0 4px 16px rgba(102,126,234,.25)}
@@ -155,18 +155,18 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
 /* PA - 表单 */
 .fg{margin-bottom:12px}
 .fl{display:block;font-size:13px;color:#94a3b8;margin-bottom:4px;font-weight:500}
-.finp{width:100%;padding:10px;border:1px solid rgba(148,163,184,.15);border-radius:8px;font-size:14px}
+.finp{width:100%;padding:10px;border:1px solid #d1d5db;border-radius:8px;font-size:14px;background:#ffffff;color:#1e293b}
 .ig{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
-.io{padding:9px 4px;border:1.5px solid #ddd;border-radius:10px;text-align:center;cursor:pointer;font-size:13px;font-weight:500;color:#94a3b8;background:#1e293b}
+.io{padding:9px 4px;border:1.5px solid #e2e8f0;border-radius:10px;text-align:center;cursor:pointer;font-size:13px;font-weight:500;color:#64748b;background:#ffffff}
 .io:active{transform:scale(.96)}
-.io.sel{border-color:#a5b4fc;background:rgba(102,126,234,.08);color:#a5b4fc;font-weight:600}
+.io.sel{border-color:#6366f1;background:rgba(99,102,241,.08);color:#4f46e5;font-weight:600}
 
 /* PA - 日志 */
-.pa-log-box{background:#1a1a2e;border-radius:10px;padding:10px;max-height:300px;overflow-y:auto;font-family:Consolas,monospace;font-size:12px;line-height:1.8;color:#e0e0e0}
-.pa-log-box .log-ok{color:#4ade80}
-.pa-log-box .log-err{color:#f87171}
-.pa-log-box .log-warn{color:#fbbf24}
-.pa-log-box .log-info{color:#60a5fa}
+.pa-log-box{background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;padding:10px;max-height:300px;overflow-y:auto;font-family:Consolas,monospace;font-size:12px;line-height:1.8;color:#334155}
+.pa-log-box .log-ok{color:#059669}
+.pa-log-box .log-err{color:#ef4444}
+.pa-log-box .log-warn{color:#d97706}
+.pa-log-box .log-info{color:#3b82f6}
 .log-stats{display:flex;gap:12px;padding:8px 0;margin-bottom:8px;border-bottom:1px solid #333;font-size:11px}
 .log-stat-ok{color:#4ade80}.log-stat-err{color:#f87171}.log-stat-warn{color:#fbbf24}.log-stat-info{color:#60a5fa}
 .log-tag{display:inline-block;padding:1px 6px;border-radius:4px;font-size:10px;margin-right:6px;font-weight:600}
@@ -178,7 +178,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
 .log-mod-head{border-bottom:1px solid #30363d;padding:8px 0;margin-bottom:6px;font-weight:600;color:#8899aa;font-size:13px}
 
 /* PA - 历史 */
-.hi-item{padding:8px 10px;background:#1e293b;border-radius:8px;margin-bottom:6px;border-left:3px solid #667eea;font-size:12px}
+.hi-item{padding:8px 10px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;margin-bottom:6px;border-left:3px solid #6366f1;font-size:12px}
 .hi-item.ok{border-left-color:#4ade80}
 .hi-item.er{border-left-color:#ef4444}
 .hi-time{color:#64748b;font-size:11px}
@@ -199,8 +199,8 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
   .sidebar{width:100%;background:linear-gradient(135deg,#667eea,#764ba2);display:block}
   .hdr{padding:16px;padding-top:calc(16px + env(safe-area-inset-top));text-align:center;justify-content:center;border-bottom:none;margin-bottom:0}
   .hdr h1{font-size:20px}
-  .nav{flex-direction:row;background:#1e293b;border-radius:12px;padding:5px;box-shadow:0 2px 8px rgba(0,0,0,.3);margin:10px 8px;gap:2px}
-  .nb{flex:1;padding:10px 6px;font-size:13px;text-align:center;color:#94a3b8;font-weight:500;border-left:none;min-height:44px}
+  .nav{flex-direction:row;background:#ffffff;border:1px solid #e2e8f0;border-radius:12px;padding:5px;box-shadow:0 1px 3px rgba(0,0,0,.06);margin:10px 8px;gap:2px}
+  .nb{flex:1;padding:10px 6px;font-size:13px;text-align:center;color:#64748b;font-weight:500;border-left:none;min-height:44px}
   .nb.on{background:#6366f1;color:#fff;font-weight:500;border-left-color:transparent}
   .nb:hover{background:#6366f1;color:#fff}
   .ctn{padding:12px;padding-bottom:calc(12px + env(safe-area-inset-bottom))}

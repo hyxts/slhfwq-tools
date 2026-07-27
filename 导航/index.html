@@ -6,7 +6,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="工具箱">
-<meta name="theme-color" content="#0f172a">
+<meta name="theme-color" content="#f8fafc">
 <link rel="manifest" href="/nav/manifest.json">
 <link rel="apple-touch-icon" href="/nav/icon-192.svg">
 <title>个人工具箱</title>
@@ -14,9 +14,9 @@
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
 html,body{width:100%;min-height:100vh;min-height:100dvh}
 body{
-  background:#0f172a;
+  background:#f0f2f5;
   font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",system-ui,sans-serif;
-  color:#e2e8f0;
+  color:#334155;
   -webkit-font-smoothing:antialiased;
   -webkit-tap-highlight-color:transparent;
   overflow-x:hidden;
@@ -26,9 +26,9 @@ body::before{
   content:'';
   position:fixed;top:-50%;left:-30%;
   width:160%;height:160%;
-  background:radial-gradient(ellipse 60% 50% at 30% 20%,rgba(102,126,234,0.12) 0%,transparent 60%),
-             radial-gradient(ellipse 50% 40% at 70% 60%,rgba(118,75,162,0.10) 0%,transparent 60%),
-             radial-gradient(ellipse 40% 30% at 50% 50%,rgba(67,233,123,0.04) 0%,transparent 50%);
+  background:radial-gradient(ellipse 60% 50% at 30% 20%,rgba(99,102,241,0.06) 0%,transparent 60%),
+             radial-gradient(ellipse 50% 40% at 70% 60%,rgba(139,92,246,0.05) 0%,transparent 60%),
+             radial-gradient(ellipse 40% 30% at 50% 50%,rgba(16,185,129,0.03) 0%,transparent 50%);
   pointer-events:none;z-index:0;
 }
 .page{
@@ -51,26 +51,26 @@ body::before{
 .logo-bg{
   position:absolute;top:-8px;left:-8px;
   width:112px;height:112px;border-radius:50%;
-  background:radial-gradient(circle,rgba(102,126,234,0.35) 0%,rgba(118,75,162,0.15) 50%,transparent 70%);
+  background:radial-gradient(circle,rgba(79,70,229,0.25) 0%,rgba(139,92,246,0.12) 50%,transparent 70%);
   filter:blur(12px);
 }
 .logo-rect{
   width:96px;height:96px;border-radius:24px;
-  background:linear-gradient(135deg,#667eea 0%,#764ba2 100%);
+  background:linear-gradient(135deg,#4f46e5 0%,#7c3aed 100%);
   display:flex;align-items:center;justify-content:center;
   position:relative;z-index:2;
-  box-shadow:0 8px 32px rgba(102,126,234,0.35),0 2px 8px rgba(0,0,0,0.3);
+  box-shadow:0 8px 32px rgba(79,70,229,0.3),0 2px 8px rgba(0,0,0,0.1);
 }
 .logo-text{
   font-size:42px;font-weight:900;color:#fff;
   letter-spacing:-1px;line-height:1;
 }
 .hero-title{
-  font-size:22px;font-weight:700;color:#f1f5f9;
+  font-size:22px;font-weight:700;color:#1e293b;
   margin-top:18px;letter-spacing:1px;
 }
 .hero-sub{
-  font-size:13px;color:#94a3b8;margin-top:4px;
+  font-size:13px;color:#64748b;margin-top:4px;
   letter-spacing:0.5px;
 }
 
@@ -78,17 +78,17 @@ body::before{
 .user-bar{
   display:flex;align-items:center;justify-content:center;
   gap:12px;margin:8px 0 20px;
-  font-size:12px;color:#64748b;
+  font-size:12px;color:#94a3b8;
 }
 .user-bar a{
-  color:#818cf8;text-decoration:none;font-weight:500;
+  color:#4f46e5;text-decoration:none;font-weight:500;
 }
 .user-bar a:active{opacity:0.7}
-.user-dot{width:5px;height:5px;border-radius:50%;background:#475569}
+.user-dot{width:5px;height:5px;border-radius:50%;background:#cbd5e1}
 
 /* ====== 卡片网格 ====== */
 .grid-title{
-  font-size:12px;font-weight:600;color:#64748b;
+  font-size:12px;font-weight:600;color:#94a3b8;
   text-transform:uppercase;letter-spacing:2px;
   margin-bottom:12px;padding-left:2px;
 }
@@ -100,13 +100,12 @@ body::before{
 }
 .card{
   position:relative;
-  background:rgba(30,41,59,0.7);
-  border:1px solid rgba(71,85,105,0.3);
+  background:#ffffff;
+  border:1px solid #e2e8f0;
   border-radius:16px;
   padding:20px 16px 16px;
   text-decoration:none;color:inherit;
-  -webkit-backdrop-filter:blur(12px);
-  backdrop-filter:blur(12px);
+  box-shadow:0 1px 3px rgba(0,0,0,0.04);
   transition:transform 0.2s ease,border-color 0.2s ease,box-shadow 0.2s ease;
   overflow:hidden;
   cursor:pointer;
@@ -130,67 +129,66 @@ body::before{
 }
 .card-name{
   position:relative;z-index:1;
-  font-size:20px;font-weight:700;color:#f1f5f9;
+  font-size:20px;font-weight:700;color:#1e293b;
   margin-bottom:6px;letter-spacing:0.5px;
 }
 .card-desc{
   position:relative;z-index:1;
-  font-size:12px;color:#64748b;
+  font-size:12px;color:#94a3b8;
   line-height:1.5;
 }
 .card-arrow{
   position:absolute;right:14px;bottom:14px;
   width:24px;height:24px;border-radius:50%;
-  background:rgba(255,255,255,0.06);
+  background:#f1f5f9;
   display:flex;align-items:center;justify-content:center;
-  font-size:14px;color:#475569;
+  font-size:14px;color:#94a3b8;
   transition:background 0.2s,color 0.2s;
 }
 .card:active .card-arrow{
-  background:rgba(255,255,255,0.12);
-  color:#94a3b8;
+  background:#e2e8f0;
+  color:#475569;
 }
 
-/* 各卡片主题色 */
-.card.c0::before{background:linear-gradient(90deg,#f472b6,#ec4899)}
-.card.c0 .card-name{color:#f9a8d4}
-.card.c0:active{border-color:rgba(244,114,182,0.4);box-shadow:0 0 24px rgba(244,114,182,0.12)}
+/* 各卡片主题色 - 简约鲜明 */
+.card.c0::before{background:linear-gradient(90deg,#ec4899,#db2777)}
+.card.c0 .card-name{color:#db2777}
+.card.c0:active{border-color:rgba(236,72,153,0.3);box-shadow:0 0 24px rgba(236,72,153,0.1)}
 
-.card.c1::before{background:linear-gradient(90deg,#38bdf8,#0ea5e9)}
-.card.c1 .card-name{color:#7dd3fc}
-.card.c1:active{border-color:rgba(56,189,248,0.4);box-shadow:0 0 24px rgba(56,189,248,0.12)}
+.card.c1::before{background:linear-gradient(90deg,#0ea5e9,#0284c7)}
+.card.c1 .card-name{color:#0284c7}
+.card.c1:active{border-color:rgba(14,165,233,0.3);box-shadow:0 0 24px rgba(14,165,233,0.1)}
 
-.card.c2::before{background:linear-gradient(90deg,#34d399,#10b981)}
-.card.c2 .card-name{color:#6ee7b7}
-.card.c2:active{border-color:rgba(52,211,153,0.4);box-shadow:0 0 24px rgba(52,211,153,0.12)}
+.card.c2::before{background:linear-gradient(90deg,#10b981,#059669)}
+.card.c2 .card-name{color:#059669}
+.card.c2:active{border-color:rgba(16,185,129,0.3);box-shadow:0 0 24px rgba(16,185,129,0.1)}
 
-.card.c3::before{background:linear-gradient(90deg,#fbbf24,#f59e0b)}
-.card.c3 .card-name{color:#fcd34d}
-.card.c3:active{border-color:rgba(251,191,36,0.4);box-shadow:0 0 24px rgba(251,191,36,0.12)}
+.card.c3::before{background:linear-gradient(90deg,#f59e0b,#d97706)}
+.card.c3 .card-name{color:#d97706}
+.card.c3:active{border-color:rgba(245,158,11,0.3);box-shadow:0 0 24px rgba(245,158,11,0.1)}
 
-.card.c4::before{background:linear-gradient(90deg,#a78bfa,#8b5cf6)}
-.card.c4 .card-name{color:#c4b5fd}
-.card.c4:active{border-color:rgba(167,139,250,0.4);box-shadow:0 0 24px rgba(167,139,250,0.12)}
+.card.c4::before{background:linear-gradient(90deg,#8b5cf6,#6d28d9)}
+.card.c4 .card-name{color:#6d28d9}
+.card.c4:active{border-color:rgba(139,92,246,0.3);box-shadow:0 0 24px rgba(139,92,246,0.1)}
 
-.card.c5::before{background:linear-gradient(90deg,#2dd4bf,#14b8a6)}
-.card.c5 .card-name{color:#5eead4}
-.card.c5:active{border-color:rgba(45,212,191,0.4);box-shadow:0 0 24px rgba(45,212,191,0.12)}
+.card.c5::before{background:linear-gradient(90deg,#14b8a6,#0d9488)}
+.card.c5 .card-name{color:#0d9488}
+.card.c5:active{border-color:rgba(20,184,166,0.3);box-shadow:0 0 24px rgba(20,184,166,0.1)}
 
-.card.c6::before{background:linear-gradient(90deg,#94a3b8,#64748b)}
-.card.c6 .card-name{color:#cbd5e1}
-.card.c6:active{border-color:rgba(148,163,184,0.4);box-shadow:0 0 24px rgba(148,163,184,0.12)}
+.card.c6::before{background:linear-gradient(90deg,#6366f1,#4f46e5)}
+.card.c6 .card-name{color:#4f46e5}
+.card.c6:active{border-color:rgba(99,102,241,0.3);box-shadow:0 0 24px rgba(99,102,241,0.1)}
 
 /* 底部 */
 .footer{
   text-align:center;padding:24px 0 8px;
-  font-size:11px;color:#334155;
+  font-size:11px;color:#cbd5e1;
   letter-spacing:0.5px;
 }
 /* 大屏单列 */
 @media(min-width:440px){
   .cards{grid-template-columns:1fr 1fr 1fr}
   .card:nth-child(7){grid-column:1/-1}
-  /* 6张卡时最后一张不跨列 */
   .cards.len6 .card:nth-child(6){grid-column:auto}
 }
 </style>
