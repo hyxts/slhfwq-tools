@@ -69,8 +69,9 @@ def _get_last_backup_time():
     return None
 
 
-def _auto_backup_thread():
+def _auto_backup_thread(stop_event=None):
     """每天定时自动备份一次，基于上次实际备份时间 + 间隔"""
+    from .service_manager import sleep_check
     while True:
         try:
             now = _now()
@@ -95,16 +96,18 @@ def _auto_backup_thread():
             next_check = (now + timedelta(seconds=sleep_sec)).strftime('%Y-%m-%d %H:%M')
             ts = now.strftime('%Y-%m-%d %H:%M:%S')
             print(f'[{ts}] 备份调度: 下次备份时间 {next_check}')
-            time_mod.sleep(sleep_sec)
+            if sleep_check(stop_event, sleep_sec):
+                return
 
         except Exception as e:
             ts = _now().strftime('%Y-%m-%d %H:%M:%S')
             print(f'[{ts}] 自动备份异常: {e}，60秒后重试')
-            time_mod.sleep(60)
+            if sleep_check(stop_event, 60):
+                return
 
 
-def start_auto_backup():
-    t = threading.Thread(target=_auto_backup_thread, daemon=True)
+def start_auto_backup(stop_event=None):
+    t = threading.Thread(target=_auto_backup_thread, args=(stop_event,), daemon=True)
     t.start()
 
 
@@ -200,8 +203,9 @@ def _do_cleanup():
     return results, total_freed
 
 
-def _auto_clean_thread():
+def _auto_clean_thread(stop_event=None):
     """每7天自动清理一次，基于上次实际清理时间 + 间隔"""
+    from .service_manager import sleep_check
     global _last_cleanup
     while True:
         try:
@@ -220,7 +224,8 @@ def _auto_clean_thread():
                         next_check = (now + timedelta(seconds=sleep_sec)).strftime('%Y-%m-%d %H:%M')
                         ts = now.strftime('%Y-%m-%d %H:%M:%S')
                         print(f'[{ts}] 清理调度: 距上次清理不足7天，下次清理 {next_check}')
-                        time_mod.sleep(sleep_sec)
+                        if sleep_check(stop_event, sleep_sec):
+                            return
                         continue
                 except Exception:
                     pass  # 解析失败则直接执行
@@ -230,16 +235,18 @@ def _auto_clean_thread():
             with _last_cleanup_lock:
                 _last_cleanup = {'time': ts, 'freed': _size_str(freed), 'results': results}
             print(f'[{ts}] 自动清理完成: 释放 {_size_str(freed)}; {"; ".join(results)}')
-            time_mod.sleep(AUTO_CLEAN_INTERVAL)
+            if sleep_check(stop_event, AUTO_CLEAN_INTERVAL):
+                return
 
         except Exception as e:
             ts = _now().strftime('%Y-%m-%d %H:%M:%S')
             print(f'[{ts}] 自动清理异常: {e}，60秒后重试')
-            time_mod.sleep(60)
+            if sleep_check(stop_event, 60):
+                return
 
 
-def start_auto_clean():
-    t = threading.Thread(target=_auto_clean_thread, daemon=True)
+def start_auto_clean(stop_event=None):
+    t = threading.Thread(target=_auto_clean_thread, args=(stop_event,), daemon=True)
     t.start()
 
 
