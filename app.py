@@ -10,7 +10,7 @@ from flask import Flask, jsonify, send_from_directory, request, session, redirec
 _start_ts = time_mod.time()
 def _diag(msg):
     elapsed = time_mod.time() - _start_ts
-    print(f'[STARTUP {elapsed:.2f}s] {msg}', flush=True)
+    print(f'[STARTUP {elapsed:.2f}s] {msg}')
 
 app = Flask(__name__)
 app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024
@@ -391,20 +391,31 @@ _SAFE_STARTS = [
     ('auto_backup', start_auto_backup),
     ('auto_clean', start_auto_clean),
 ]
-for _name, _fn in _SAFE_STARTS:
-    if _fn:
-        try:
-            _fn()
-            _diag(f'{_name} 启动')
-        except Exception as e:
-            _diag(f'{_name} 失败: {e}')
-    else:
-        _diag(f'{_name} 跳过（模块未加载）')
-_diag('启动完成 - 所有初始化完毕')
+_diag('启动完成 - 数据库就绪')
 
-# 后台预构建状态缓存，避免首次 /api/status 请求冷启动慢
-if prebuild_status:
-    threading.Thread(target=prebuild_status, daemon=True).start()
+
+def _deferred_starts():
+    """延迟启动后台服务和缓存：先让 worker 就绪接受请求，再异步启动"""
+    import time as _time
+    _time.sleep(3)  # 等待 PA worker 确认就绪
+    for _name, _fn in _SAFE_STARTS:
+        if _fn:
+            try:
+                _fn()
+                _diag(f'[延迟] {_name} 启动')
+            except Exception as e:
+                _diag(f'[延迟] {_name} 失败: {e}')
+    else:
+        _diag(f'[延迟] 后台服务启动完毕')
+    if prebuild_status:
+        try:
+            prebuild_status()
+            _diag('[延迟] 状态缓存构建完成')
+        except Exception as e:
+            _diag(f'[延迟] 缓存构建失败: {e}')
+
+
+threading.Thread(target=_deferred_starts, daemon=True).start()
 
 # 定期清理过期的速率限制记录
 def _clean_rate_limits():
