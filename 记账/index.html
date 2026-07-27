@@ -6,17 +6,17 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
 <meta name="apple-mobile-web-app-title" content="债务追踪">
-<meta name="theme-color" content="#1a0000">
+<meta name="theme-color" content="#0f172a">
 <link rel="apple-touch-icon" href="/accounting/icon-192.svg">
 <link rel="icon" type="image/svg+xml" href="/accounting/icon-512.svg">
 <link rel="manifest" href="/accounting/manifest.json">
 <title>债务往来追踪</title>
 <style>
 :root {
-    --primary:#2563EB; --bg:#F5F5F7; --card-bg:#fff; --text:#1D1D1F; --text-secondary:#6E6E73;
-    --border:#E5E5EA; --success:#34C759; --danger:#FF3B30;
-    --pay:#2563EB; --recv:#FF9F0A; --receivable:#8B5CF6; --positive:#34C759; --negative:#FF3B30;
-    --shadow:0 2px 12px rgba(0,0,0,.08);
+    --primary:#60a5fa; --bg:#0f172a; --card-bg:#1e293b; --text:#e2e8f0; --text-secondary:#94a3b8;
+    --border:rgba(148,163,184,.15); --success:#4ade80; --danger:#FF3B30;
+    --pay:#60a5fa; --recv:#fbbf24; --receivable:#a78bfa; --positive:#4ade80; --negative:#f87171;
+    --shadow:0 2px 12px rgba(0,0,0,.3);
 }
 * { margin:0; padding:0; box-sizing:border-box; }
 body { font-family:-apple-system,"Segoe UI",Roboto,"Helvetica Neue",Arial,"PingFang SC","Microsoft YaHei",sans-serif; background:var(--bg); color:var(--text); -webkit-text-size-adjust:100%; -webkit-font-smoothing:antialiased; }
@@ -50,7 +50,7 @@ button { padding:10px 20px; border:none; border-radius:8px; font-size:14px; font
 .btn-sm { padding:4px 10px; font-size:12px; min-height:auto; }
 .record-item { display:flex; align-items:center; gap:10px; font-size:13px; padding:12px 14px; border-bottom:1.5px solid #adb5bd; background:#fff; }
 .record-row:last-child .record-item { border-bottom:none; }
-.record-item:nth-child(even) { background:#f7f8fa; }
+.record-item:nth-child(even) { background:#334155; }
 #recordList { border:1px solid #c8cdd3; border-radius:10px; overflow:hidden; background:#fff; }
 .rec-dir { font-size:11px; padding:2px 8px; border-radius:10px; font-weight:600; white-space:nowrap; }
 .rec-dir.pay { background:#DBEAFE; color:var(--pay); }

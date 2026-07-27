@@ -8,95 +8,95 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="mobile-web-app-capable" content="yes">
-<meta name="theme-color" content="#0f1a0f">
+<meta name="theme-color" content="#0f172a">
 <link rel="apple-touch-icon" href="/renqing/icon-192.svg">
 <link rel="icon" type="image/svg+xml" href="/renqing/icon-512.svg">
 <style>
 *{margin:0;padding:0;box-sizing:border-box}
-body{font-family:"PingFang SC","Microsoft YaHei","Hiragino Sans GB",sans-serif;background:#f5f4f0;color:#2c3e50;min-height:100vh;padding-left:env(safe-area-inset-left);padding-right:env(safe-area-inset-right);padding-top:env(safe-area-inset-top);padding-bottom:calc(16px + env(safe-area-inset-bottom))}
+body{font-family:"PingFang SC","Microsoft YaHei","Hiragino Sans GB",sans-serif;background:#0f172a;color:#e2e8f0;min-height:100vh;padding-left:env(safe-area-inset-left);padding-right:env(safe-area-inset-right);padding-top:env(safe-area-inset-top);padding-bottom:calc(16px + env(safe-area-inset-bottom))}
 body.modal-open{overflow:hidden;position:fixed;width:100%}
 /* 顶部导航 */
-header{background:#fff;border-bottom:1px solid #e0dbd0;padding:0 20px;display:flex;align-items:center;justify-content:space-between;height:52px;position:sticky;top:0;z-index:100}
-header h1{font-size:18px;font-weight:600;letter-spacing:2px;color:#2c3e50}
+header{background:#1e293b;border-bottom:1px solid rgba(148,163,184,.15);padding:0 20px;display:flex;align-items:center;justify-content:space-between;height:52px;position:sticky;top:0;z-index:100}
+header h1{font-size:18px;font-weight:600;letter-spacing:2px;color:#e2e8f0}
 nav{display:flex;gap:0}
-nav a,nav button{padding:14px 20px;border:none;background:none;font-size:14px;color:#7f8c8d;cursor:pointer;border-bottom:3px solid transparent;transition:all .2s;font-family:inherit;text-decoration:none}
-nav a:hover,nav button:hover{color:#2c3e50;background:#fafaf8}
+nav a,nav button{padding:14px 20px;border:none;background:none;font-size:14px;color:#94a3b8;cursor:pointer;border-bottom:3px solid transparent;transition:all .2s;font-family:inherit;text-decoration:none}
+nav a:hover,nav button:hover{color:#e2e8f0;background:#334155}
 /* 主容器 */
 main{max-width:1100px;margin:0 auto;padding:24px 20px}
 /* 卡片 */
-.card{background:#fff;border-radius:8px;padding:20px;margin-bottom:16px;box-shadow:0 1px 3px rgba(0,0,0,.06);border:1px solid #eae6dd}
-.card-title{font-size:15px;font-weight:600;color:#2c3e50;margin-bottom:14px;padding-bottom:8px;border-bottom:2px solid #eae6dd;display:flex;justify-content:space-between;align-items:center;gap:8px}
+.card{background:#1e293b;border-radius:8px;padding:20px;margin-bottom:16px;box-shadow:0 1px 3px rgba(0,0,0,.06);border:1px solid rgba(148,163,184,.15)}
+.card-title{font-size:15px;font-weight:600;color:#e2e8f0;margin-bottom:14px;padding-bottom:8px;border-bottom:2px solid rgba(148,163,184,.15);display:flex;justify-content:space-between;align-items:center;gap:8px}
 #evtDetail .card-title > span:first-child{min-width:0;flex-shrink:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .card-title .btn-group{flex-shrink:0}
 /* 按钮 */
-.btn{padding:8px 16px;border:1px solid #d5cfc5;border-radius:6px;font-size:13px;cursor:pointer;background:#fff;color:#2c3e50;font-family:inherit;transition:all .15s}
-.btn:hover{background:#f5f4f0;border-color:#b0a89a}
-.btn.primary{background:#2c3e50;color:#fff;border-color:#2c3e50}
-.btn.primary:hover{background:#3d5063}
-.btn.danger{color:#c0392b;border-color:#e0cfcf}
-.btn.danger:hover{background:#fdf2f2}
+.btn{padding:8px 16px;border:1px solid rgba(148,163,184,.2);border-radius:6px;font-size:13px;cursor:pointer;background:#1e293b;color:#e2e8f0;font-family:inherit;transition:all .15s}
+.btn:hover{background:#0f172a;border-color:rgba(148,163,184,.25)}
+.btn.primary{background:#475569;color:#fff;border-color:#e2e8f0}
+.btn.primary:hover{background:#64748b}
+.btn.danger{color:#f87171;border-color:rgba(248,113,113,.3)}
+.btn.danger:hover{background:rgba(239,68,68,.15)}
 .btn.sm{padding:4px 10px;font-size:12px}
 .btn-group{display:flex;gap:8px;flex-wrap:wrap}
 /* 表单 */
 .fgroup{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
-.fgroup input,.fgroup select{padding:8px 12px;border:1px solid #d5cfc5;border-radius:6px;font-size:13px;font-family:inherit;color:#2c3e50;background:#fafaf8;min-width:0}
-.fgroup input:focus,.fgroup select:focus{outline:none;border-color:#2c3e50;background:#fff}
+.fgroup input,.fgroup select{padding:8px 12px;border:1px solid rgba(148,163,184,.2);border-radius:6px;font-size:13px;font-family:inherit;color:#e2e8f0;background:#334155;min-width:0}
+.fgroup input:focus,.fgroup select:focus{outline:none;border-color:#e2e8f0;background:#1e293b}
 .fgroup input[type="date"]{width:138px}
 /* 表格 */
 .t-wrap{overflow-x:auto}
 table{width:100%;border-collapse:collapse}
-table thead th{padding:10px 12px;text-align:center;font-size:12px;color:#7f8c8d;border-bottom:2px solid #eae6dd;white-space:nowrap;font-weight:500}
-table tbody td{padding:9px 12px;font-size:13px;border-bottom:1px solid #f0ede5;vertical-align:middle;text-align:center}
-table tbody tr:hover{background:#fafaf8}
+table thead th{padding:10px 12px;text-align:center;font-size:12px;color:#94a3b8;border-bottom:2px solid rgba(148,163,184,.15);white-space:nowrap;font-weight:500}
+table tbody td{padding:9px 12px;font-size:13px;border-bottom:1px solid rgba(148,163,184,.1);vertical-align:middle;text-align:center}
+table tbody tr:hover{background:#334155}
 table tbody tr.row-locked{opacity:.6}
-td.amt{font-weight:600;color:#2c3e50}
+td.amt{font-weight:600;color:#e2e8f0}
 td.num{text-align:center}
 td.act{white-space:nowrap}
 /* 事件选择器 */
 .evt-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:12px}
-.evt-item{padding:14px;background:#fff;border:1px solid #eae6dd;border-radius:8px;cursor:pointer;transition:all .15s}
-.evt-item:hover{border-color:#2c3e50;box-shadow:0 2px 6px rgba(0,0,0,.08)}
-.evt-item.selected{border-color:#2c3e50;background:#fafaf8}
+.evt-item{padding:14px;background:#1e293b;border:1px solid rgba(148,163,184,.15);border-radius:8px;cursor:pointer;transition:all .15s}
+.evt-item:hover{border-color:#e2e8f0;box-shadow:0 2px 6px rgba(0,0,0,.08)}
+.evt-item.selected{border-color:#e2e8f0;background:#334155}
 .evt-item .ename{font-size:14px;font-weight:600;margin-bottom:4px;text-align:center}
-.evt-item .emeta{font-size:12px;color:#7f8c8d;display:flex;gap:12px;justify-content:center}
-.evt-item .etotal{font-size:16px;font-weight:700;color:#2c3e50;margin-top:6px}
+.evt-item .emeta{font-size:12px;color:#94a3b8;display:flex;gap:12px;justify-content:center}
+.evt-item .etotal{font-size:16px;font-weight:700;color:#e2e8f0;margin-top:6px}
 /* 页导航 */
 .batch-bar{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:16px}
-.batch-bar span{padding:6px 12px;background:#f5f4f0;border-radius:6px;font-size:13px;cursor:pointer;border:1px solid transparent;transition:all .15s}
+.batch-bar span{padding:6px 12px;background:#0f172a;border-radius:6px;font-size:13px;cursor:pointer;border:1px solid transparent;transition:all .15s}
 .batch-bar span:hover{border-color:#d5cfc5}
-.batch-bar span.on{background:#2c3e50;color:#fff;font-weight:600}
+.batch-bar span.on{background:#475569;color:#fff;font-weight:600}
 /* 礼薄页面 */
-.gift-page{background:#fff;border:1px solid #eae6dd;border-radius:8px;overflow:hidden}
-.gift-page .page-header{background:#fafaf8;padding:10px 16px;font-size:13px;color:#7f8c8d;border-bottom:1px solid #eae6dd;display:flex;justify-content:center;align-items:center;gap:16px}
-.gift-page table thead th{background:#fafaf8}
+.gift-page{background:#1e293b;border:1px solid rgba(148,163,184,.15);border-radius:8px;overflow:hidden}
+.gift-page .page-header{background:#334155;padding:10px 16px;font-size:13px;color:#94a3b8;border-bottom:1px solid rgba(148,163,184,.12);display:flex;justify-content:center;align-items:center;gap:16px}
+.gift-page table thead th{background:#334155}
 /* 可编辑录入表单 */
 .page-form table td{padding:4px 8px}
-.page-form input{width:100%;padding:6px 8px;border:1px solid #e0dbd0;border-radius:4px;font-size:13px;font-family:inherit;color:#2c3e50;background:#fdfdfc;text-align:center}
-.page-form input:focus{outline:none;border-color:#2c3e50;background:#fff;box-shadow:0 0 0 2px rgba(44,62,80,.1)}
-.page-form input::placeholder{color:#ccc}
-.row-empty td{background:#fefefe}
+.page-form input{width:100%;padding:6px 8px;border:1px solid rgba(148,163,184,.2);border-radius:4px;font-size:13px;font-family:inherit;color:#e2e8f0;background:#1e293b;text-align:center}
+.page-form input:focus{outline:none;border-color:#e2e8f0;background:#1e293b;box-shadow:0 0 0 2px rgba(148,163,184,.2)}
+.page-form input::placeholder{color:#64748b}
+.row-empty td{background:#1e293b}
 /* 模糊搜索下拉 */
-.ac-dd{position:fixed;z-index:300;background:#fff;border:1px solid #d5cfc5;border-radius:6px;max-height:180px;overflow-y:auto;box-shadow:0 4px 12px rgba(0,0,0,.12);display:none}
+.ac-dd{position:fixed;z-index:300;background:#1e293b;border:1px solid rgba(148,163,184,.2);border-radius:6px;max-height:180px;overflow-y:auto;box-shadow:0 4px 12px rgba(0,0,0,.12);display:none}
 .ac-dd.show{display:block}
-.ac-dd .ac-item{padding:8px 12px;font-size:13px;cursor:pointer;color:#2c3e50;white-space:nowrap}
-.ac-dd .ac-item:hover,.ac-dd .ac-item.active{background:#f5f4f0}
+.ac-dd .ac-item{padding:8px 12px;font-size:13px;cursor:pointer;color:#e2e8f0;white-space:nowrap}
+.ac-dd .ac-item:hover,.ac-dd .ac-item.active{background:#0f172a}
 /* 数据卡片 */
 .stat-row{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px;margin-bottom:16px}
-.stat-card{background:#fff;border:1px solid #eae6dd;border-radius:8px;padding:16px;text-align:center}
-.stat-card .slabel{font-size:12px;color:#7f8c8d;margin-bottom:6px}
-.stat-card .svalue{font-size:24px;font-weight:700;color:#2c3e50}
-.stat-card.sub .svalue{font-size:18px;color:#7f8c8d}
+.stat-card{background:#1e293b;border:1px solid rgba(148,163,184,.15);border-radius:8px;padding:16px;text-align:center}
+.stat-card .slabel{font-size:12px;color:#94a3b8;margin-bottom:6px}
+.stat-card .svalue{font-size:24px;font-weight:700;color:#e2e8f0}
+.stat-card.sub .svalue{font-size:18px;color:#94a3b8}
 /* 弹窗 */
 .modal-mask{display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,.25);z-index:200;justify-content:center;align-items:center}
 .modal-mask.show{display:flex}
-.modal-box{background:#fff;border-radius:10px;padding:24px;min-width:360px;max-width:500px;box-shadow:0 8px 30px rgba(0,0,0,.15);border:1px solid #eae6dd}
-.modal-box h3{font-size:16px;font-weight:600;margin-bottom:16px;color:#2c3e50}
+.modal-box{background:#1e293b;border-radius:10px;padding:24px;min-width:360px;max-width:500px;box-shadow:0 8px 30px rgba(0,0,0,.15);border:1px solid rgba(148,163,184,.15)}
+.modal-box h3{font-size:16px;font-weight:600;margin-bottom:16px;color:#e2e8f0}
 .modal-box .fgroup{margin-bottom:12px;display:flex;flex-direction:column;align-items:stretch;gap:0}
-.modal-box .fgroup label{font-size:12px;color:#7f8c8d;margin-bottom:4px}
+.modal-box .fgroup label{font-size:12px;color:#94a3b8;margin-bottom:4px}
 .modal-box .fgroup input,.modal-box .fgroup select{width:100%}
 .modal-box .btn-row{display:flex;gap:8px;justify-content:flex-end;margin-top:16px}
 /* 提示 */
-.toast{position:fixed;top:20px;left:50%;transform:translateX(-50%);padding:10px 24px;background:#2c3e50;color:#fff;border-radius:8px;font-size:13px;z-index:300;opacity:0;transition:opacity .3s;pointer-events:none;width:max-content;max-width:90vw}
+.toast{position:fixed;top:20px;left:50%;transform:translateX(-50%);padding:10px 24px;background:#475569;color:#fff;border-radius:8px;font-size:13px;z-index:300;opacity:0;transition:opacity .3s;pointer-events:none;width:max-content;max-width:90vw}
 .toast.show{opacity:1}
 .toast.err{background:#c0392b}
 /* 空状态 */
@@ -257,7 +257,7 @@ async function loadEvents(){
 
 function renderEvtGrid(){
   $('evtGrid').innerHTML=events.length?events.map(e=>`<div class="evt-item${e.id===selEvtId?' selected':''}${e.locked?' row-locked':''}" onclick="selectEvent(${e.id})">
-    <div class="ename">${escH(e.name)}${e.locked?' <span style="font-size:11px;color:#c0392b">[锁定]</span>':''}</div>
+    <div class="ename">${escH(e.name)}${e.locked?' <span style="font-size:11px;color:#f87171">[锁定]</span>':''}</div>
     <div class="emeta"><span>${escH(evtTypeLabel(e.event_type))}</span>${e.event_date?`<span>${e.event_date}</span>`:''}<span>${e.record_count}条</span></div>
     <div class="etotal">${fmtA(e.total_amount)} 元</div>
   </div>`).join(''):'<div class="empty-hint">暂无已归档事件</div>';
@@ -330,7 +330,7 @@ function renderBatchPage(){
       if(r){
         html+=`<tr><td class="num" style="color:#999">${i+1}</td><td>${escH(r.name)}</td><td class="amt num">${fmtA(r.amount)}</td><td style="color:#999">${escH(r.note||'')}</td><td></td></tr>`;
       }else{
-        html+=`<tr style="color:#ccc"><td class="num">${i+1}</td><td>---</td><td class="num">---</td><td>---</td><td></td></tr>`;
+        html+=`<tr style="color:#64748b"><td class="num">${i+1}</td><td>---</td><td class="num">---</td><td>---</td><td></td></tr>`;
       }
     }
     html+=`</tbody></table></div>`;
@@ -600,10 +600,10 @@ function renderDailyYearDetail(){
     sorted.forEach(r=>{
       if(_dailyEditId===r.id){
         html+=`<tr id="deRow_${r.id}">
-          <td><input type="date" id="deDate_${r.id}" value="${escH(r.date||'')}" style="width:100%;padding:4px;border:1px solid #d5cfc5;border-radius:4px;font-size:13px;text-align:center"></td>
-          <td><input type="text" id="deName_${r.id}" value="${escH(r.name)}" style="width:100%;padding:4px;border:1px solid #d5cfc5;border-radius:4px;font-size:13px;text-align:center"></td>
-          <td><input type="number" id="deAmt_${r.id}" value="${r.amount}" step="0.01" style="width:100%;padding:4px;border:1px solid #d5cfc5;border-radius:4px;font-size:13px;text-align:center"></td>
-          <td><input type="text" id="deNote_${r.id}" value="${escH(r.note||'')}" style="width:100%;padding:4px;border:1px solid #d5cfc5;border-radius:4px;font-size:13px;text-align:center"></td>
+          <td><input type="date" id="deDate_${r.id}" value="${escH(r.date||'')}" style="width:100%;padding:4px;border:1px solid rgba(148,163,184,.2);border-radius:4px;font-size:13px;text-align:center"></td>
+          <td><input type="text" id="deName_${r.id}" value="${escH(r.name)}" style="width:100%;padding:4px;border:1px solid rgba(148,163,184,.2);border-radius:4px;font-size:13px;text-align:center"></td>
+          <td><input type="number" id="deAmt_${r.id}" value="${r.amount}" step="0.01" style="width:100%;padding:4px;border:1px solid rgba(148,163,184,.2);border-radius:4px;font-size:13px;text-align:center"></td>
+          <td><input type="text" id="deNote_${r.id}" value="${escH(r.note||'')}" style="width:100%;padding:4px;border:1px solid rgba(148,163,184,.2);border-radius:4px;font-size:13px;text-align:center"></td>
           <td class="act">
             <button class="btn primary sm" onclick="saveDailyEdit(${r.id})">保存</button>
             <button class="btn sm" onclick="_dailyEditId=null;renderDailyYearDetail()">取消</button>

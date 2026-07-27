@@ -13,37 +13,37 @@
 <title>管理后台</title>
 <style>
 *{margin:0;padding:0;box-sizing:border-box}
-body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#f5f5f5;color:#333}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#0f172a;color:#e2e8f0}
 .app-layout{display:flex;height:100vh;overflow:hidden}
-.sidebar{width:220px;flex-shrink:0;background:linear-gradient(180deg,#667eea 0%,#5a4fa8 40%,#3d3380 100%);color:#fff;display:flex;flex-direction:column;overflow-y:auto}
-.hdr{padding:24px 20px 16px;display:flex;align-items:center;gap:10px;border-bottom:1px solid rgba(255,255,255,.15);margin-bottom:8px}
+.sidebar{width:220px;flex-shrink:0;background:linear-gradient(180deg,#4f46e5 0%,#4338ca 40%,#312e81 100%);color:#fff;display:flex;flex-direction:column;overflow-y:auto}
+.hdr{padding:24px 20px 16px;display:flex;align-items:center;gap:10px;border-bottom:1px solid rgba(255,255,255,.1);margin-bottom:8px}
 .hdr h1{font-size:17px;font-weight:600;color:#fff}
 .hdr svg{flex-shrink:0}
 .nav{display:flex;flex-direction:column;gap:2px;padding:8px 12px}
-.nb{flex:none;padding:11px 14px;border:none;border-radius:8px;cursor:pointer;font-size:14px;font-weight:500;text-align:left;color:rgba(255,255,255,.8);background:0;transition:all .15s;border-left:3px solid transparent}
-.nb.on{background:rgba(255,255,255,.18);color:#fff;font-weight:600;border-left-color:#fff}
-.nb:hover{background:rgba(255,255,255,.12);color:#fff}
+.nb{flex:none;padding:11px 14px;border:none;border-radius:8px;cursor:pointer;font-size:14px;font-weight:500;text-align:left;color:rgba(255,255,255,.75);background:0;transition:all .15s;border-left:3px solid transparent}
+.nb.on{background:rgba(255,255,255,.15);color:#fff;font-weight:600;border-left-color:#fff}
+.nb:hover{background:rgba(255,255,255,.1);color:#fff}
 .ctn{flex:1;overflow-y:auto;padding:20px 28px;max-width:none;margin:0}
 .pg{display:none}.pg.on{display:block}
 
 /* 通用卡片 */
-.card{background:#fff;border-radius:12px;padding:20px 24px;margin-bottom:16px;box-shadow:0 2px 8px rgba(0,0,0,.08);border:1px solid #f0f0f0}
-.card h3{font-size:16px;margin-bottom:14px;color:#1f2937;font-weight:600}
+.card{background:#1e293b;border-radius:12px;padding:20px 24px;margin-bottom:16px;box-shadow:0 2px 8px rgba(0,0,0,.3);border:1px solid rgba(148,163,184,.12)}
+.card h3{font-size:16px;margin-bottom:14px;color:#e2e8f0;font-weight:600}
 
 /* 按钮 */
 .btn{padding:10px 20px;border:none;border-radius:10px;cursor:pointer;font-size:14px;font-weight:600;display:block;width:100%;min-height:44px;margin-bottom:8px;transition:all .15s;-webkit-appearance:none;appearance:none}
 .btn:active{opacity:.9;transform:scale(.99)}
 .btn:disabled{opacity:.4;cursor:not-allowed;transform:none}
-.bp{background:#667eea;color:#fff}
-.bp:hover{background:#5a6fd6}
-.bs{background:#22c55e;color:#fff}
-.bs:hover{background:#16a34a}
-.bo{background:transparent;border:1.5px solid #d1d5db;color:#6b7280}
-.bo:hover{border-color:#667eea;color:#667eea}
-.bw{background:#f59e0b;color:#fff}
-.bw:hover{background:#d97706}
-.br{background:#ef4444;color:#fff}
-.br:hover{background:#dc2626}
+.bp{background:#6366f1;color:#fff}
+.bp:hover{background:#4f46e5}
+.bs{background:#15803d;color:#fff}
+.bs:hover{background:#15803d}
+.bo{background:transparent;border:1.5px solid rgba(148,163,184,.2);color:#94a3b8}
+.bo:hover{border-color:#a5b4fc;color:#a5b4fc}
+.bw{background:#b45309;color:#fff}
+.bw:hover{background:#b45309}
+.br{background:#b91c1c;color:#fff}
+.br:hover{background:#b91c1c}
 .bsm{padding:6px 12px;font-size:12px;width:auto;min-height:unset;margin-bottom:0;display:inline-block}
 
 /* 输出区 */
@@ -52,36 +52,36 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
 .output.info{color:#89b4fa}
 
 /* 提交列表 */
-.commit-list{background:#f8f9fc;border-radius:8px;padding:4px 0;max-height:280px;overflow-y:auto}
-.commit-item{display:flex;align-items:flex-start;padding:6px 12px;font-size:12px;border-bottom:1px solid #eee;gap:8px}
+.commit-list{background:#1e293b;border-radius:8px;padding:4px 0;max-height:280px;overflow-y:auto}
+.commit-item{display:flex;align-items:flex-start;padding:6px 12px;font-size:12px;border-bottom:1px solid rgba(148,163,184,.1);gap:8px}
 .commit-item:last-child{border-bottom:none}
-.commit-hash{font-family:Consolas,monospace;color:#667eea;font-size:11px;flex-shrink:0;min-width:52px}
-.commit-date{color:#999;font-size:11px;flex-shrink:0;min-width:68px;text-align:right}
-.commit-message{color:#374151;word-break:break-all;flex:1}
-.loading{text-align:center;padding:12px;color:#999;font-size:13px}
-.empty{text-align:center;padding:35px;color:#888}
+.commit-hash{font-family:Consolas,monospace;color:#a5b4fc;font-size:11px;flex-shrink:0;min-width:52px}
+.commit-date{color:#64748b;font-size:11px;flex-shrink:0;min-width:68px;text-align:right}
+.commit-message{color:#e2e8f0;word-break:break-all;flex:1}
+.loading{text-align:center;padding:12px;color:#64748b;font-size:13px}
+.empty{text-align:center;padding:35px;color:#94a3b8}
 
 /* 列表项 */
-.list-item{display:flex;align-items:center;justify-content:space-between;padding:10px 12px;background:#f8f9fc;border-radius:8px;margin-bottom:6px;font-size:13px}
+.list-item{display:flex;align-items:center;justify-content:space-between;padding:10px 12px;background:#1e293b;border-radius:8px;margin-bottom:6px;font-size:13px}
 .list-info{flex:1;min-width:0}
-.list-name{font-weight:600;color:#374151;margin-bottom:2px;word-break:break-all}
-.list-meta{color:#999;font-size:11px}
+.list-name{font-weight:600;color:#e2e8f0;margin-bottom:2px;word-break:break-all}
+.list-meta{color:#64748b;font-size:11px}
 .list-actions{display:flex;gap:6px;flex-shrink:0}
 
 /* Toast */
 .toast{position:fixed;top:16px;left:50%;transform:translateX(-50%);padding:10px 20px;border-radius:10px;color:#fff;font-size:14px;font-weight:600;z-index:9999;opacity:0;transition:opacity .25s;pointer-events:none}
 .toast.show{opacity:1}
 .toast-ok{background:#28a745}
-.toast-err{background:#dc3545}
+.toast-err{background:#dc2626}
 
 /* 概览 - 指标卡 4列 */
 .metrics-row{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:16px}
-.metric-card{background:#fff;border-radius:14px;padding:20px;box-shadow:0 2px 8px rgba(0,0,0,.08);border:1px solid #f0f0f0;display:flex;flex-direction:column;align-items:center;justify-content:center}
+.metric-card{background:#1e293b;border-radius:14px;padding:20px;box-shadow:0 2px 8px rgba(0,0,0,.3);border:1px solid rgba(148,163,184,.12);display:flex;flex-direction:column;align-items:center;justify-content:center}
 .metric-card.actions{align-items:stretch;justify-content:center;gap:8px}
 .metric-card.actions .btn{width:100%;margin-bottom:0;font-size:13px;min-height:38px}
-.metric-label{font-size:12px;color:#888;font-weight:500;margin-bottom:6px;text-align:center}
-.metric-value{font-size:22px;font-weight:800;color:#1f2937;text-align:center}
-.metric-sub{font-size:11px;color:#999;margin-top:4px;text-align:center}
+.metric-label{font-size:12px;color:#94a3b8;font-weight:500;margin-bottom:6px;text-align:center}
+.metric-value{font-size:22px;font-weight:800;color:#e2e8f0;text-align:center}
+.metric-sub{font-size:11px;color:#64748b;margin-top:4px;text-align:center}
 
 /* 磁盘环形图 */
 .gauge-wrap{position:relative;width:90px;height:90px}
@@ -90,43 +90,43 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
 .gauge-fg{fill:none;stroke:#667eea;stroke-width:8;stroke-linecap:round;transition:stroke-dashoffset .8s ease,stroke .8s}
 .gauge-fg.warn{stroke:#f59e0b}
 .gauge-fg.danger{stroke:#ef4444}
-.gauge-center{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);font-size:20px;font-weight:800;color:#374151}
+.gauge-center{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);font-size:20px;font-weight:800;color:#e2e8f0}
 
 /* PA状态摘要状态字 */
 .pa-summary-status{font-size:12px;font-weight:600;padding:3px 10px;border-radius:12px;display:inline-block;margin-top:4px}
-.pa-summary-status.ok{background:#dcfce7;color:#16a34a}
-.pa-summary-status.warn{background:#fef3c7;color:#d97706}
-.pa-summary-status.err{background:#fee2e2;color:#dc2626}
-.pa-summary-status.none{background:#f3f4f6;color:#6b7280}
+.pa-summary-status.ok{background:rgba(34,197,94,.15);color:#34d399}
+.pa-summary-status.warn{background:rgba(251,191,36,.15);color:#d97706}
+.pa-summary-status.err{background:rgba(239,68,68,.15);color:#dc2626}
+.pa-summary-status.none{background:#334155;color:#94a3b8}
 
 /* 存储分布条 */
 .storage-list{display:flex;flex-direction:column;gap:6px;margin-top:10px}
 .storage-item{display:flex;align-items:center;gap:10px;font-size:13px}
-.storage-name{width:90px;text-align:right;color:#666;font-weight:500;flex-shrink:0}
-.storage-bar-wrap{flex:1;height:20px;background:#f3f4f6;border-radius:6px;overflow:hidden;position:relative}
+.storage-name{width:90px;text-align:right;color:#94a3b8;font-weight:500;flex-shrink:0}
+.storage-bar-wrap{flex:1;height:20px;background:#334155;border-radius:6px;overflow:hidden;position:relative}
 .storage-bar{height:100%;border-radius:6px;transition:width .5s ease;min-width:2px}
-.storage-bar.b0{background:#667eea}.storage-bar.b1{background:#764ba2}.storage-bar.b2{background:#f093fb}
+.storage-bar.b0{background:#6366f1}.storage-bar.b1{background:#764ba2}.storage-bar.b2{background:#f093fb}
 .storage-bar.b3{background:#4facfe}.storage-bar.b4{background:#43e97b}.storage-bar.b5{background:#fa709a}
 .storage-bar.b6{background:#f6d365}.storage-bar.b7{background:#f5576c}.storage-bar.b8{background:#a18cd1}
-.storage-bar.b9{background:#36d1dc}.storage-bar.bo{background:#e0e0e0}
-.storage-val{width:75px;text-align:left;color:#374151;font-weight:600;flex-shrink:0;font-size:12px}
-.storage-pct{width:44px;text-align:right;color:#999;font-size:11px;flex-shrink:0}
+.storage-bar.b9{background:#36d1dc}.storage-bar.bo{background:#334155}
+.storage-val{width:75px;text-align:left;color:#e2e8f0;font-weight:600;flex-shrink:0;font-size:12px}
+.storage-pct{width:44px;text-align:right;color:#64748b;font-size:11px;flex-shrink:0}
 
 /* 数据库卡片 */
 .db-cards{display:grid;grid-template-columns:repeat(6,1fr);gap:10px;margin-top:10px}
-.db-card{background:#f8fafc;border-radius:10px;padding:14px;text-align:center;border:2px solid transparent;transition:all .2s;cursor:default}
-.db-card:hover{border-color:#667eea;background:#eef2ff;transform:translateY(-2px);box-shadow:0 4px 12px rgba(102,126,234,.12)}
-.db-card-name{font-size:12px;color:#667eea;font-weight:600;margin-bottom:6px}
-.db-card-rows{font-size:20px;font-weight:800;color:#1f2937}
-.db-card-size{font-size:11px;color:#999;margin-top:3px}
+.db-card{background:#1e293b;border-radius:10px;padding:14px;text-align:center;border:2px solid transparent;transition:all .2s;cursor:default}
+.db-card:hover{border-color:#a5b4fc;background:rgba(99,102,241,.1);transform:translateY(-2px);box-shadow:0 4px 12px rgba(102,126,234,.12)}
+.db-card-name{font-size:12px;color:#a5b4fc;font-weight:600;margin-bottom:6px}
+.db-card-rows{font-size:20px;font-weight:800;color:#e2e8f0}
+.db-card-size{font-size:11px;color:#64748b;margin-top:3px}
 
 /* 程序网格 */
 .app-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-top:10px}
-.app-item{padding:20px 16px;background:#f8fafc;border-radius:14px;text-align:center;cursor:pointer;transition:all .2s;border:2px solid transparent}
-.app-item:hover{background:#eef2ff;border-color:#667eea;transform:translateY(-2px);box-shadow:0 6px 16px rgba(102,126,234,.18)}
+.app-item{padding:20px 16px;background:#1e293b;border-radius:14px;text-align:center;cursor:pointer;transition:all .2s;border:2px solid transparent}
+.app-item:hover{background:rgba(99,102,241,.1);border-color:#a5b4fc;transform:translateY(-2px);box-shadow:0 6px 16px rgba(102,126,234,.18)}
 .app-icon{width:52px;height:52px;border-radius:14px;display:flex;align-items:center;justify-content:center;margin:0 auto 10px}
-.app-name{font-size:15px;font-weight:700;color:#1f2937;margin-bottom:4px}
-.app-desc{font-size:12px;color:#6b7280}
+.app-name{font-size:15px;font-weight:700;color:#e2e8f0;margin-bottom:4px}
+.app-desc{font-size:12px;color:#94a3b8}
 
 /* 双栏布局 */
 .twocol{display:grid;grid-template-columns:1fr 1fr;gap:14px}
@@ -135,31 +135,31 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
 /* 概览 log-summary */
 .log-summary-item{display:flex;justify-content:space-between;padding:6px 0;font-size:13px;border-bottom:1px solid #f3f4f6}
 .log-summary-item:last-child{border-bottom:none}
-.log-summary-name{color:#666}
+.log-summary-name{color:#94a3b8}
 .log-summary-count{font-weight:600}
 .log-summary-count.err{color:#ef4444}
 
 /* 自动刷新倒计时 */
-.auto-refresh{text-align:right;font-size:11px;color:#999;padding:4px 0;margin-top:-10px;margin-bottom:10px}
-.auto-refresh span{font-weight:600;color:#667eea}
+.auto-refresh{text-align:right;font-size:11px;color:#64748b;padding:4px 0;margin-top:-10px;margin-bottom:10px}
+.auto-refresh span{font-weight:600;color:#a5b4fc}
 
 /* PA 续期 - 状态卡 */
 .pa-status-card{background:linear-gradient(135deg,#667eea,#7c3aed);color:#fff;border-radius:14px;padding:24px;margin-bottom:16px;box-shadow:0 4px 16px rgba(102,126,234,.25)}
 .pa-st-label{font-size:13px;opacity:.85;margin-bottom:4px}
 .pa-st-value{font-size:26px;font-weight:800;letter-spacing:.5px}
 .pa-st-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:10px;margin-top:16px}
-.pa-st-item{background:rgba(255,255,255,.12);border-radius:12px;padding:12px;text-align:center;backdrop-filter:blur(4px)}
+.pa-st-item{background:rgba(255,255,255,.1);border-radius:12px;padding:12px;text-align:center;backdrop-filter:blur(4px)}
 .pa-st-item .l{font-size:12px;opacity:.85;margin-bottom:4px}
 .pa-st-item .v{font-size:14px;font-weight:700;word-break:break-all}
 
 /* PA - 表单 */
 .fg{margin-bottom:12px}
-.fl{display:block;font-size:13px;color:#666;margin-bottom:4px;font-weight:500}
-.finp{width:100%;padding:10px;border:1px solid #ddd;border-radius:8px;font-size:14px}
+.fl{display:block;font-size:13px;color:#94a3b8;margin-bottom:4px;font-weight:500}
+.finp{width:100%;padding:10px;border:1px solid rgba(148,163,184,.15);border-radius:8px;font-size:14px}
 .ig{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
-.io{padding:9px 4px;border:1.5px solid #ddd;border-radius:10px;text-align:center;cursor:pointer;font-size:13px;font-weight:500;color:#666;background:#fafafa}
+.io{padding:9px 4px;border:1.5px solid #ddd;border-radius:10px;text-align:center;cursor:pointer;font-size:13px;font-weight:500;color:#94a3b8;background:#1e293b}
 .io:active{transform:scale(.96)}
-.io.sel{border-color:#667eea;background:rgba(102,126,234,.08);color:#667eea;font-weight:600}
+.io.sel{border-color:#a5b4fc;background:rgba(102,126,234,.08);color:#a5b4fc;font-weight:600}
 
 /* PA - 日志 */
 .pa-log-box{background:#1a1a2e;border-radius:10px;padding:10px;max-height:300px;overflow-y:auto;font-family:Consolas,monospace;font-size:12px;line-height:1.8;color:#e0e0e0}
@@ -174,19 +174,19 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
 .log-tag-err{background:#7f1d1d;color:#f87171}
 .log-tag-warn{background:#78350f;color:#fbbf24}
 .log-tag-info{background:#1e3a5f;color:#60a5fa}
-.log-filter.active{background:#667eea!important;color:#fff!important;border-color:#667eea!important}
+.log-filter.active{background:#6366f1!important;color:#fff!important;border-color:#a5b4fc!important}
 .log-mod-head{border-bottom:1px solid #30363d;padding:8px 0;margin-bottom:6px;font-weight:600;color:#8899aa;font-size:13px}
 
 /* PA - 历史 */
-.hi-item{padding:8px 10px;background:#f8f9fc;border-radius:8px;margin-bottom:6px;border-left:3px solid #667eea;font-size:12px}
-.hi-item.ok{border-left-color:#22c55e}
+.hi-item{padding:8px 10px;background:#1e293b;border-radius:8px;margin-bottom:6px;border-left:3px solid #667eea;font-size:12px}
+.hi-item.ok{border-left-color:#4ade80}
 .hi-item.er{border-left-color:#ef4444}
-.hi-time{color:#999;font-size:11px}
+.hi-time{color:#64748b;font-size:11px}
 
 /* 底部链接 */
 .btm-links{display:flex;gap:16px;margin-top:20px;padding:14px 0;border-top:1px solid #eee;flex-wrap:wrap}
-.btm-links a{font-size:12px;color:#999;text-decoration:none}
-.btm-links a:hover{color:#667eea}
+.btm-links a{font-size:12px;color:#64748b;text-decoration:none}
+.btm-links a:hover{color:#a5b4fc}
 
 /* 响应式 */
 @media (max-width:900px){
@@ -199,10 +199,10 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
   .sidebar{width:100%;background:linear-gradient(135deg,#667eea,#764ba2);display:block}
   .hdr{padding:16px;padding-top:calc(16px + env(safe-area-inset-top));text-align:center;justify-content:center;border-bottom:none;margin-bottom:0}
   .hdr h1{font-size:20px}
-  .nav{flex-direction:row;background:#fff;border-radius:12px;padding:5px;box-shadow:0 2px 8px rgba(0,0,0,.08);margin:10px 8px;gap:2px}
-  .nb{flex:1;padding:10px 6px;font-size:13px;text-align:center;color:#666;font-weight:500;border-left:none;min-height:44px}
-  .nb.on{background:#667eea;color:#fff;font-weight:500;border-left-color:transparent}
-  .nb:hover{background:#667eea;color:#fff}
+  .nav{flex-direction:row;background:#1e293b;border-radius:12px;padding:5px;box-shadow:0 2px 8px rgba(0,0,0,.3);margin:10px 8px;gap:2px}
+  .nb{flex:1;padding:10px 6px;font-size:13px;text-align:center;color:#94a3b8;font-weight:500;border-left:none;min-height:44px}
+  .nb.on{background:#6366f1;color:#fff;font-weight:500;border-left-color:transparent}
+  .nb:hover{background:#6366f1;color:#fff}
   .ctn{padding:12px;padding-bottom:calc(12px + env(safe-area-inset-bottom))}
   .card{padding:16px;margin-bottom:12px;border:none}.card h3{font-size:15px;margin-bottom:10px}
   .btn{padding:10px 14px;font-size:14px;min-height:48px}
@@ -238,7 +238,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
 <body>
 <div class="app-layout">
   <div class="sidebar">
-    <div class="hdr"><svg width="36" height="36" viewBox="0 0 64 64"><defs><linearGradient id="hg" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#fff"/><stop offset="100%" stop-color="#e0d4f5"/></linearGradient></defs><rect width="64" height="64" rx="14" fill="rgba(255,255,255,.15)"/><rect x="16" y="28" width="32" height="26" rx="3" fill="url(#hg)"/><rect x="28" y="28" width="8" height="26" fill="#667eea"/><rect x="16" y="37" width="32" height="5" fill="#667eea"/><circle cx="32" cy="24" r="5" fill="url(#hg)"/><circle cx="32" cy="24" r="3" fill="#667eea"/></svg><h1>管理后台</h1></div>
+    <div class="hdr"><svg width="36" height="36" viewBox="0 0 64 64"><defs><linearGradient id="hg" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#fff"/><stop offset="100%" stop-color="#e0d4f5"/></linearGradient></defs><rect width="64" height="64" rx="14" fill="rgba(255,255,255,.1)"/><rect x="16" y="28" width="32" height="26" rx="3" fill="url(#hg)"/><rect x="28" y="28" width="8" height="26" fill="#667eea"/><rect x="16" y="37" width="32" height="5" fill="#667eea"/><circle cx="32" cy="24" r="5" fill="url(#hg)"/><circle cx="32" cy="24" r="3" fill="#667eea"/></svg><h1>管理后台</h1></div>
     <div class="nav">
       <button class="nb on" onclick="go('overview')">概览</button>
       <button class="nb" onclick="go('pa')">PA续期</button>
@@ -272,7 +272,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
           <div class="metric-label">运行信息</div>
           <div class="metric-value" id="ovUptime">--</div>
           <div class="metric-sub">Python <span id="ovPython">--</span></div>
-          <div class="metric-sub" style="margin-top:8px;color:#667eea">PythonAnywhere</div>
+          <div class="metric-sub" style="margin-top:8px;color:#a5b4fc">PythonAnywhere</div>
         </div>
         <!-- PA续期摘要 -->
         <div class="metric-card" id="paSummaryCard" style="cursor:pointer" onclick="go('pa')">
@@ -293,12 +293,12 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
       <div class="card">
         <h3>平台程序</h3>
         <div class="app-grid">
-          <div class="app-item" onclick="location.href='/'"><div class="app-icon" style="background:linear-gradient(135deg,#667eea,#764ba2)"><svg width="28" height="28" viewBox="0 0 64 64"><rect width="64" height="64" rx="14" fill="rgba(255,255,255,.15)"/><rect x="16" y="26" width="32" height="24" rx="3" fill="#fff"/><rect x="28" y="26" width="8" height="24" fill="#667eea"/><circle cx="32" cy="22" r="5" fill="#fff"/></svg></div><div class="app-name">礼金记录</div><div class="app-desc">人情往来管理与分析</div></div>
-          <div class="app-item" onclick="location.href='/gpa'"><div class="app-icon" style="background:linear-gradient(135deg,#fc4a1a,#f7b733)"><svg width="28" height="28" viewBox="0 0 64 64"><rect width="64" height="64" rx="14" fill="rgba(255,255,255,.15)"/><rect x="14" y="12" width="36" height="6" rx="2" fill="#fff"/><rect x="14" y="22" width="36" height="6" rx="2" fill="rgba(255,255,255,.7)"/><rect x="14" y="32" width="36" height="6" rx="2" fill="rgba(255,255,255,.5)"/><rect x="14" y="42" width="36" height="6" rx="2" fill="rgba(255,255,255,.3)"/><circle cx="32" cy="24" r="8" fill="#fff" opacity=".6"/></svg></div><div class="app-name">GPA计算</div><div class="app-desc">学分绩点计算工具</div></div>
-          <div class="app-item" onclick="location.href='/hsgrades'"><div class="app-icon" style="background:linear-gradient(135deg,#4facfe,#00f2fe)"><svg width="28" height="28" viewBox="0 0 64 64"><rect width="64" height="64" rx="14" fill="rgba(255,255,255,.15)"/><rect x="18" y="10" width="28" height="36" rx="3" fill="#fff"/><line x1="22" y1="18" x2="42" y2="18" stroke="#4facfe" stroke-width="2"/><line x1="22" y1="24" x2="42" y2="24" stroke="#4facfe" stroke-width="2"/><line x1="22" y1="30" x2="36" y2="30" stroke="#4facfe" stroke-width="2"/><line x1="22" y1="36" x2="39" y2="36" stroke="#4facfe" stroke-width="2"/></svg></div><div class="app-name">成绩查询</div><div class="app-desc">高中成绩录入查询</div></div>
-          <div class="app-item" onclick="location.href='/countdown'"><div class="app-icon" style="background:linear-gradient(135deg,#fa709a,#fee140)"><svg width="28" height="28" viewBox="0 0 64 64"><rect width="64" height="64" rx="14" fill="rgba(255,255,255,.15)"/><circle cx="32" cy="32" r="18" fill="none" stroke="#fff" stroke-width="4"/><line x1="32" y1="32" x2="32" y2="20" stroke="#fff" stroke-width="3" stroke-linecap="round"/><line x1="32" y1="32" x2="40" y2="38" stroke="#fff" stroke-width="3" stroke-linecap="round"/></svg></div><div class="app-name">倒计时</div><div class="app-desc">重要日期倒计时提醒</div></div>
-          <div class="app-item" onclick="location.href='/deploy'"><div class="app-icon" style="background:linear-gradient(135deg,#8e9eab,#eef2f3)"><svg width="28" height="28" viewBox="0 0 64 64"><rect width="64" height="64" rx="14" fill="rgba(255,255,255,.15)"/><rect x="14" y="22" width="16" height="24" rx="3" fill="#fff"/><rect x="34" y="22" width="16" height="24" rx="3" fill="#fff"/><rect x="20" y="32" width="4" height="4" rx="1" fill="#8e9eab"/><rect x="40" y="32" width="4" height="4" rx="1" fill="#8e9eab"/></svg></div><div class="app-name">运维管理</div><div class="app-desc">部署/备份/PA续期</div></div>
-          <div class="app-item" onclick="location.href='/accounting'"><div class="app-icon" style="background:linear-gradient(135deg,#6d28d9,#a78bfa)"><svg width="28" height="28" viewBox="0 0 64 64"><rect width="64" height="64" rx="14" fill="rgba(255,255,255,.15)"/><rect x="10" y="14" width="44" height="36" rx="6" fill="#fff"/><line x1="30" y1="22" x2="30" y2="42" stroke="#6d28d9" stroke-width="3" stroke-linecap="round"/><line x1="22" y1="32" x2="38" y2="32" stroke="#6d28d9" stroke-width="3" stroke-linecap="round"/></svg></div><div class="app-name">个人记账</div><div class="app-desc">收支与借贷管理</div></div>
+          <div class="app-item" onclick="location.href='/'"><div class="app-icon" style="background:linear-gradient(135deg,#667eea,#764ba2)"><svg width="28" height="28" viewBox="0 0 64 64"><rect width="64" height="64" rx="14" fill="rgba(255,255,255,.1)"/><rect x="16" y="26" width="32" height="24" rx="3" fill="#fff"/><rect x="28" y="26" width="8" height="24" fill="#667eea"/><circle cx="32" cy="22" r="5" fill="#fff"/></svg></div><div class="app-name">礼金记录</div><div class="app-desc">人情往来管理与分析</div></div>
+          <div class="app-item" onclick="location.href='/gpa'"><div class="app-icon" style="background:linear-gradient(135deg,#fc4a1a,#f7b733)"><svg width="28" height="28" viewBox="0 0 64 64"><rect width="64" height="64" rx="14" fill="rgba(255,255,255,.1)"/><rect x="14" y="12" width="36" height="6" rx="2" fill="#fff"/><rect x="14" y="22" width="36" height="6" rx="2" fill="rgba(255,255,255,.7)"/><rect x="14" y="32" width="36" height="6" rx="2" fill="rgba(255,255,255,.5)"/><rect x="14" y="42" width="36" height="6" rx="2" fill="rgba(255,255,255,.3)"/><circle cx="32" cy="24" r="8" fill="#fff" opacity=".6"/></svg></div><div class="app-name">GPA计算</div><div class="app-desc">学分绩点计算工具</div></div>
+          <div class="app-item" onclick="location.href='/hsgrades'"><div class="app-icon" style="background:linear-gradient(135deg,#4facfe,#00f2fe)"><svg width="28" height="28" viewBox="0 0 64 64"><rect width="64" height="64" rx="14" fill="rgba(255,255,255,.1)"/><rect x="18" y="10" width="28" height="36" rx="3" fill="#fff"/><line x1="22" y1="18" x2="42" y2="18" stroke="#4facfe" stroke-width="2"/><line x1="22" y1="24" x2="42" y2="24" stroke="#4facfe" stroke-width="2"/><line x1="22" y1="30" x2="36" y2="30" stroke="#4facfe" stroke-width="2"/><line x1="22" y1="36" x2="39" y2="36" stroke="#4facfe" stroke-width="2"/></svg></div><div class="app-name">成绩查询</div><div class="app-desc">高中成绩录入查询</div></div>
+          <div class="app-item" onclick="location.href='/countdown'"><div class="app-icon" style="background:linear-gradient(135deg,#fa709a,#fee140)"><svg width="28" height="28" viewBox="0 0 64 64"><rect width="64" height="64" rx="14" fill="rgba(255,255,255,.1)"/><circle cx="32" cy="32" r="18" fill="none" stroke="#fff" stroke-width="4"/><line x1="32" y1="32" x2="32" y2="20" stroke="#fff" stroke-width="3" stroke-linecap="round"/><line x1="32" y1="32" x2="40" y2="38" stroke="#fff" stroke-width="3" stroke-linecap="round"/></svg></div><div class="app-name">倒计时</div><div class="app-desc">重要日期倒计时提醒</div></div>
+          <div class="app-item" onclick="location.href='/deploy'"><div class="app-icon" style="background:linear-gradient(135deg,#8e9eab,#eef2f3)"><svg width="28" height="28" viewBox="0 0 64 64"><rect width="64" height="64" rx="14" fill="rgba(255,255,255,.1)"/><rect x="14" y="22" width="16" height="24" rx="3" fill="#fff"/><rect x="34" y="22" width="16" height="24" rx="3" fill="#fff"/><rect x="20" y="32" width="4" height="4" rx="1" fill="#8e9eab"/><rect x="40" y="32" width="4" height="4" rx="1" fill="#8e9eab"/></svg></div><div class="app-name">运维管理</div><div class="app-desc">部署/备份/PA续期</div></div>
+          <div class="app-item" onclick="location.href='/accounting'"><div class="app-icon" style="background:linear-gradient(135deg,#6d28d9,#a78bfa)"><svg width="28" height="28" viewBox="0 0 64 64"><rect width="64" height="64" rx="14" fill="rgba(255,255,255,.1)"/><rect x="10" y="14" width="44" height="36" rx="6" fill="#fff"/><line x1="30" y1="22" x2="30" y2="42" stroke="#6d28d9" stroke-width="3" stroke-linecap="round"/><line x1="22" y1="32" x2="38" y2="32" stroke="#6d28d9" stroke-width="3" stroke-linecap="round"/></svg></div><div class="app-name">个人记账</div><div class="app-desc">收支与借贷管理</div></div>
         </div>
       </div>
 
@@ -312,7 +312,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
 
       <!-- 存储分布 -->
       <div class="card">
-        <h3>存储分布 <span style="font-weight:400;font-size:12px;color:#999;margin-left:8px">(PA配额 512MB)</span></h3>
+        <h3>存储分布 <span style="font-weight:400;font-size:12px;color:#64748b;margin-left:8px">(PA配额 512MB)</span></h3>
         <div class="storage-list" id="storageList">
           <div class="loading">加载中...</div>
         </div>
@@ -352,7 +352,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
           <h3>账号设置</h3>
           <div class="fg"><div class="fl">用户名</div><input id="paU" class="finp"></div>
           <div class="fg"><div class="fl">密码</div><input type="password" id="paP" class="finp"></div>
-          <div class="fg"><div class="fl">API Token <span style="font-size:11px;color:#999">(PA自动重载用)</span></div><input id="paToken" class="finp"></div>
+          <div class="fg"><div class="fl">API Token <span style="font-size:11px;color:#64748b">(PA自动重载用)</span></div><input id="paToken" class="finp"></div>
           <div class="fg"><div class="fl">执行周期</div>
             <div class="ig" id="paIG">
               <div class="io" data-v="1">1天</div><div class="io" data-v="3">3天</div><div class="io" data-v="5">5天</div>
@@ -373,7 +373,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
         </div>
       </div>
 
-      <div class="card"><h3 style="cursor:pointer;display:flex;justify-content:space-between;align-items:center" onclick="toggleHistory()">执行历史 <span id="histToggle" style="font-size:13px;color:#999;font-weight:400">收起</span></h3><div id="paHB"><div class="empty">暂无记录</div></div></div>
+      <div class="card"><h3 style="cursor:pointer;display:flex;justify-content:space-between;align-items:center" onclick="toggleHistory()">执行历史 <span id="histToggle" style="font-size:13px;color:#64748b;font-weight:400">收起</span></h3><div id="paHB"><div class="empty">暂无记录</div></div></div>
     </div>
 
     <!-- ====== 数据备份 ====== -->
@@ -385,7 +385,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
           <div class="output" id="backupOutput" style="display:none"></div>
           <div style="margin-top:24px">
             <h3>系统清理</h3>
-            <p style="font-size:12px;color:#999;margin-bottom:8px">清理PA日志缓存、__pycache__临时文件和过旧日志</p>
+            <p style="font-size:12px;color:#64748b;margin-bottom:8px">清理PA日志缓存、__pycache__临时文件和过旧日志</p>
             <button class="btn bw" id="btnCleanup" onclick="doCleanup()">执行清理</button>
             <div class="output" id="cleanupOutput" style="display:none"></div>
           </div>
@@ -512,7 +512,7 @@ async function loadServerStatus(){
 
     // 遗留目录提示
     if(d.old_dirs && d.old_dirs.length){
-      document.getElementById('logBrief').innerHTML += '<div style="margin-top:12px;font-size:11px;color:#999">遗留目录: ' + d.old_dirs.join(', ') + '</div>';
+      document.getElementById('logBrief').innerHTML += '<div style="margin-top:12px;font-size:11px;color:#64748b">遗留目录: ' + d.old_dirs.join(', ') + '</div>';
     }
   }catch(e){}
 }

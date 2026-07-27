@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-<meta name="theme-color" content="#2f7d6b">
+<meta name="theme-color" content="#0f172a">
 <title>GPA</title>
 <link rel="manifest" id="pwaManifest">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -15,99 +15,99 @@
 <link rel="apple-touch-icon" sizes="192x192" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 192 192'><rect width='192' height='192' rx='40' fill='%23ef4444'/><text x='96' y='132' text-anchor='middle' font-size='68' fill='white' font-weight='bold' font-family='Arial,sans-serif'>GPA</text></svg>">
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 <script>
-(function(){var m={name:'GPA',short_name:'GPA',description:'GPA成绩管理系统',start_url:'/gpa',display:'standalone',orientation:'portrait',background_color:'#f5f7fa',theme_color:'#2f7d6b',icons:[{src:"data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 192 192'><rect width='192' height='192' rx='40' fill='%23ef4444'/><text x='96' y='132' text-anchor='middle' font-size='68' fill='white' font-weight='bold' font-family='Arial,sans-serif'>GPA</text></svg>",sizes:'192x192',type:'image/svg+xml'},{src:"data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'><rect width='512' height='512' rx='80' fill='%23ef4444'/><text x='256' y='360' text-anchor='middle' font-size='180' fill='white' font-weight='bold' font-family='Arial,sans-serif'>GPA</text></svg>",sizes:'512x512',type:'image/svg+xml'}]};
+(function(){var m={name:'GPA',short_name:'GPA',description:'GPA成绩管理系统',start_url:'/gpa',display:'standalone',orientation:'portrait',background_color:'#0f172a',theme_color:'#2f7d6b',icons:[{src:"data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 192 192'><rect width='192' height='192' rx='40' fill='%23ef4444'/><text x='96' y='132' text-anchor='middle' font-size='68' fill='white' font-weight='bold' font-family='Arial,sans-serif'>GPA</text></svg>",sizes:'192x192',type:'image/svg+xml'},{src:"data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'><rect width='512' height='512' rx='80' fill='%23ef4444'/><text x='256' y='360' text-anchor='middle' font-size='180' fill='white' font-weight='bold' font-family='Arial,sans-serif'>GPA</text></svg>",sizes:'512x512',type:'image/svg+xml'}]};
 document.getElementById('pwaManifest').href=URL.createObjectURL(new Blob([JSON.stringify(m)],{type:'application/json'}))})();
 </script>
 <style>
 *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
-body{font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text",sans-serif;background:#f5f7fa;color:#1f2937;font-size:15px;line-height:1.5;overscroll-behavior:none;-webkit-user-select:none;user-select:none;-webkit-text-size-adjust:100%}
-header{background:#fff;text-align:center;padding:12px 16px;padding-top:calc(12px + env(safe-area-inset-top));font-size:17px;font-weight:600;position:sticky;top:0;z-index:100;border-bottom:1px solid #eef0f4;display:flex;align-items:center;justify-content:center;gap:8px}
+body{font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text",sans-serif;background:#0f172a;color:#e2e8f0;font-size:15px;line-height:1.5;overscroll-behavior:none;-webkit-user-select:none;user-select:none;-webkit-text-size-adjust:100%}
+header{background:#1e293b;text-align:center;padding:12px 16px;padding-top:calc(12px + env(safe-area-inset-top));font-size:17px;font-weight:600;position:sticky;top:0;z-index:100;border-bottom:1px solid rgba(148,163,184,.15);display:flex;align-items:center;justify-content:center;gap:8px}
 header a{transition:transform 0.2s,opacity 0.2s}
 header a:hover{transform:scale(1.05);opacity:0.9}
 header a:active{transform:scale(0.98)}
 .main{padding:12px}
-.card{background:#fff;border-radius:12px;padding:14px;margin-bottom:10px;box-shadow:0 1px 3px rgba(0,0,0,.06)}
+.card{background:#1e293b;border-radius:12px;padding:14px;margin-bottom:10px;box-shadow:0 1px 3px rgba(148,163,184,.1)}
 h3{font-size:16px;margin-bottom:10px;font-weight:600}
-input,select{padding:10px 12px;border:1px solid #d1d5db;border-radius:10px;font-size:15px;width:100%;min-height:44px;background:#fff}
-input:focus,select:focus{outline:none;border-color:#2f7d6b;box-shadow:0 0 0 3px rgba(47,125,107,.15)}
-button{border:none;border-radius:10px;padding:10px 12px;cursor:pointer;background:#2f7d6b;color:#fff;font-size:14px;font-weight:600;min-height:40px;width:100%;margin-bottom:6px;touch-action:manipulation}
+input,select{padding:10px 12px;border:1px solid rgba(148,163,184,.2);border-radius:10px;font-size:15px;width:100%;min-height:44px;background:#1e293b}
+input:focus,select:focus{outline:none;border-color:#34d399;box-shadow:0 0 0 3px rgba(52,211,153,.2)}
+button{border:none;border-radius:10px;padding:10px 12px;cursor:pointer;background:#059669;color:#fff;font-size:14px;font-weight:600;min-height:40px;width:100%;margin-bottom:6px;touch-action:manipulation}
 button:active{opacity:.9;transform:scale(.98)}
-.btn-red{background:#dc2626!important}.btn-gray{background:#64748b!important}
+.btn-red{background:#dc2626!important}.btn-gray{background:#475569!important}
 .btn-sm{padding:6px 10px;min-height:32px;font-size:13px;width:auto;margin:0 3px}
 .btn-xs{padding:2px 6px;min-height:22px;font-size:11px;width:auto;margin:0 2px;border-radius:6px}
 .gpa-box{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px}
-.gpa-card{background:linear-gradient(135deg,#2f7d6b,#3d9e85);color:#fff;border-radius:12px;padding:16px;text-align:center}
+.gpa-card{background:linear-gradient(135deg,#059669,#10b981);color:#fff;border-radius:12px;padding:16px;text-align:center}
 .gpa-card .val{font-size:36px;font-weight:800;line-height:1.1}
 .gpa-card .lbl{font-size:12px;opacity:.85;margin-top:4px}
-.gpa-card.alt{background:linear-gradient(135deg,#1e40af,#3b82f6)}
+.gpa-card.alt{background:linear-gradient(135deg,#1d4ed8,#2563eb)}
 .stats{display:grid;grid-template-columns:repeat(5,1fr);gap:8px;text-align:center;margin-bottom:10px}
 .stats .stat-item{border-radius:10px;padding:10px 4px;color:#fff}
 .stats .stat-item .lbl{font-size:11px;opacity:.85;margin-bottom:4px}
 .stats .stat-item .v{font-size:18px;font-weight:700;line-height:1.2}
-.si-credit{background:linear-gradient(135deg,#2f7d6b,#3d9e85)}
-.si-course{background:linear-gradient(135deg,#1e40af,#3b82f6)}
-.si-semester{background:linear-gradient(135deg,#7c3aed,#8b5cf6)}
+.si-credit{background:linear-gradient(135deg,#059669,#10b981)}
+.si-course{background:linear-gradient(135deg,#1d4ed8,#2563eb)}
+.si-semester{background:linear-gradient(135deg,#7c3aed,#a78bfa)}
 .si-latest{background:linear-gradient(135deg,#ea580c,#f97316)}
 .si-all{background:linear-gradient(135deg,#0d9488,#14b8a6)}
-.item{display:flex;align-items:center;padding:8px 10px;background:#fff;border-radius:10px;margin-bottom:4px;border:1px solid #e5e7eb;gap:8px;min-height:40px;touch-action:manipulation}
-.item-content{flex:1;min-width:0;overflow:hidden}.item-title{font-weight:600;font-size:15px;color:#111827}.item-sub{font-size:12px;color:#64748b}
+.item{display:flex;align-items:center;padding:8px 10px;background:#1e293b;border-radius:10px;margin-bottom:4px;border:1px solid #e5e7eb;gap:8px;min-height:40px;touch-action:manipulation}
+.item-content{flex:1;min-width:0;overflow:hidden}.item-title{font-weight:600;font-size:15px;color:#f1f5f9}.item-sub{font-size:12px;color:#94a3b8}
 .item-right{flex-shrink:0;text-align:right;font-weight:700;font-size:15px}
 .item-actions{flex-shrink:0;display:flex;gap:4px}
 .badge{display:inline-block;padding:2px 8px;border-radius:4px;font-size:11px;font-weight:600}
-.b-required{background:#eff6ff;color:#2563eb}.b-major{background:#fef3c7;color:#d97706}
-.b-elective{background:#f0fdf4;color:#16a34a}
-.grade-a{color:#16a34a}.grade-b{color:#2563eb}.grade-c{color:#d97706}.grade-d{color:#dc2626}
-.tab-bar{position:fixed;bottom:0;left:0;right:0;background:#fff;display:grid;grid-template-columns:1fr 1fr;border-top:1px solid #e5e7eb;padding-bottom:env(safe-area-inset-bottom);z-index:100;height:60px}
+.b-required{background:rgba(59,130,246,.1);color:#60a5fa}.b-major{background:#fef3c7;color:#d97706}
+.b-elective{background:rgba(52,211,153,.1);color:#4ade80}
+.grade-a{color:#4ade80}.grade-b{color:#60a5fa}.grade-c{color:#d97706}.grade-d{color:#f87171}
+.tab-bar{position:fixed;bottom:0;left:0;right:0;background:#1e293b;display:grid;grid-template-columns:1fr 1fr;border-top:1px solid #e5e7eb;padding-bottom:env(safe-area-inset-bottom);z-index:100;height:60px}
 .tab{text-align:center;padding:10px 0;font-size:14px;color:#6b7280;display:flex;align-items:center;justify-content:center;font-weight:700;touch-action:manipulation}
-.tab.active{color:#2f7d6b;font-weight:800}
+.tab.active{color:#34d399;font-weight:800}
 .tab-content{display:none}.tab-content.show{display:block}
 .modal{position:fixed;inset:0;background:rgba(0,0,0,.45);display:none;align-items:flex-end;z-index:1000}
 .modal.show{display:flex}
-.modal-box{background:#fff;border-radius:20px 20px 0 0;width:100%;max-width:600px;padding:20px;padding-bottom:calc(20px + env(safe-area-inset-bottom))}
-.modal-box h4{margin-bottom:16px;font-size:17px}.modal-box label{display:block;font-size:13px;color:#4b5563;margin-bottom:4px;font-weight:500}
+.modal-box{background:#1e293b;border-radius:20px 20px 0 0;width:100%;max-width:600px;padding:20px;padding-bottom:calc(20px + env(safe-area-inset-bottom))}
+.modal-box h4{margin-bottom:16px;font-size:17px}.modal-box label{display:block;font-size:13px;color:#94a3b8;margin-bottom:4px;font-weight:500}
 .modal-box input,.modal-box select{margin-bottom:10px}
 .confirm-modal{position:fixed;inset:0;background:rgba(0,0,0,.45);display:none;align-items:center;justify-content:center;z-index:2000}
 .confirm-modal.show{display:flex}
-.confirm-box{background:#fff;border-radius:16px;width:90%;max-width:360px;padding:28px 24px 20px;text-align:center}
+.confirm-box{background:#1e293b;border-radius:16px;width:90%;max-width:360px;padding:28px 24px 20px;text-align:center}
 .confirm-title{font-size:17px;font-weight:700;margin-bottom:8px}
-.confirm-msg{font-size:13px;color:#64748b;margin-bottom:24px}
+.confirm-msg{font-size:13px;color:#94a3b8;margin-bottom:24px}
 .confirm-btns{display:flex;gap:10px}
 .confirm-btns button{flex:1;padding:10px;border-radius:10px;font-size:14px;font-weight:600;min-height:44px}
-.confirm-cancel{background:#f1f5f9;color:#475569}.confirm-danger{background:#dc2626;color:#fff}
-.course-item{cursor:grab}.course-item.dragging{opacity:.4;background:#e2e8f0}
+.confirm-cancel{background:#1e293b;color:#94a3b8}.confirm-danger{background:#dc2626;color:#fff}
+.course-item{cursor:grab}.course-item.dragging{opacity:.4;background:#334155}
 .course-item.drag-over{border-top:2px solid #2f7d6b}
 .drag-handle{cursor:grab;color:#cbd5e1;font-size:14px;flex-shrink:0;user-select:none}
 .drag-handle:active{cursor:grabbing}
-.course-toolbar{position:sticky;top:calc(52px + env(safe-area-inset-top, 0px));z-index:99;background:#f5f7fa;padding-bottom:10px;margin-bottom:10px}
+.course-toolbar{position:sticky;top:calc(52px + env(safe-area-inset-top, 0px));z-index:99;background:#0f172a;padding-bottom:10px;margin-bottom:10px}
 .sem-block{margin-bottom:16px}
-.sem-hdr{display:flex;align-items:center;justify-content:space-between;padding:10px 12px;background:#f0fdf4;border-radius:10px;margin-bottom:6px;cursor:pointer}
-.sem-hdr .name{font-weight:600;font-size:15px}.sem-hdr .info{font-size:12px;color:#64748b}
-.sem-hdr .gpa{font-weight:800;font-size:16px;color:#2f7d6b}
+.sem-hdr{display:flex;align-items:center;justify-content:space-between;padding:10px 12px;background:rgba(52,211,153,.1);border-radius:10px;margin-bottom:6px;cursor:pointer}
+.sem-hdr .name{font-weight:600;font-size:15px}.sem-hdr .info{font-size:12px;color:#94a3b8}
+.sem-hdr .gpa{font-weight:800;font-size:16px;color:#34d399}
 .sem-hdr .actions{display:flex;gap:4px}
 .sem-hdr .collapse-arrow{display:inline-block;width:20px;height:20px;line-height:18px;text-align:center;font-size:12px;transition:transform 0.2s;flex-shrink:0;color:#94a3b8}
 .sem-hdr.collapsed .collapse-arrow{transform:rotate(-90deg)}
 .sem-courses{overflow:hidden;transition:max-height 0.3s ease}
 .sem-courses.collapsed{max-height:0}
 .empty{text-align:center;color:#9ca3af;padding:30px 0;font-size:14px}
-.seq{display:inline-block;width:20px;height:20px;line-height:20px;text-align:center;background:#e5e7eb;border-radius:50%;font-size:11px;font-weight:600;color:#64748b;flex-shrink:0}
+.seq{display:inline-block;width:20px;height:20px;line-height:20px;text-align:center;background:rgba(148,163,184,.2);border-radius:50%;font-size:11px;font-weight:600;color:#94a3b8;flex-shrink:0}
 .gpa-table{width:100%;border-collapse:collapse;font-size:13px}
 .gpa-table th{font-size:11px;color:#94a3b8;font-weight:500;padding:4px 8px 8px;text-align:center;border-bottom:1px solid #e2e8f0}
 .gpa-table td{padding:7px 8px;border-bottom:1px solid #f1f5f9;vertical-align:middle}
 .gpa-table tr:last-child td{border-bottom:none}
-.gpa-table tr:hover td{background:#f8fdf9}
+.gpa-table tr:hover td{background:rgba(52,211,153,.06)}
 .gpa-table .td-gpa{font-weight:800;font-size:16px;width:42px;text-align:center}
 .gpa-table .td-range{font-size:11px;color:#94a3b8;width:44px;text-align:center}
 .gpa-table .td-bar{width:auto;padding-left:0;padding-right:6px}
-.gpa-table .td-count{width:44px;text-align:right;font-weight:600;font-size:14px;color:#1f2937}
+.gpa-table .td-count{width:44px;text-align:right;font-weight:600;font-size:14px;color:#e2e8f0}
 .gpa-table .td-pct{width:44px;text-align:right;font-size:11px;color:#9ca3af}
-.gpa-bar-wrap{width:100%;height:10px;background:#f1f5f9;border-radius:5px;overflow:hidden}
+.gpa-bar-wrap{width:100%;height:10px;background:#1e293b;border-radius:5px;overflow:hidden}
 .gpa-bar-fill{height:100%;border-radius:5px;transition:width .5s ease;min-width:0}
 .gpa-row-zero .td-gpa,.gpa-row-zero .td-count,.gpa-row-zero .td-pct{color:#cbd5e1}
 /* PC顶部导航 */
-.pc-nav{display:flex;gap:4px;padding:6px 12px;border-bottom:1px solid #e5e7eb;background:#fff;overflow-x:auto}
+.pc-nav{display:flex;gap:4px;padding:6px 12px;border-bottom:1px solid #e5e7eb;background:#1e293b;overflow-x:auto}
 .pc-nav-btn{padding:8px 16px;border:none;background:none;font-size:14px;font-weight:600;color:#6b7280;cursor:pointer;border-bottom:2px solid transparent;white-space:nowrap;min-height:36px;width:auto;margin:0;border-radius:0;transition:color .15s,border-color .15s}
-.pc-nav-btn.active{color:#2f7d6b;border-bottom-color:#2f7d6b}
-.pc-nav-btn:hover{color:#2f7d6b}
+.pc-nav-btn.active{color:#34d399;border-bottom-color:#34d399}
+.pc-nav-btn:hover{color:#34d399}
 /* 移动端 */
 @media (max-width:768px){
   body{padding-bottom:calc(60px + env(safe-area-inset-bottom))}
@@ -138,7 +138,7 @@ button:active{opacity:.9;transform:scale(.98)}
 @media (min-width:769px){
   .tab-bar{display:none}
   .main{max-width:none;margin:0 auto;padding:16px 24px}
-  body{background:#eef1f5}
+  body{background:#0f172a}
   .tab-content{min-height:auto}
 }
 </style>
@@ -162,7 +162,7 @@ button:active{opacity:.9;transform:scale(.98)}
   <!-- GPA文字 -->
   <text x="14" y="12" text-anchor="middle" font-size="5.5" font-weight="800" fill="#2f7d6b" font-family="Arial, sans-serif">GPA</text>
 </svg>
-<span style="font-weight:700;font-size:17px;color:#2f7d6b">GPA</span>
+<span style="font-weight:700;font-size:17px;color:#34d399">GPA</span>
 </a>
 </header>
 <div class="pc-nav" id="pcNav">
@@ -204,7 +204,7 @@ button:active{opacity:.9;transform:scale(.98)}
       </div>
       <div id="semManager" style="display:none;margin-top:10px">
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
-          <span style="font-size:13px;color:#64748b" id="semCount"></span>
+          <span style="font-size:13px;color:#94a3b8" id="semCount"></span>
           <button class="btn-sm" onclick="showSemesterModal()">新增</button>
         </div>
         <div id="semManagerList"></div>
@@ -340,7 +340,7 @@ function renderChart(){
   if(gpaChart)gpaChart.destroy();
   const ctx=document.getElementById('gpaChart');
   if(!ctx||!labels.length){ctx.parentElement.innerHTML='<div class="empty">暂无数据</div>';return}
-  gpaChart=new Chart(ctx,{type:'line',data:{labels,datasets:[{label:'GPA',data,borderColor:'#2f7d6b',backgroundColor:'rgba(47,125,107,.12)',tension:.35,fill:true,pointRadius:5,pointBackgroundColor:'#fff',pointBorderColor:'#2f7d6b',pointBorderWidth:2,pointHoverRadius:7}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:{backgroundColor:'rgba(15,23,42,.85)',titleFont:{size:13},bodyFont:{size:14,weight:'bold'},padding:10,cornerRadius:8,callbacks:{label:function(ctx){return'GPA: '+ctx.parsed.y.toFixed(2)}}}},scales:{y:{min:0,max:4,ticks:{stepSize:1,font:{size:11},color:'#94a3b8'},grid:{color:'rgba(0,0,0,.06)'}},x:{ticks:{font:{size:12,weight:'500'},color:'#475569'},grid:{display:false}}}},plugins:[{id:'gpaLabels',afterDatasetsDraw:function(chart){const meta=chart.getDatasetMeta(0);const ctx=chart.ctx;ctx.save();ctx.font='bold 11px -apple-system,BlinkMacSystemFont,sans-serif';ctx.textAlign='center';ctx.textBaseline='bottom';meta.data.forEach(function(pt,i){const v=chart.data.datasets[0].data[i];if(v!=null){ctx.fillStyle='#2f7d6b';ctx.fillText(v.toFixed(2),pt.x,pt.y-7)}});ctx.restore()}}]});
+  gpaChart=new Chart(ctx,{type:'line',data:{labels,datasets:[{label:'GPA',data,borderColor:'#2f7d6b',backgroundColor:'rgba(47,125,107,.12)',tension:.35,fill:true,pointRadius:5,pointBackgroundColor:'#fff',pointBorderColor:'#2f7d6b',pointBorderWidth:2,pointHoverRadius:7}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:{backgroundColor:'rgba(15,23,42,.85)',titleFont:{size:13},bodyFont:{size:14,weight:'bold'},padding:10,cornerRadius:8,callbacks:{label:function(ctx){return'GPA: '+ctx.parsed.y.toFixed(2)}}}},scales:{y:{min:0,max:4,ticks:{stepSize:1,font:{size:11},color:'#94a3b8'},grid:{color:'rgba(148,163,184,.1)'}},x:{ticks:{font:{size:12,weight:'500'},color:'#475569'},grid:{display:false}}}},plugins:[{id:'gpaLabels',afterDatasetsDraw:function(chart){const meta=chart.getDatasetMeta(0);const ctx=chart.ctx;ctx.save();ctx.font='bold 11px -apple-system,BlinkMacSystemFont,sans-serif';ctx.textAlign='center';ctx.textBaseline='bottom';meta.data.forEach(function(pt,i){const v=chart.data.datasets[0].data[i];if(v!=null){ctx.fillStyle='#2f7d6b';ctx.fillText(v.toFixed(2),pt.x,pt.y-7)}});ctx.restore()}}]});
 }
 
 function renderSemesters(){

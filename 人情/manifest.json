@@ -5,8 +5,8 @@
   "start_url": "/renqing",
   "display": "standalone",
   "orientation": "portrait",
-  "background_color": "#0f1a0f",
-  "theme_color": "#0f1a0f",
+  "background_color": "#0f172a",
+  "theme_color": "#0f172a",
   "icons": [
     {
       "src": "/renqing/icon-192.svg",

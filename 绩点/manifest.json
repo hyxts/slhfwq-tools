@@ -5,8 +5,8 @@
   "start_url": "/gpa",
   "display": "standalone",
   "orientation": "portrait",
-  "background_color": "#f5f7fa",
-  "theme_color": "#2f7d6b",
+  "background_color": "#0f172a",
+  "theme_color": "#0f172a",
   "icons": [
     {
       "src": "data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 192 192'><rect width='192' height='192' rx='40' fill='%236b7280'/><text x='96' y='132' text-anchor='middle' font-size='68' fill='white' font-weight='bold' font-family='Arial,sans-serif'>GPA</text></svg>",
