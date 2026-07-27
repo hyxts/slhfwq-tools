@@ -234,7 +234,9 @@ try:
     if start_auto_clean:
         register_service('auto_clean', '每周自动清理', '清理日志文件、缓存和废弃目录', start_auto_clean)
 except Exception as e:
+    import traceback as _tb
     _diag(f'服务注册异常: {e}')
+    print(f'[服务注册异常] {e}\n{_tb.format_exc()}', flush=True)
 
 # ==================== 全局错误处理 ====================
 

@@ -12,6 +12,7 @@ bp = Blueprint('service_manager', __name__)
 
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 PA_DB = os.path.join(BASE_DIR, '服务器', 'pa.db')
+_get_svc_db = make_db(PA_DB)
 
 # 服务注册表
 _registry = {}
@@ -22,7 +23,8 @@ _registry_lock = threading.Lock()
 
 def _init_db():
     """确保 service_config 表存在"""
-    db = make_db(PA_DB)
+    os.makedirs(os.path.dirname(PA_DB), exist_ok=True)
+    db = _get_svc_db()
     db.execute('''CREATE TABLE IF NOT EXISTS service_config (
         name TEXT PRIMARY KEY,
         label TEXT NOT NULL,
@@ -69,7 +71,7 @@ def register_service(name, label, description, start_fn, default_enabled=False):
     stop_event 是一个 threading.Event，线程应通过 sleep_check(stop_event, X) 检测停止信号。
     """
     _init_db()
-    db = make_db(PA_DB)
+    db = _get_svc_db()
     existing = db.execute('SELECT enabled FROM service_config WHERE name=?', (name,)).fetchone()
     if existing is None:
         db.execute(
@@ -107,7 +109,7 @@ def start_service(name):
             return False, '服务已在运行'
         
         # 标记启用
-        db = make_db(PA_DB)
+        db = _get_svc_db()
         db.execute("UPDATE service_config SET enabled=1, updated_at=datetime('now','localtime') WHERE name=?", (name,))
         db.commit()
         db.close()
@@ -142,7 +144,7 @@ def stop_service(name):
         info = _registry[name]
         
         # 标记禁用
-        db = make_db(PA_DB)
+        db = _get_svc_db()
         db.execute("UPDATE service_config SET enabled=0, updated_at=datetime('now','localtime') WHERE name=?", (name,))
         db.commit()
         db.close()
@@ -161,7 +163,7 @@ def stop_service(name):
 def get_enabled_services():
     """返回所有需要自动启动的服务名列表"""
     _init_db()
-    db = make_db(PA_DB)
+    db = _get_svc_db()
     rows = db.execute('SELECT name FROM service_config WHERE enabled=1').fetchall()
     db.close()
     return [row[0] for row in rows]
