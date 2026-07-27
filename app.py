@@ -228,11 +228,11 @@ for mod_name, key in MODULES:
 try:
     from routes.service_manager import register_service
     if start_auto_renew:
-        register_service('auto_renew', 'PA自动续期', '定时续期PythonAnywhere账号，防止过期', start_auto_renew)
+        register_service('auto_renew', 'PA自动续期', '定时续期PythonAnywhere账号，防止过期', start_auto_renew, default_enabled=True)
     if start_auto_backup:
-        register_service('auto_backup', '每日数据备份', '每天自动备份所有数据库到backups目录', start_auto_backup)
+        register_service('auto_backup', '每日数据备份', '每天自动备份所有数据库到backups目录', start_auto_backup, default_enabled=True)
     if start_auto_clean:
-        register_service('auto_clean', '每周自动清理', '清理日志文件、缓存和废弃目录', start_auto_clean)
+        register_service('auto_clean', '每周自动清理', '清理日志文件、缓存和废弃目录', start_auto_clean, default_enabled=True)
 except Exception as e:
     import traceback as _tb
     _diag(f'服务注册异常: {e}')
