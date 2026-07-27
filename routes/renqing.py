@@ -21,6 +21,7 @@ RENQING_DB_PATH = os.path.join(BASE_DIR, '人情', 'gifts.db')
 LOG_FILE = os.path.join(BASE_DIR, '人情', 'renqing.log')
 
 _log = make_logger(LOG_FILE)
+_get_db = make_db(RENQING_DB_PATH)
 SCHEMA_VERSION = 4
 
 
@@ -132,9 +133,6 @@ def _import_excel_async(xlsx_path):
     except Exception as e:
         import traceback
         print(f'[_import_excel_async ERROR] {e}\n{traceback.format_exc()}', flush=True)
-
-
-_get_db = make_db(RENQING_DB_PATH)
 
 
 def _lock_check(c, eid):

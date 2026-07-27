@@ -33,14 +33,17 @@ def _hash(pw):
     return hashlib.sha256(pw.encode()).hexdigest()
 
 def _load_auth():
-    # 优先从环境变量读取密码
-    env_pw = os.environ.get('SITE_PASSWORD', '')
-    if env_pw:
-        return _hash(env_pw)
-    # 其次从文件读取
-    if os.path.exists(AUTH_FILE):
-        with open(AUTH_FILE, 'r') as f:
-            return f.read().strip()
+    try:
+        # 优先从环境变量读取密码
+        env_pw = os.environ.get('SITE_PASSWORD', '')
+        if env_pw:
+            return _hash(env_pw)
+        # 其次从文件读取
+        if os.path.exists(AUTH_FILE):
+            with open(AUTH_FILE, 'r') as f:
+                return f.read().strip()
+    except Exception:
+        pass  # 读取失败不阻塞启动，后续走 setup 流程
     # 未设置密码，返回空（需要走setup流程）
     return ''
 

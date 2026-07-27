@@ -170,15 +170,13 @@ def _do_cleanup():
                 pass
 
     # 5. 动态检测并清理无关联模块的遗留目录
-    KNOWN_MODULE_DIRS = {'人情', '绩点', '成绩', '倒计时', '服务器', '记账', '部署', '导航', 'routes', 'backups'}
-    SYSTEM_RESERVED = {'.git', '.codebuddy', '__pycache__', '.venv', 'venv', 'env', '.env'}
-    SKIP_CLEANUP = KNOWN_MODULE_DIRS | SYSTEM_RESERVED
+    from .utils import ALL_SAFE_DIRS
     try:
         for entry in os.scandir(BASE_DIR):
             if not entry.is_dir(follow_symlinks=False):
                 continue
             dname = entry.name
-            if dname.startswith('.') or dname in SKIP_CLEANUP:
+            if dname.startswith('.') or dname in ALL_SAFE_DIRS:
                 continue
             # 遗留目录：不在已知模块列表中，也不属于系统保留目录
             try:

@@ -19,6 +19,7 @@ _status = {'running': False, 'last_result': None}
 _status_lock = threading.Lock()
 
 _LOG_CACHE = {'content': '', 'timestamp': 0, 'mtime': 0}
+_LOG_CACHE_LOCK = threading.Lock()
 _LOG_CACHE_TTL = 10  # 日志缓存10秒
 
 
@@ -97,16 +98,17 @@ def _read_log(n=100):
         file_mtime = os.path.getmtime(LOG_FILE)
         
         # 检查缓存是否有效（时间未过期且文件未修改）
-        if _LOG_CACHE['content'] and \
-           (now - _LOG_CACHE['timestamp']) < _LOG_CACHE_TTL and \
-           _LOG_CACHE['mtime'] == file_mtime:
-            lines = _LOG_CACHE['content']
-        else:
-            with open(LOG_FILE, 'r', encoding='utf-8') as f:
-                lines = f.readlines()
-            _LOG_CACHE['content'] = lines
-            _LOG_CACHE['timestamp'] = now
-            _LOG_CACHE['mtime'] = file_mtime
+        with _LOG_CACHE_LOCK:
+            if _LOG_CACHE['content'] and \
+               (now - _LOG_CACHE['timestamp']) < _LOG_CACHE_TTL and \
+               _LOG_CACHE['mtime'] == file_mtime:
+                lines = _LOG_CACHE['content']
+            else:
+                with open(LOG_FILE, 'r', encoding='utf-8') as f:
+                    lines = f.readlines()
+                _LOG_CACHE['content'] = lines
+                _LOG_CACHE['timestamp'] = now
+                _LOG_CACHE['mtime'] = file_mtime
         
         result = lines[-n:]
         result.reverse()
@@ -429,8 +431,7 @@ def _pa_login(session, username, password):
 
 
 def _pa_get_status(session, webapps_url):
-    """获取 PA WebApp 状态并解析到期日，返回 (pre_expiry, token, details)"""
-    import requests
+    """获取 PA WebApp 状态并解析到期日，返回 (pre_expiry, token, details, html)"""
     details = []
     def d(msg):
         _log(msg)
@@ -441,24 +442,25 @@ def _pa_get_status(session, webapps_url):
         r = session.get(webapps_url, timeout=15)
     except Exception as e:
         d(f'  [3失败] 获取网站应用页面异常: {e}')
-        return ('', '', details + [f'获取网站应用页面异常: {e}'])
+        return ('', '', details + [f'获取网站应用页面异常: {e}'], '')
+
+    html = r.text
     if 'webapps' not in r.url.lower():
         d(f'  [3警告] 未进入网站应用页面，当前地址: {r.url}')
 
-    token = extract_csrf(r.text)
+    token = extract_csrf(html)
     if not token:
         d('  [3警告] 未找到安全令牌（步骤3），续期接口可能失败')
-    pre = _parse_date(r.text)
+    pre = _parse_date(html)
     if pre:
         d(f'  当前到期: {pre}')
     else:
         d('  [3警告] 未能解析到期日，页面结构可能变更')
-    return (pre or '', token or '', details)
+    return (pre or '', token or '', details, html)
 
 
 def _pa_do_extend(session, username, html, token, webapps_url):
     """执行续期操作（找按钮 + 提交），返回 (success, details)"""
-    import requests
     from bs4 import BeautifulSoup
     base = 'https://www.pythonanywhere.com'
     extend_url = f'{base}/user/{username}/webapps/{username}.pythonanywhere.com/extend'
@@ -538,23 +540,24 @@ def _do_renew(username, password):
     if not ok:
         return (False, '', '', all_details)
 
-    # 步骤3: 获取状态
-    pre, token, details = _pa_get_status(s, webapps_url)
+    # 步骤3: 获取状态（同时获取 HTML 避免后续重复请求）
+    pre, token, details, html = _pa_get_status(s, webapps_url)
     all_details.extend(details)
 
-    # 从获取状态的响应中取的 token（更可靠）
-    if not token:
-        import requests
-        r = s.get(webapps_url, timeout=15)
-        token = extract_csrf(r.text)
-        pre2 = _parse_date(r.text)
+    # 如果步骤3未获取到 token，用已有 HTML 再解析一次
+    if not token and html:
+        token = extract_csrf(html)
+        pre2 = _parse_date(html)
         if pre2:
             pre = pre2
 
-    # 步骤4+5: 执行续期
-    import requests
-    r = s.get(webapps_url, timeout=15)
-    ok, details = _pa_do_extend(s, username, r.text, token, webapps_url)
+    # 步骤4+5: 执行续期（复用步骤3的 HTML，不再重复请求）
+    if not html:
+        r = s.get(webapps_url, timeout=15)
+        html = r.text
+        if not token:
+            token = extract_csrf(html)
+    ok, details = _pa_do_extend(s, username, html, token, webapps_url)
     all_details.extend(details)
 
     # 步骤6: 验证结果

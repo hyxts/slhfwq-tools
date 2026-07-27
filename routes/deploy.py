@@ -259,8 +259,9 @@ def _build_server_status():
     total_used = 0
     subdir_sizes = {}  # dname -> bytes
     root_file_sz = 0
-    other_dirs = {}  # 不在 STORAGE_DIRS 中的其他目录
-    STORAGE_DIRS_SET = frozenset(['人情', '绩点', '成绩', '倒计时', '服务器', '记账', '部署'])
+    from .utils import KNOWN_MODULE_DIRS
+    other_dirs = {}
+    STORAGE_DIRS_SET = KNOWN_MODULE_DIRS
     KNOWN_DB_DIRS = ['人情', '绩点', '成绩', '倒计时', '服务器', '记账']
 
     try:
@@ -380,9 +381,10 @@ def _build_server_status():
 def prebuild_status():
     """启动时预构建状态缓存，延迟执行避免与启动争抢 I/O"""
     try:
-        time_mod.sleep(5)  # 等待服务器稳定后再开始（30s太长，PA worker可能在30s内被重启）
+        time_mod.sleep(5)  # 等待服务器稳定后再开始
+        d = _build_server_status()
         with _STATUS_CACHE_LOCK:
-            _STATUS_CACHE['data'] = data
+            _STATUS_CACHE['data'] = d
             _STATUS_CACHE['timestamp'] = time_mod.time()
     except Exception:
         pass  # 预构建失败不影响正常启动
@@ -457,15 +459,13 @@ def cleanup_old_folders():
     results = []
 
     # 1. 动态检测并清理无关联模块的遗留目录
-    KNOWN_MODULE_DIRS = {'人情', '绩点', '成绩', '倒计时', '服务器', '记账', '部署', '导航', 'routes', 'backups'}
-    SYSTEM_RESERVED = {'.git', '.codebuddy', '__pycache__', '.venv', 'venv', 'env', '.env'}
-    SKIP_CLEANUP = KNOWN_MODULE_DIRS | SYSTEM_RESERVED
+    from .utils import ALL_SAFE_DIRS
     try:
         for entry in os.scandir(BASE_DIR):
             if not entry.is_dir(follow_symlinks=False):
                 continue
             dname = entry.name
-            if dname.startswith('.') or dname in SKIP_CLEANUP:
+            if dname.startswith('.') or dname in ALL_SAFE_DIRS:
                 continue
             try:
                 sz = sum(os.path.getsize(os.path.join(r, f))
