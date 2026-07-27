@@ -1,7 +1,7 @@
 {
-    "name": "Py平台管理",
-    "short_name": "平台管理",
-    "description": "Python服务端管理面板",
+    "name": "管理后台",
+    "short_name": "管理后台",
+    "description": "运维管理面板 - 部署、备份、PA续期",
     "start_url": "/deploy",
     "display": "standalone",
     "orientation": "portrait",
