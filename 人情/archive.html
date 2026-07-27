@@ -14,7 +14,7 @@
 <style>
 :root{--primary:#ef4444;--bg:#f0f2f5;--card-bg:#ffffff;--text:#1e293b;--text-secondary:#64748b;--border:#e2e8f0;--shadow:0 2px 8px rgba(0,0,0,.06)}
 *{margin:0;padding:0;box-sizing:border-box}
-body{font-family:"PingFang SC","Microsoft YaHei","Hiragino Sans GB",sans-serif;background:#f0f2f5;color:#1e293b;min-height:100vh;padding-left:env(safe-area-inset-left);padding-right:env(safe-area-inset-right);padding-top:env(safe-area-inset-top);padding-bottom:calc(16px + env(safe-area-inset-bottom))}
+body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif;background:#f0f2f5;color:#1e293b;min-height:100vh;padding-left:env(safe-area-inset-left);padding-right:env(safe-area-inset-right);padding-top:env(safe-area-inset-top);padding-bottom:calc(16px + env(safe-area-inset-bottom))}
 body.modal-open{overflow:hidden;position:fixed;width:100%}
 /* 顶部导航 */
 header{background:#ffffff;border-bottom:1px solid #e2e8f0;padding:0 20px;display:flex;align-items:center;justify-content:space-between;height:52px;position:sticky;top:0;z-index:100;box-shadow:0 1px 3px rgba(0,0,0,.04)}
@@ -25,7 +25,7 @@ nav a:hover,nav button:hover{color:#1e293b;background:#f1f5f9}
 /* 主容器 */
 main{max-width:1100px;margin:0 auto;padding:24px 20px}
 /* 卡片 */
-.card{background:#ffffff;border-radius:8px;padding:20px;margin-bottom:16px;box-shadow:0 1px 3px rgba(0,0,0,.06);border:1px solid #e2e8f0}
+.card{background:#ffffff;border-radius:12px;padding:20px;margin-bottom:16px;box-shadow:0 1px 3px rgba(0,0,0,.06);border:1px solid #e2e8f0}
 .card-title{font-size:15px;font-weight:600;color:#1e293b;margin-bottom:14px;padding-bottom:8px;border-bottom:2px solid #e2e8f0;display:flex;justify-content:space-between;align-items:center;gap:8px}
 #evtDetail .card-title > span:first-child{min-width:0;flex-shrink:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .card-title .btn-group{flex-shrink:0}
@@ -55,7 +55,7 @@ td.num{text-align:center}
 td.act{white-space:nowrap}
 /* 事件选择器 */
 .evt-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:12px}
-.evt-item{padding:14px;background:#ffffff;border:1px solid #e2e8f0;border-radius:8px;cursor:pointer;transition:all .15s}
+.evt-item{padding:14px;background:#ffffff;border:1px solid #e2e8f0;border-radius:12px;cursor:pointer;transition:all .15s}
 .evt-item:hover{border-color:#6366f1;box-shadow:0 2px 8px rgba(0,0,0,.06)}
 .evt-item.selected{border-color:#6366f1;background:#eef2ff}
 .evt-item .ename{font-size:14px;font-weight:600;margin-bottom:4px;text-align:center}
@@ -67,7 +67,7 @@ td.act{white-space:nowrap}
 .batch-bar span:hover{border-color:#cbd5e1}
 .batch-bar span.on{background:#4f46e5;color:#fff;font-weight:600}
 /* 礼薄页面 */
-.gift-page{background:#ffffff;border:1px solid #e2e8f0;border-radius:8px;overflow:hidden}
+.gift-page{background:#ffffff;border:1px solid #e2e8f0;border-radius:12px;overflow:hidden}
 .gift-page .page-header{background:#f8fafc;padding:10px 16px;font-size:13px;color:#64748b;border-bottom:1px solid #e2e8f0;display:flex;justify-content:center;align-items:center;gap:16px}
 .gift-page table thead th{background:#f8fafc}
 /* 可编辑录入表单 */
@@ -83,7 +83,7 @@ td.act{white-space:nowrap}
 .ac-dd .ac-item:hover,.ac-dd .ac-item.active{background:#f1f5f9}
 /* 数据卡片 */
 .stat-row{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px;margin-bottom:16px}
-.stat-card{background:#ffffff;border:1px solid #e2e8f0;border-radius:8px;padding:16px;text-align:center}
+.stat-card{background:#ffffff;border:1px solid #e2e8f0;border-radius:12px;padding:16px;text-align:center}
 .stat-card .slabel{font-size:12px;color:#64748b;margin-bottom:6px}
 .stat-card .svalue{font-size:24px;font-weight:700;color:#1e293b}
 .stat-card.sub .svalue{font-size:18px;color:#64748b}
@@ -158,7 +158,7 @@ td.act{white-space:nowrap}
 }
 @media(min-width:769px){
   main{max-width:none;margin:0 auto;padding:16px 24px}
-  body{background:#eef1f5}
+  body{background:#f0f2f5}
 }
 /* 加载状态 */
 .loading-overlay{position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(255,255,255,.7);z-index:9999;display:none;justify-content:center;align-items:center}
