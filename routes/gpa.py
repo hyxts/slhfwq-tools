@@ -64,8 +64,8 @@ def init_db():
                           json.dumps(DEFAULT_COURSES_SEM1, ensure_ascii=False)))
         else:
             changed = False
-        cur_courses = _safe_json_load(existing[2])
-        has_sem1 = any(c.get('semesterId') == 'sem-1' for c in cur_courses if isinstance(c, dict))
+            cur_courses = _safe_json_load(existing[2])
+            has_sem1 = any(c.get('semesterId') == 'sem-1' for c in cur_courses if isinstance(c, dict))
             if not has_sem1:
                 cur_courses.extend(DEFAULT_COURSES_SEM1)
                 changed = True
