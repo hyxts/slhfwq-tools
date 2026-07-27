@@ -490,7 +490,7 @@ async function exportCSV(){
 }
 
 // ==================== 事件收礼 ====================
-let events=[],unarchivedEvts=[],selEvtId=null,selBatch=null,evtRecords=[],_gotoBatch=null,isUnarchivedMode=false;
+let events=[],unarchivedEvts=[],selEvtId=null,selBatch=null,evtRecords=[],_gotoBatch=null,isUnarchivedMode=false,_pageDirty=false;
 
 async function loadEvents(){
   try{
@@ -571,8 +571,11 @@ async function loadEventDetail(){
   renderBatchPage();
 }
 
+function markPageDirty(){_pageDirty=true;}
+
 function renderBatchPage(){
   acCleanAll(); // 清理所有旧下拉框DOM
+  _pageDirty=false; // 新页面无脏数据
   if(!selBatch){$('giftPage').innerHTML='<div style="text-align:center;padding:40px;color:#999">选择页面查看</div>';return;}
   const batchRecs=evtRecords.filter(r=>r.batch===selBatch);
   const sorted=batchRecs.sort((a,b)=>a.id-b.id);
@@ -603,9 +606,9 @@ function renderBatchPage(){
       const nk=`pn_${i}`;const ak=`pa_${i}`;const ntk=`pnt_${i}`;
       html+=`<tr ${r?'':'class="row-empty"'}>
         <td class="num" style="color:#999">${i+1}</td>
-        <td><input type="text" id="${nk}" value="${r?escH(r.name):''}" class="pi-name" data-idx="${i}" data-rid="${r?r.id:''}"></td>
-        <td><input type="number" id="${ak}" value="${r?r.amount:''}" step="0.01" class="pi-amt" data-idx="${i}"></td>
-        <td><input type="text" id="${ntk}" value="${r?escH(r.note||''):''}" class="pi-note" data-idx="${i}"></td>
+        <td><input type="text" id="${nk}" value="${r?escH(r.name):''}" class="pi-name" data-idx="${i}" data-rid="${r?r.id:''}" oninput="markPageDirty()"></td>
+        <td><input type="number" id="${ak}" value="${r?r.amount:''}" step="0.01" class="pi-amt" data-idx="${i}" oninput="markPageDirty()"></td>
+        <td><input type="text" id="${ntk}" value="${r?escH(r.note||''):''}" class="pi-note" data-idx="${i}" oninput="markPageDirty()"></td>
         <td>${r?`<button class="btn sm danger" onclick="delRec(${r.id})">删除</button>`:''}</td>
       </tr>`;
     }
@@ -632,10 +635,8 @@ function renderBatchPage(){
 }
 
 async function gotoNextPage(){
-  // 先保存当前页数据，不管前面页是否还有空行都保存到当前批次
-  await savePage(true);
-  const curBatch=selBatch;
-  selBatch=curBatch+1;
+  await savePage(true);          // 仅当有变更时才保存
+  selBatch=(selBatch||0)+1;
   _gotoBatch=selBatch;
   renderBatchPage();
 }
@@ -675,35 +676,61 @@ async function loadEvtDataSilent(){
 }
 
 async function savePage(silent=false){
+  if(silent && !_pageDirty){return;} // 无变更则跳过
   showLoading();
   const inputs=$('pageForm').querySelectorAll('input');
   const rows=[];
-  // 两遍扫描：收集数据
   for(let i=0;i<inputs.length;i+=3){
     const nameInp=inputs[i],amtInp=inputs[i+1],noteInp=inputs[i+2];
     const name=nameInp.value.trim();
     const amt=parseFloat(amtInp.value);
     if(!name||!amt||amt<=0)continue;
-    rows.push({rid:parseInt(nameInp.dataset.rid)||0,name,amount:amt,note:noteInp.value.trim()});
+    rows.push({id:parseInt(nameInp.dataset.rid)||0,name,amount:amt,note:noteInp.value.trim()});
   }
   if(rows.length===0){if(!silent)toast('请至少填写一条完整记录',1);hideLoading();return;}
 
   const evt=(isUnarchivedMode?unarchivedEvts:events).find(e=>e.id===selEvtId);
   const defaultDate=evt&&evt.event_date?evt.event_date:'';
-  // 并行保存所有记录，显著提升移动端响应速度
-  const results=await Promise.allSettled(rows.map(r=>{
-    const body={event_id:selEvtId,name:r.name,amount:r.amount,note:r.note,direction:'收',batch:selBatch,date:defaultDate};
-    const url=r.rid?API+'/records/'+r.rid:API+'/records';
-    const method=r.rid?'PUT':'POST';
-    return fetch(url,{method,headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
-  }));
-  const okCount=results.filter(r=>r.status==='fulfilled'&&r.value.ok).length;
-  const errCount=results.length-okCount;
-  if(!silent)toast(`保存完成: ${okCount}条成功${errCount>0?`, ${errCount}条失败`:''}`,errCount>0?1:0);
-  // 合并刷新：一次加载后端最新数据即可
-  await loadEvtDataSilent();
+  // 批量保存：一次请求完成整个页面的保存
+  const res=await fetch(API+'/records/batch',{
+    method:'POST',headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({event_id:selEvtId,batch:selBatch,date:defaultDate,records:rows})
+  });
+  const data=await res.json();
+  if(!silent)toast(data.success?`保存完成: ${rows.length}条`:`保存失败: ${data.error}`,data.success?0:1);
+
+  // 本地更新 evtRecords，无需全量重新拉取
+  for(const r of rows){
+    if(r.id){
+      const idx=evtRecords.findIndex(x=>x.id===r.id);
+      if(idx>=0){evtRecords[idx].name=r.name;evtRecords[idx].amount=r.amount;evtRecords[idx].note=r.note;}
+    }else{
+      evtRecords.push({id:Date.now(),event_id:selEvtId,name:r.name,amount:r.amount,note:r.note,batch:selBatch,direction:'收',date:defaultDate});
+    }
+  }
+  _pageDirty=false;
+  _refreshLocalNav(); // 本地刷新统计和分页导航
   renderBatchPage();
   hideLoading();
+}
+
+function _refreshLocalNav(){
+  const evt=(isUnarchivedMode?unarchivedEvts:events).find(e=>e.id===selEvtId);
+  if(!evt)return;
+  const total=evtRecords.reduce((s,r)=>s+(r.amount||0),0);
+  const isDaily=evt.event_type==='日常'||evt.name==='流水';
+  $('evtStats').innerHTML=`
+    <div class="stat-card"><div class="slabel">${isDaily?'送出总额':'收到总额'}</div><div class="svalue">${fmtA(total)} 元</div></div>
+    <div class="stat-card sub"><div class="slabel">记录数</div><div class="svalue">${evtRecords.length} 条</div></div>
+    <div class="stat-card sub"><div class="slabel">涉及人数</div><div class="svalue">${new Set(evtRecords.map(r=>r.name)).size} 人</div></div>
+    <div class="stat-card sub"><div class="slabel">页数</div><div class="svalue">${new Set(evtRecords.map(r=>r.batch)).size}</div></div>`;
+  const batches=[...new Set(evtRecords.map(r=>r.batch))].sort((a,b)=>a-b);
+  const ps=evt.page_size||12;
+  $('batchNav').innerHTML=batches.length?batches.map(b=>{
+    const br=evtRecords.filter(r=>r.batch===b);
+    const bTotal=br.reduce((s,r)=>s+(r.amount||0),0);
+    return `<span class="${b===selBatch?'on':''}" onclick="selBatch=${b};renderBatchPage()">第${b}页 ${br.length}/${ps} · ${fmtA(bTotal)}</span>`;
+  }).join(''):'<span style="color:#999">暂无记录</span>';
 }
 
 async function toggleLock(){

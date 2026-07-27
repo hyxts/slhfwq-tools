@@ -439,6 +439,53 @@ def delete_record(rid):
         c.close()
 
 
+@bp.route('/records/batch', methods=['POST'])
+def batch_save_records():
+    """批量保存/更新记录，一次请求处理一页数据"""
+    d = request.get_json(silent=True) or {}
+    records = d.get('records', [])
+    eid = d.get('event_id')
+    batch_num = d.get('batch')
+    if not eid:
+        return jsonify({'success': False, 'error': '缺少事件ID'}), 400
+    c = _get_db()
+    try:
+        evt_info = c.execute('SELECT event_type,locked,event_date FROM events WHERE id=?', (eid,)).fetchone()
+        if not evt_info:
+            return jsonify({'success': False, 'error': '事件不存在'}), 404
+        is_locked = (evt_info['event_type'] != '日常' and evt_info['locked'])
+        if is_locked:
+            return jsonify({'success': False, 'error': '事件已锁定'}), 403
+        date_val = d.get('date') or evt_info['event_date'] or ''
+        is_flow = _is_flow_event(c, eid)
+        added, updated = 0, 0
+        for r in records:
+            name = (r.get('name') or '').strip()
+            amt = r.get('amount', 0)
+            if not name or float(amt) <= 0:
+                continue
+            rid = r.get('id', 0)
+            note = r.get('note', '')
+            direction = '送' if is_flow else '收'
+            if rid:
+                c.execute('UPDATE records SET event_id=?,date=?,name=?,amount=?,note=?,batch=?,direction=? WHERE id=?',
+                          (eid, date_val, name, float(amt), note, batch_num, direction, rid))
+                updated += 1
+            else:
+                if not is_flow and batch_num is None:
+                    batch_num = _auto_batch(c, eid)
+                c.execute('INSERT INTO records (event_id,date,name,amount,note,batch,direction) VALUES (?,?,?,?,?,?,?)',
+                          (eid, date_val, name, float(amt), note, batch_num, direction))
+                added += 1
+        c.commit()
+        _log(f'批量保存: {added}新增 {updated}更新')
+        return jsonify({'success': True, 'added': added, 'updated': updated})
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+    finally:
+        c.close()
+
+
 # ==================== 统计API ====================
 
 @bp.route('/stats')
