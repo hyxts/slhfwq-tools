@@ -543,7 +543,7 @@ async function deleteEvt(){
 }
 
 // ==================== 日常随礼归档 ====================
-let dailyRecords=[],dailyEventId=null,selDailyYear=null;
+let dailyRecords=[],dailyEventId=null,selDailyYear=null,_dailyEditId=null;
 
 async function loadDailyArchive(){
   try{
@@ -558,7 +558,7 @@ async function loadDailyArchive(){
 }
 
 function renderDailyYears(){
-  selDailyYear=null;
+  selDailyYear=null;_dailyEditId=null;
   $('dailyYearTitle').textContent='';
   $('dailyArchiveNav').innerHTML='';
   $('dailyArchiveContent').innerHTML='<div class="evt-grid" id="dailyYearGrid"></div>';
@@ -579,7 +579,7 @@ function renderDailyYears(){
 }
 
 async function selectDailyYear(y){
-  selDailyYear=y;
+  selDailyYear=y;_dailyEditId=null;
   $('dailyYearTitle').textContent=' · '+y+'年';
   $('dailyArchiveNav').innerHTML='<button class="btn sm" onclick="renderDailyYears()">返回年份列表</button>';
   renderDailyYearDetail();
@@ -596,15 +596,82 @@ function renderDailyYearDetail(){
   </div>`;
   if(sorted.length===0){html+='<div style="text-align:center;padding:20px;color:#999">该年份暂无记录</div>';}
   else{
-    html+=`<div class="t-wrap"><table><thead><tr><th style="width:100px">日期</th><th>姓名</th><th>金额</th><th>备注</th></tr></thead><tbody>`;
+    html+=`<div class="t-wrap"><table><thead><tr><th style="width:100px">日期</th><th>姓名</th><th>金额</th><th>备注</th><th style="width:100px">操作</th></tr></thead><tbody>`;
     sorted.forEach(r=>{
-      html+=`<tr><td>${fmtD(r.date)}</td><td>${escH(r.name)}</td><td class="amt num">${fmtA(r.amount)}</td><td style="color:#999">${escH(r.note||'')}</td></tr>`;
+      if(_dailyEditId===r.id){
+        html+=`<tr id="deRow_${r.id}">
+          <td><input type="date" id="deDate_${r.id}" value="${escH(r.date||'')}" style="width:100%;padding:4px;border:1px solid #d5cfc5;border-radius:4px;font-size:13px;text-align:center"></td>
+          <td><input type="text" id="deName_${r.id}" value="${escH(r.name)}" style="width:100%;padding:4px;border:1px solid #d5cfc5;border-radius:4px;font-size:13px;text-align:center"></td>
+          <td><input type="number" id="deAmt_${r.id}" value="${r.amount}" step="0.01" style="width:100%;padding:4px;border:1px solid #d5cfc5;border-radius:4px;font-size:13px;text-align:center"></td>
+          <td><input type="text" id="deNote_${r.id}" value="${escH(r.note||'')}" style="width:100%;padding:4px;border:1px solid #d5cfc5;border-radius:4px;font-size:13px;text-align:center"></td>
+          <td class="act">
+            <button class="btn primary sm" onclick="saveDailyEdit(${r.id})">保存</button>
+            <button class="btn sm" onclick="_dailyEditId=null;renderDailyYearDetail()">取消</button>
+          </td></tr>`;
+      }else{
+        html+=`<tr><td>${fmtD(r.date)}</td><td>${escH(r.name)}</td><td class="amt num">${fmtA(r.amount)}</td><td style="color:#999">${escH(r.note||'')}</td>
+          <td class="act">
+            <button class="btn sm" onclick="_dailyEditId=${r.id};renderDailyYearDetail()">编辑</button>
+            <button class="btn sm danger" onclick="delDailyRec(${r.id})">删除</button>
+          </td></tr>`;
+      }
     });
     html+=`</tbody></table></div>`;
   }
   $('dailyArchiveContent').innerHTML=`
     <div id="dailyYearStats">${html}</div>
   `;
+  // 编辑模式键盘导航
+  if(_dailyEditId){
+    setTimeout(()=>{
+      const row=$('deRow_'+_dailyEditId);
+      if(!row)return;
+      const inputs=row.querySelectorAll('input');
+      inputs.forEach((inp,i)=>{
+        inp.addEventListener('keydown',e=>{
+          if(e.key==='Enter'){
+            e.preventDefault();
+            if(i<inputs.length-1){inputs[i+1].focus();}
+            else{saveDailyEdit(_dailyEditId);}
+          }
+          if(e.key==='Escape'){_dailyEditId=null;renderDailyYearDetail();}
+        });
+      });
+      if(inputs.length>0)inputs[0].focus();
+    },50);
+  }
+}
+
+async function saveDailyEdit(rid){
+  const name=$('deName_'+rid).value.trim();
+  const amt=parseFloat($('deAmt_'+rid).value);
+  if(!name||!amt||amt<=0){toast('姓名和金额不能为空',1);return;}
+  const body={
+    event_id:dailyEventId,name,amount:amt,
+    date:$('deDate_'+rid).value,
+    note:$('deNote_'+rid).value.trim(),
+    direction:'送'
+  };
+  const res=await fetch(API+'/records/'+rid,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+  if(res.ok){
+    toast('已保存');
+    _dailyEditId=null;
+    // 本地更新数据
+    const idx=dailyRecords.findIndex(r=>r.id===rid);
+    if(idx>=0){dailyRecords[idx].name=name;dailyRecords[idx].amount=amt;dailyRecords[idx].date=body.date;dailyRecords[idx].note=body.note;}
+    renderDailyYearDetail();
+  }else{const e=await res.json();toast(e.error||'保存失败',1);}
+}
+
+async function delDailyRec(rid){
+  showConfirm('确定删除此记录？',async()=>{
+    const res=await fetch(API+'/records/'+rid,{method:'DELETE'});
+    if(res.ok){
+      toast('已删除');
+      dailyRecords=dailyRecords.filter(r=>r.id!==rid);
+      renderDailyYearDetail();
+    }else{const e=await res.json();toast(e.error||'删除失败',1);}
+  });
 }
 
 // ==================== 键盘快捷键 ====================
