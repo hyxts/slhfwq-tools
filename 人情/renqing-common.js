@@ -77,7 +77,7 @@ function acAttach(input){
       }catch(e){return;}
       if(!Array.isArray(items)||items.length===0||document.activeElement!==input||!input.isConnected){hide();return;}
       show();
-    },150);
+    },200);
   });
 
   input.addEventListener('keydown',e=>{

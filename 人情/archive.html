@@ -137,10 +137,10 @@ td.act{white-space:nowrap}
   .page-form table thead th{font-size:11px;padding:6px 4px}
   .page-form table tbody td{padding:4px 4px}
   .page-form table th:nth-child(1){width:30px}
-  .page-form table th:nth-child(2){width:32%}
-  .page-form table th:nth-child(3){width:24%}
-  .page-form table th:nth-child(4){width:auto}
-  .page-form table th:nth-child(5){width:34px}
+  .page-form table th:nth-child(2){width:38%}
+  .page-form table th:nth-child(3){width:28%}
+  .page-form table th:nth-child(4){width:22%}
+  .page-form table th:nth-child(5){width:30px}
   .page-form input{padding:8px 4px;font-size:16px;width:100%!important;box-sizing:border-box!important}
   .page-form .btn.sm{padding:4px 6px;font-size:12px;min-width:28px}
   .batch-bar{gap:4px;margin-bottom:12px;overflow-x:auto;-webkit-overflow-scrolling:touch;flex-wrap:nowrap}
@@ -325,7 +325,7 @@ function renderBatchPage(){
     }
     html+=`</tbody></table></div>`;
   }else{
-    html+=`<div class="page-form" id="pageForm"><table><thead><tr><th style="width:40px">序号</th><th style="width:140px">姓名</th><th style="width:120px">金额</th><th>备注</th><th style="width:60px"></th></tr></thead><tbody>`;
+    html+=`<div class="page-form" id="pageForm"><table><thead><tr><th style="width:40px">序号</th><th style="width:220px">姓名</th><th style="width:180px">金额</th><th style="width:140px">备注</th><th style="width:60px"></th></tr></thead><tbody>`;
     for(let i=0;i<ps;i++){
       const r=sorted[i];
       const nk=`pn_${i}`;const ak=`pa_${i}`;const ntk=`pnt_${i}`;
@@ -348,8 +348,13 @@ function renderBatchPage(){
           if(e.key==='Enter'){
             if(document.querySelector('.ac-dd.show'))return;
             e.preventDefault();
-            if(i+1<inputs.length){inputs[i+1].focus();}
-            else{savePage(true);}
+            const col=(i%3);
+            if(col<2 && i+1<inputs.length){inputs[i+1].focus();}
+            else{
+              const nextRowStart=i+3-col;
+              if(nextRowStart<inputs.length){inputs[nextRowStart].focus();}
+              else{savePage(true);}
+            }
           }
         });
       });

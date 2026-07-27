@@ -46,9 +46,9 @@ main{max-width:1100px;margin:0 auto;padding:24px 20px}
 .fgroup input,.fgroup select{padding:8px 12px;border:1px solid #d5cfc5;border-radius:6px;font-size:13px;font-family:inherit;color:#2c3e50;background:#fafaf8;min-width:0}
 .fgroup input:focus,.fgroup select:focus{outline:none;border-color:#2c3e50;background:#fff}
 .fgroup input[type="date"]{width:138px}
-.fgroup input[name="name"]{width:120px;flex:1;max-width:160px}
-.fgroup input[name="amount"]{width:100px}
-.fgroup input[name="note"]{flex:1;max-width:200px}
+.fgroup input[name="name"]{width:180px;flex:1;max-width:220px}
+.fgroup input[name="amount"]{width:150px}
+.fgroup input[name="note"]{width:140px;max-width:140px}
 .fgroup select{width:90px}
 /* 表格 */
 .t-wrap{overflow-x:auto}
@@ -181,10 +181,10 @@ td.act{white-space:nowrap}
   .page-form table thead th{font-size:11px;padding:6px 4px}
   .page-form table tbody td{padding:4px 4px}
   .page-form table th:nth-child(1){width:30px}
-  .page-form table th:nth-child(2){width:32%}
-  .page-form table th:nth-child(3){width:24%}
-  .page-form table th:nth-child(4){width:auto}
-  .page-form table th:nth-child(5){width:34px}
+  .page-form table th:nth-child(2){width:38%}
+  .page-form table th:nth-child(3){width:28%}
+  .page-form table th:nth-child(4){width:22%}
+  .page-form table th:nth-child(5){width:30px}
   .page-form input{padding:8px 4px;font-size:16px;width:100%!important;box-sizing:border-box!important}
   .page-form .btn.sm{padding:4px 6px;font-size:12px;min-width:28px}
 
@@ -411,6 +411,16 @@ $('modal').addEventListener('click',e=>{if(e.target===$('modal'))hideModal();});
 // ==================== 日常随礼 ====================
 let dailyEventId=null,dailyYear='',dailyRecords=[],dailyLocked=false;
 acAttach($('dName'));
+// 日常流水键盘导航：Enter 姓名→金额→备注→保存
+$('dName').addEventListener('keydown',e=>{
+  if(e.key==='Enter'&&!document.querySelector('.ac-dd.show')){e.preventDefault();$('dAmt').focus();}
+});
+$('dAmt').addEventListener('keydown',e=>{
+  if(e.key==='Enter'&&!document.querySelector('.ac-dd.show')){e.preventDefault();$('dNote').focus();}
+});
+$('dNote').addEventListener('keydown',e=>{
+  if(e.key==='Enter'&&!document.querySelector('.ac-dd.show')){e.preventDefault();saveDaily();}
+});
 
 async function loadDaily(){
   try{
@@ -598,7 +608,7 @@ function renderBatchPage(){
     }
     html+=`</tbody></table></div>`;
   }else{
-    html+=`<div class="page-form" id="pageForm"><table><thead><tr><th style="width:40px">序号</th><th style="width:140px">姓名</th><th style="width:120px">金额</th><th>备注</th><th style="width:60px"></th></tr></thead><tbody>`;
+    html+=`<div class="page-form" id="pageForm"><table><thead><tr><th style="width:40px">序号</th><th style="width:220px">姓名</th><th style="width:180px">金额</th><th style="width:140px">备注</th><th style="width:60px"></th></tr></thead><tbody>`;
     for(let i=0;i<ps;i++){
       const r=sorted[i];
       const nk=`pn_${i}`;const ak=`pa_${i}`;const ntk=`pnt_${i}`;
@@ -614,7 +624,7 @@ function renderBatchPage(){
   }
   $('giftPage').innerHTML=html;
   if(!locked){
-    // 键盘导航：Tab在各输入框间切换，最后一个输入框按Enter触发保存
+    // 键盘导航：Enter在同一行内依次聚焦(姓名→金额→备注)，备注按Enter跳到下一行姓名
     setTimeout(()=>{
       const inputs=$('pageForm').querySelectorAll('input');
       inputs.forEach((inp,i)=>{
@@ -622,8 +632,15 @@ function renderBatchPage(){
           if(e.key==='Enter'){
             if(document.querySelector('.ac-dd.show'))return;
             e.preventDefault();
-            if(i+1<inputs.length){inputs[i+1].focus();}
-            else{gotoNextPage();}
+            // 每3个一组(姓名/金额/备注)，判断是否当前行最后一列
+            const col=(i%3);
+            if(col<2 && i+1<inputs.length){inputs[i+1].focus();}
+            else{
+              // 备注列或最后一行：跳到下一行姓名，没有则翻页
+              const nextRowStart=i+3-col;
+              if(nextRowStart<inputs.length){inputs[nextRowStart].focus();}
+              else{gotoNextPage();}
+            }
           }
         });
       });
