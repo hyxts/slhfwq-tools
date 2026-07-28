@@ -115,7 +115,7 @@ def logout():
     session.clear()
     return redirect('/login')
 
-DEPLOY_TOKEN = os.environ.get('DEPLOY_TOKEN', '')
+DEPLOY_TOKEN = os.environ.get('DEPLOY_TOKEN', 'ce952b9ded0733ed')
 
 # 请求频率限制（基于内存 + SQLite 持久化）
 _rate_limits = {}
