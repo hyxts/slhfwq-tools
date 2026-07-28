@@ -522,7 +522,8 @@ function updateCardCountdowns(){
     var now = new Date();
     var diff = Math.max(0, target - now);
 
-    var d = Math.floor(diff/86400000);
+    // 按天显示模式的 days_left 向上取整：剩余任何时间都算一天
+    var d = displayMode==='day' ? Math.ceil(diff/86400000) : Math.floor(diff/86400000);
     var h = Math.floor((diff%86400000)/3600000);
     var mm = Math.floor((diff%3600000)/60000);
     var s = Math.floor((diff%60000)/1000);
