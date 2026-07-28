@@ -301,11 +301,13 @@ def list_events():
             # 计算岁数
             # 对于每年重复事件：如果有 birth_year，基于 birth_year 计算当前年龄
             # 对于非重复事件：基于原始日期计算经过的岁数
-            exact_age, int_age = None, None
+            exact_age, int_age, xu_sui = None, None, None
             birth_year = int(e.get('birth_year', 0) or 0)
             if repeat_annual and birth_year > 0:
-                # 生日类事件：年龄 = 今年 - 出生年（如果今年生日未过则减1）
+                # 生日类事件：周岁 = 今年 - 出生年（如果今年生日未过则减1）
                 int_age = today.year - birth_year
+                # 虚岁 = 今年 - 出生年 + 1（中国传统计岁，出生即算1岁）
+                xu_sui = today.year - birth_year + 1
                 # 独立计算今年生日日期（不能用target_date，因为它是下一个未来日期，可能是明年的）
                 this_year_birthday = None
                 if cal_type == 'lunar' and HAS_LUNAR:
@@ -316,7 +318,7 @@ def list_events():
                     except ValueError:
                         pass  # 如2月29日非闰年，忽略
                 if this_year_birthday and this_year_birthday > today:
-                    int_age -= 1  # 今年生日还没过
+                    int_age -= 1  # 今年生日还没过，周岁不减
                 exact_age = float(int_age)
             elif not repeat_annual and solar_date and solar_date <= today:
                 exact_age, int_age = calc_age(solar_date, cal_type)
@@ -382,6 +384,7 @@ def list_events():
                 'status': status,
                 'exact_age': exact_age,
                 'int_age': int_age,
+                'xu_sui': xu_sui,
             })
 
         # 按今年日期排序（已过的排后面）

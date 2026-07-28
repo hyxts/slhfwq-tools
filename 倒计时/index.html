@@ -747,7 +747,7 @@ function buildCardListHTML(events){
 
     var ageHtml = '';
     if(e.exact_age!==null&&e.exact_age!==undefined){
-      ageHtml = '<span class="event-age">'+e.int_age+'岁</span>';
+      ageHtml = '<span class="event-age">周岁'+e.int_age+' / 虚岁'+e.xu_sui+'</span>';
     }
 
     var noteHtml = '';
