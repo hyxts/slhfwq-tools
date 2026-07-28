@@ -219,27 +219,17 @@ def countdown_page():
     return send_from_directory(CD_DIR, 'index.html')
 
 # PWA Manifest
-@bp.route('/api/countdown/manifest')
+@bp.route('/countdown/manifest.json')
 def pwa_manifest():
-    return jsonify({
-        'name': '倒计时',
-        'short_name': '倒计时',
-        'description': '事件倒计时 - 支持农历公历',
-        'start_url': '/countdown',
-        'display': 'standalone',
-        'orientation': 'portrait',
-        'background_color': '#0f0f1a',
-        'theme_color': '#0f0f1a',
-        'icons': [{
-            'src': "data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 192 192'><defs><linearGradient id='g' x1='0' y1='0' x2='0' y2='1'><stop offset='0%25' stop-color='%230f0f1a'/><stop offset='50%25' stop-color='%238b5cf6'/><stop offset='100%25' stop-color='%23c084fc'/></linearGradient></defs><rect width='192' height='192' rx='40' fill='url(%23g)'/><text x='96' y='128' text-anchor='middle' font-size='96' fill='white' font-family='system-ui'>:</text></svg>",
-            'sizes': '192x192',
-            'type': 'image/svg+xml'
-        }, {
-            'src': "data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'><defs><linearGradient id='g' x1='0' y1='0' x2='0' y2='1'><stop offset='0%25' stop-color='%230f0f1a'/><stop offset='50%25' stop-color='%238b5cf6'/><stop offset='100%25' stop-color='%23c084fc'/></linearGradient></defs><rect width='512' height='512' rx='80' fill='url(%23g)'/><text x='256' y='350' text-anchor='middle' font-size='260' fill='white' font-family='system-ui'>:</text></svg>",
-            'sizes': '512x512',
-            'type': 'image/svg+xml'
-        }]
-    })
+    return send_from_directory(CD_DIR, 'manifest.json')
+
+@bp.route('/countdown/icon-192.svg')
+def cd_icon_192():
+    return send_from_directory(CD_DIR, 'icon-192.svg')
+
+@bp.route('/countdown/icon-512.svg')
+def cd_icon_512():
+    return send_from_directory(CD_DIR, 'icon-512.svg')
 
 @bp.route('/api/countdown/events', methods=['GET'])
 def list_events():

@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
 <title>倒计时</title>
-<link rel="manifest" id="pwaManifest">
+<link rel="manifest" href="/countdown/manifest.json">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="倒计时">
@@ -12,11 +12,7 @@
 <meta name="theme-color" content="#f8fafc">
 <link rel="apple-touch-icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 192 192'><defs><linearGradient id='g' x1='0' y1='0' x2='0' y2='1'><stop offset='0%25' stop-color='%23a78bfa'/><stop offset='50%25' stop-color='%238b5cf6'/><stop offset='100%25' stop-color='%237c3aed'/></linearGradient></defs><rect width='192' height='192' rx='40' fill='url(%23g)'/><text x='96' y='130' text-anchor='middle' font-size='110' fill='white' font-weight='bold'>倒</text></svg>">
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'><defs><linearGradient id='g' x1='0' y1='0' x2='0' y2='1'><stop offset='0%25' stop-color='%23a78bfa'/><stop offset='50%25' stop-color='%238b5cf6'/><stop offset='100%25' stop-color='%237c3aed'/></linearGradient></defs><rect width='512' height='512' rx='80' fill='url(%23g)'/><text x='256' y='355' text-anchor='middle' font-size='300' fill='white' font-weight='bold'>倒</text></svg>">
-<link rel="apple-touch-icon" sizes="192x192" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 192 192'><defs><linearGradient id='g' x1='0' y1='0' x2='0' y2='1'><stop offset='0%25' stop-color='%23a78bfa'/><stop offset='50%25' stop-color='%238b5cf6'/><stop offset='100%25' stop-color='%237c3aed'/></linearGradient></defs><rect width='192' height='192' rx='40' fill='url(%23g)'/><text x='96' y='130' text-anchor='middle' font-size='110' fill='white' font-weight='bold'>倒</text></svg>">
-<script>
-(function(){var m={name:'倒计时',short_name:'倒计时',description:'事件倒计时',start_url:'/countdown',display:'standalone',orientation:'portrait',background_color:'#eef1f5',theme_color:'#a78bfa',icons:[{src:"data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 192 192'><defs><linearGradient id='g' x1='0' y1='0' x2='0' y2='1'><stop offset='0%' stop-color='%23a78bfa'/><stop offset='50%' stop-color='%238b5cf6'/><stop offset='100%' stop-color='%237c3aed'/></linearGradient></defs><rect width='192' height='192' rx='40' fill='url(%23g)'/><text x='96' y='130' text-anchor='middle' font-size='110' fill='white' font-weight='bold'>倒</text></svg>",sizes:'192x192',type:'image/svg+xml'},{src:"data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'><defs><linearGradient id='g' x1='0' y1='0' x2='0' y2='1'><stop offset='0%' stop-color='%23a78bfa'/><stop offset='50%' stop-color='%238b5cf6'/><stop offset='100%' stop-color='%237c3aed'/></linearGradient></defs><rect width='512' height='512' rx='80' fill='url(%23g)'/><text x='256' y='355' text-anchor='middle' font-size='300' fill='white' font-weight='bold'>倒</text></svg>",sizes:'512x512',type:'image/svg+xml'}]};
-document.getElementById('pwaManifest').href=URL.createObjectURL(new Blob([JSON.stringify(m)],{type:'application/json'}))})();
-</script>
+<link rel="apple-touch-icon" sizes="192x192" href="/countdown/icon-192.svg">
 <style>
 :root{
   --primary:#7c3aed;--bg:#f0f2f5;--card-bg:#ffffff;--text:#1e293b;--text-secondary:#64748b;
@@ -36,9 +32,9 @@ document.getElementById('pwaManifest').href=URL.createObjectURL(new Blob([JSON.s
 }
 
 *{margin:0;padding:0;box-sizing:border-box}
-body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif;background:var(--bg);color:var(--text);min-height:100vh;padding-bottom:calc(80px + env(safe-area-inset-bottom));transition:background .3s,color .3s}
-
-header{background:#ffffff;padding:12px 16px;padding-top:calc(12px + env(safe-area-inset-top));padding-left:calc(16px + env(safe-area-inset-left));padding-right:calc(16px + env(safe-area-inset-right));display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:100;border-bottom:1px solid #e2e8f0}
+body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif;background:var(--bg);color:var(--text);min-height:100vh;padding-top:env(safe-area-inset-top);padding-left:env(safe-area-inset-left);padding-right:env(safe-area-inset-right);padding-bottom:calc(80px + env(safe-area-inset-bottom));transition:background .3s,color .3s}
+body::before{content:'';position:fixed;top:0;left:0;right:0;height:env(safe-area-inset-top);background:#fff;z-index:101;pointer-events:none}
+header{background:#ffffff;padding:12px 16px;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:100;border-bottom:1px solid #e2e8f0}
 header h1{font-size:17px;font-weight:600;color:#1e293b}
 .hdr-actions{display:flex;gap:8px;align-items:center}
 

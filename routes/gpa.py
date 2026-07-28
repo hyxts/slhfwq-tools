@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """GPA系统 Blueprint"""
 import os, json
-from flask import Blueprint, request, jsonify
+from flask import Blueprint, request, jsonify, send_from_directory
 
 from .utils import make_logger, make_db, safe_json_load
 
@@ -114,24 +114,18 @@ def save_data():
         conn.close()
 
 
-@bp.route('/api/gpa/manifest')
+GPA_DIR = os.path.join(BASE_DIR, '绩点')
+
+# ==================== PWA ====================
+
+@bp.route('/gpa/manifest.json')
 def pwa_manifest():
-    return jsonify({
-        'name': 'GPA',
-        'short_name': 'GPA',
-        'description': 'GPA成绩管理系统',
-        'start_url': '/gpa',
-        'display': 'standalone',
-        'orientation': 'portrait',
-        'background_color': '#f5f7fa',
-        'theme_color': '#2f7d6b',
-        'icons': [{
-            'src': "data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 192 192'><rect width='192' height='192' rx='40' fill='%23ef4444'/><text x='96' y='132' text-anchor='middle' font-size='68' fill='white' font-weight='bold' font-family='Arial,sans-serif'>GPA</text></svg>",
-            'sizes': '192x192',
-            'type': 'image/svg+xml'
-        }, {
-            'src': "data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'><rect width='512' height='512' rx='80' fill='%23ef4444'/><text x='256' y='360' text-anchor='middle' font-size='180' fill='white' font-weight='bold' font-family='Arial,sans-serif'>GPA</text></svg>",
-            'sizes': '512x512',
-            'type': 'image/svg+xml'
-        }]
-    })
+    return send_from_directory(GPA_DIR, 'manifest.json')
+
+@bp.route('/gpa/icon-192.svg')
+def gpa_icon_192():
+    return send_from_directory(GPA_DIR, 'icon-192.svg')
+
+@bp.route('/gpa/icon-512.svg')
+def gpa_icon_512():
+    return send_from_directory(GPA_DIR, 'icon-512.svg')

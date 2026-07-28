@@ -188,7 +188,7 @@ def check_auth():
     if _rate_limits[rate_key] > limit:
         return jsonify({'success': False, 'error': '请求过于频繁'}), 429
     # 免登录路径
-    PUBLIC_PREFIXES = ('/static', '/countdown', '/accounting', '/renqing/manifest', '/renqing/icon', '/deploy/manifest', '/deploy/icon', '/nav/manifest', '/nav/icon', '/api/accounting', '/api/countdown', '/api/pa/', '/api/status')
+    PUBLIC_PREFIXES = ('/static', '/countdown', '/accounting', '/hsgrades/icon', '/hsgrades/manifest', '/gpa/icon', '/gpa/manifest', '/renqing/manifest', '/renqing/icon', '/deploy/manifest', '/deploy/icon', '/nav/manifest', '/nav/icon', '/api/accounting', '/api/countdown', '/api/pa/', '/api/status')
     if request.path in ('/login', '/setup', '/api/ping') or any(request.path.startswith(p) for p in PUBLIC_PREFIXES):
         return
     if session.get('auth'):

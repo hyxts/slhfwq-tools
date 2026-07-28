@@ -1,14 +1,15 @@
 # -*- coding: utf-8 -*-
 """高中成绩系统 Blueprint"""
 import os, json
-from flask import Blueprint, request, jsonify
+from flask import Blueprint, request, jsonify, send_from_directory
 
 from .utils import make_logger, make_db, safe_json_load
 
 bp = Blueprint('hsgrades', __name__)
 
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-HSGRADES_DB_PATH = os.path.join(BASE_DIR, '成绩', 'hsgrades.db')
+HSGRADES_DIR = os.path.join(BASE_DIR, '成绩')
+HSGRADES_DB_PATH = os.path.join(HSGRADES_DIR, 'hsgrades.db')
 LOG_FILE = os.path.join(BASE_DIR, '成绩', 'hsgrades.log')
 _get_db = make_db(HSGRADES_DB_PATH)
 
@@ -79,24 +80,14 @@ def save_data():
 
 # ==================== PWA ====================
 
-@bp.route('/api/hsgrades/manifest')
+@bp.route('/hsgrades/manifest.json')
 def pwa_manifest():
-    return jsonify({
-        'name': '高中成绩',
-        'short_name': '成绩',
-        'description': '高中成绩管理系统',
-        'start_url': '/hsgrades',
-        'display': 'standalone',
-        'orientation': 'portrait',
-        'background_color': '#f5f7fa',
-        'theme_color': '#059669',
-        'icons': [{
-            'src': "data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 192 192'><rect width='192' height='192' rx='40' fill='%23059669'/><text x='96' y='128' text-anchor='middle' font-size='72' fill='white' font-weight='bold' font-family='Arial,sans-serif'>成绩</text></svg>",
-            'sizes': '192x192',
-            'type': 'image/svg+xml'
-        }, {
-            'src': "data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'><rect width='512' height='512' rx='80' fill='%23059669'/><text x='256' y='350' text-anchor='middle' font-size='200' fill='white' font-weight='bold' font-family='Arial,sans-serif'>成绩</text></svg>",
-            'sizes': '512x512',
-            'type': 'image/svg+xml'
-        }]
-    })
+    return send_from_directory(HSGRADES_DIR, 'manifest.json')
+
+@bp.route('/hsgrades/icon-192.svg')
+def hsgrades_icon_192():
+    return send_from_directory(HSGRADES_DIR, 'icon-192.svg')
+
+@bp.route('/hsgrades/icon-512.svg')
+def hsgrades_icon_512():
+    return send_from_directory(HSGRADES_DIR, 'icon-512.svg')

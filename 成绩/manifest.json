@@ -1,0 +1,22 @@
+{
+  "name": "高中成绩管理",
+  "short_name": "成绩",
+  "description": "高中成绩管理系统 - 成绩录入、查询与趋势分析",
+  "start_url": "/hsgrades",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#f8fafc",
+  "theme_color": "#f8fafc",
+  "icons": [
+    {
+      "src": "/hsgrades/icon-192.svg",
+      "sizes": "192x192",
+      "type": "image/svg+xml"
+    },
+    {
+      "src": "/hsgrades/icon-512.svg",
+      "sizes": "512x512",
+      "type": "image/svg+xml"
+    }
+  ]
+}

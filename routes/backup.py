@@ -192,7 +192,7 @@ def _do_cleanup():
         pass
 
     # 6. 清理已知废弃文件
-    ORPHAN_FILES = ['data.db', '服务器/monitor.db', '服务器/data_report.log']
+    ORPHAN_FILES = ['服务器/data_report.log']
     for fname in ORPHAN_FILES:
         fpath = os.path.join(BASE_DIR, fname)
         if os.path.isfile(fpath):
