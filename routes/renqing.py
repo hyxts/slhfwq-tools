@@ -57,6 +57,24 @@ def init_db():
                 version INTEGER PRIMARY KEY
             );
         ''')
+        # 数据修复：确保非日常事件的记录日期与事件日期一致（年度统计准确性）
+        conn.execute('''
+            UPDATE records SET date = (
+                SELECT event_date FROM events
+                WHERE events.id = records.event_id
+                AND events.event_date IS NOT NULL AND events.event_date != ''
+            )
+            WHERE event_id IN (
+                SELECT id FROM events
+                WHERE event_date IS NOT NULL AND event_date != ''
+                AND (event_type IS NULL OR event_type NOT IN ('日常','工具'))
+            )
+            AND date != (
+                SELECT event_date FROM events
+                WHERE events.id = records.event_id
+            )
+        ''')
+
         ver = conn.execute('SELECT version FROM schema_version LIMIT 1').fetchone()
         cur_ver = ver['version'] if ver else 0
 
