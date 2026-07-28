@@ -200,6 +200,13 @@ main{padding:16px;max-width:900px;margin:0 auto}
 
   <div class="auto-refresh" id="refreshTimer"><span>--</span> 秒后自动刷新</div>
 
+  <!-- ====== 总览（可折叠） ====== -->
+  <div class="fold-toggle" onclick="foldToggle('overviewFold')" style="background:#fff;padding:12px 16px;border-radius:12px;box-shadow:0 1px 3px rgba(0,0,0,.06);border:1px solid #e2e8f0;margin-bottom:14px">
+    <h3 style="margin:0;font-size:15px;font-weight:600">系统总览</h3>
+    <span class="fold-arrow">▼</span>
+  </div>
+  <div class="fold-content" id="overviewFold" style="max-height:8000px">
+
   <!-- ====== 指标卡片行 ====== -->
   <div class="metrics-row">
     <div class="metric-card" id="cardDisk">
@@ -256,6 +263,8 @@ main{padding:16px;max-width:900px;margin:0 auto}
       <div id="logBrief"><div class="loading">加载中...</div></div>
     </div>
   </div>
+
+  </div><!-- /overviewFold -->
 
   <!-- ====== PA续期（可折叠） ====== -->
   <div class="card">
