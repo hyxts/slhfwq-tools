@@ -445,14 +445,14 @@ for _name, _fn in _SAFE_INITS:
     else:
         _diag(f'{_name}_db 跳过（模块未加载）')
 
-# 后台任务已迁移到 PA Scheduled Tasks（daily_task.py），Flask 内不再启动 daemon 线程
-# 如需恢复 Flask 内线程（如 Scheduled Tasks 不可用），取消下面注释并删除空列表即可
-# _SAFE_STARTS = [
-#     ('auto_renew', start_auto_renew),
-#     ('auto_backup', start_auto_backup),
-#     ('auto_clean', start_auto_clean),
-# ]
-_SAFE_STARTS = []
+
+# 后台任务默认在 Flask 内启动 daemon 线程
+# 如需迁移到 PA Scheduled Tasks（付费账户），把 daily_task.py 配置到 PA 后，再把下面置空
+_SAFE_STARTS = [
+    ('auto_renew', start_auto_renew),
+    ('auto_backup', start_auto_backup),
+    ('auto_clean', start_auto_clean),
+]
 _diag('启动完成 - 数据库就绪')
 
 

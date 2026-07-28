@@ -1,8 +1,12 @@
 # -*- coding: utf-8 -*-
-"""PythonAnywhere 每日定时任务
-替代 Flask 内 daemon 线程，由 PA Tasks 页面配置定时触发
+"""PythonAnywhere 每日定时任务（可选）
+
+说明：
+- PA 付费账户：可在 PA Tasks 页面配置定时触发，替代 Flask 内 daemon 线程
+- PA 免费账户：不支持 Scheduled/Always-on tasks，此脚本仅供在 Console 中手动执行
+- 默认情况下仍使用 app.py 内的 daemon 线程，无需配置此脚本
+
 用法: python daily_task.py
-在 PA Tasks 页面设置为每天执行一次即可
 """
 import sys, os
 
