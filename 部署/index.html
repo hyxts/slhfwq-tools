@@ -12,62 +12,149 @@
 <link rel="manifest" href="/deploy/manifest.json">
 <title>管理后台</title>
 <style>
-:root{--primary:#4f46e5;--bg:#f0f2f5;--card-bg:#ffffff;--text:#1e293b;--text-secondary:#64748b;--border:#e2e8f0;--shadow:0 2px 8px rgba(0,0,0,.06)}
 *{margin:0;padding:0;box-sizing:border-box}
-body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif;background:#f0f2f5;color:#1e293b}
-.app-layout{display:flex;height:100vh;overflow:hidden}
-.sidebar{width:220px;flex-shrink:0;background:linear-gradient(180deg,#6366f1 0%,#4f46e5 40%,#4338ca 100%);color:#fff;display:flex;flex-direction:column;overflow-y:auto}
-.hdr{padding:24px 20px 16px;display:flex;align-items:center;gap:10px;border-bottom:1px solid rgba(255,255,255,.1);margin-bottom:8px}
-.hdr h1{font-size:17px;font-weight:600;color:#fff}
-.hdr svg{flex-shrink:0}
-.nav{display:flex;flex-direction:column;gap:2px;padding:8px 12px}
-.nb{flex:none;padding:11px 14px;border:none;border-radius:8px;cursor:pointer;font-size:14px;font-weight:500;text-align:left;color:rgba(255,255,255,.75);background:0;transition:all .15s;border-left:3px solid transparent}
-.nb.on{background:rgba(255,255,255,.15);color:#fff;font-weight:600;border-left-color:#fff}
-.nb:hover{background:rgba(255,255,255,.1);color:#fff}
-.ctn{flex:1;overflow-y:auto;padding:20px 28px;max-width:none;margin:0}
-.pg{display:none}.pg.on{display:block}
+body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif;background:#f0f2f5;color:#1e293b;padding-top:env(safe-area-inset-top);padding-left:env(safe-area-inset-left);padding-right:env(safe-area-inset-right);padding-bottom:calc(16px + env(safe-area-inset-bottom))}
+body::before{content:'';position:fixed;top:0;left:0;right:0;height:env(safe-area-inset-top);background:#fff;z-index:101;pointer-events:none}
+
+/* Header */
+header{background:#fff;border-bottom:1px solid #e2e8f0;padding:12px 16px;display:flex;align-items:center;justify-content:center;gap:8px;position:sticky;top:0;z-index:100}
+header h1{font-size:17px;font-weight:600}
+header .back{color:#64748b;text-decoration:none;font-size:20px;font-weight:400;display:inline-flex;align-items:center;justify-content:center;min-width:44px;min-height:44px;border-radius:8px;position:absolute;left:6px}
+
+/* 主容器 */
+main{padding:16px;max-width:900px;margin:0 auto}
 
 /* 通用卡片 */
-.card{background:#ffffff;border-radius:12px;padding:20px 24px;margin-bottom:16px;box-shadow:0 1px 3px rgba(0,0,0,.06);border:1px solid #e2e8f0}
-.card h3{font-size:16px;margin-bottom:14px;color:#1e293b;font-weight:600}
+.card{background:#ffffff;border-radius:12px;padding:20px 24px;margin-bottom:14px;box-shadow:0 1px 3px rgba(0,0,0,.06);border:1px solid #e2e8f0}
+.card h3{font-size:16px;margin-bottom:12px;color:#1e293b;font-weight:600}
 
 /* 按钮 */
-.btn{padding:10px 20px;border:none;border-radius:10px;cursor:pointer;font-size:14px;font-weight:600;display:block;width:100%;min-height:44px;margin-bottom:8px;transition:all .15s;-webkit-appearance:none;appearance:none}
+.btn{padding:10px 20px;border:none;border-radius:10px;cursor:pointer;font-size:14px;font-weight:600;min-height:44px;margin-bottom:8px;transition:all .15s;-webkit-appearance:none;appearance:none;font-family:inherit;text-decoration:none;display:inline-block;text-align:center}
 .btn:active{opacity:.9;transform:scale(.99)}
 .btn:disabled{opacity:.4;cursor:not-allowed;transform:none}
-.bp{background:#6366f1;color:#fff}
-.bp:hover{background:#4f46e5}
-.bs{background:#15803d;color:#fff}
-.bs:hover{background:#15803d}
-.bo{background:transparent;border:1.5px solid rgba(148,163,184,.2);color:#94a3b8}
-.bo:hover{border-color:#a5b4fc;color:#a5b4fc}
-.bw{background:#b45309;color:#fff}
-.bw:hover{background:#b45309}
-.br{background:#b91c1c;color:#fff}
-.br:hover{background:#b91c1c}
-.bsm{padding:6px 12px;font-size:12px;width:auto;min-height:unset;margin-bottom:0;display:inline-block}
+.bp{background:#6366f1;color:#fff}.bp:hover{background:#4f46e5}
+.bs{background:#16a34a;color:#fff}.bs:hover{background:#15803d}
+.bo{background:transparent;border:1.5px solid #d1d5db;color:#64748b}.bo:hover{border-color:#a5b4fc;color:#a5b4fc}
+.bw{background:#b45309;color:#fff}.bw:hover{background:#92400e}
+.br{background:#b91c1c;color:#fff}.br:hover{background:#991b1b}
+.bsm{padding:6px 12px;font-size:12px;min-height:unset;margin-bottom:0}
 
-/* 输出区 */
-.output{background:#1e1e2e;color:#a6e3a1;border-radius:8px;padding:14px;font-family:Consolas,monospace;font-size:12px;line-height:1.5;white-space:pre-wrap;word-break:break-all;min-height:40px;max-height:240px;overflow-y:auto;margin-top:12px}
+/* 指标4列 */
+.metrics-row{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:14px}
+.metric-card{background:#fff;border-radius:14px;padding:18px 14px;box-shadow:0 1px 3px rgba(0,0,0,.06);border:1px solid #e2e8f0;display:flex;flex-direction:column;align-items:center;justify-content:center}
+.metric-card.actions{align-items:stretch;justify-content:center;gap:6px}
+.metric-card.actions .btn{width:100%;margin-bottom:0;font-size:12px;min-height:34px;padding:7px 10px}
+.metric-label{font-size:11px;color:#64748b;font-weight:500;margin-bottom:4px;text-align:center}
+.metric-value{font-size:20px;font-weight:800;color:#1e293b;text-align:center}
+.metric-sub{font-size:11px;color:#94a3b8;margin-top:3px;text-align:center}
+
+/* 磁盘环形图 */
+.gauge-wrap{position:relative;width:80px;height:80px}
+.gauge-wrap svg{transform:rotate(-90deg)}
+.gauge-bg{fill:none;stroke:#e2e8f0;stroke-width:8}
+.gauge-fg{fill:none;stroke:#6366f1;stroke-width:8;stroke-linecap:round;transition:stroke-dashoffset .8s ease,stroke .8s}
+.gauge-fg.warn{stroke:#f59e0b}
+.gauge-fg.danger{stroke:#ef4444}
+.gauge-center{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);font-size:18px;font-weight:800;color:#1e293b}
+
+/* PA状态摘要 */
+.pa-summary-status{font-size:11px;font-weight:600;padding:2px 8px;border-radius:10px;display:inline-block;margin-top:3px}
+.pa-summary-status.ok{background:rgba(16,185,129,.12);color:#059669}
+.pa-summary-status.warn{background:rgba(245,158,11,.12);color:#d97706}
+.pa-summary-status.err{background:rgba(239,68,68,.12);color:#dc2626}
+.pa-summary-status.none{background:#f1f5f9;color:#64748b}
+
+/* 存储分布 */
+.storage-list{display:flex;flex-direction:column;gap:5px;margin-top:8px}
+.storage-item{display:flex;align-items:center;gap:8px;font-size:12px}
+.storage-name{width:80px;text-align:right;color:#94a3b8;font-weight:500;flex-shrink:0}
+.storage-bar-wrap{flex:1;height:16px;background:#f1f5f9;border-radius:6px;overflow:hidden}
+.storage-bar{height:100%;border-radius:6px;transition:width .5s ease;min-width:2px}
+.storage-bar.b0{background:#6366f1}.storage-bar.b1{background:#764ba2}.storage-bar.b2{background:#f093fb}
+.storage-bar.b3{background:#4facfe}.storage-bar.b4{background:#43e97b}.storage-bar.b5{background:#fa709a}
+.storage-bar.b6{background:#f6d365}.storage-bar.b7{background:#f5576c}.storage-bar.b8{background:#a18cd1}.storage-bar.b9{background:#36d1dc}.storage-bar.bo{background:#e2e8f0}
+.storage-val{width:65px;text-align:left;color:#1e293b;font-weight:600;flex-shrink:0;font-size:11px}
+.storage-pct{width:40px;text-align:right;color:#64748b;font-size:10px;flex-shrink:0}
+
+/* 数据库卡片 */
+.db-cards{display:grid;grid-template-columns:repeat(6,1fr);gap:8px;margin-top:8px}
+.db-card{background:#ffffff;border-radius:10px;padding:12px;text-align:center;border:2px solid transparent;transition:all .2s;cursor:pointer}
+.db-card:hover{border-color:#818cf8;background:rgba(99,102,241,.06);transform:translateY(-2px);box-shadow:0 4px 12px rgba(99,102,241,.08)}
+.db-card-name{font-size:11px;color:#6366f1;font-weight:600;margin-bottom:4px}
+.db-card-rows{font-size:18px;font-weight:800;color:#1e293b}
+.db-card-size{font-size:10px;color:#64748b;margin-top:2px}
+
+/* 提交列表 */
+.commit-list{background:#fff;border:1px solid #e2e8f0;border-radius:8px;padding:4px 0;max-height:220px;overflow-y:auto}
+.commit-item{display:flex;align-items:flex-start;padding:5px 10px;font-size:11px;border-bottom:1px solid rgba(148,163,184,.1);gap:6px}
+.commit-item:last-child{border-bottom:none}
+.commit-hash{font-family:Consolas,monospace;color:#a5b4fc;font-size:10px;flex-shrink:0;min-width:48px}
+.commit-date{color:#64748b;font-size:10px;flex-shrink:0;min-width:60px;text-align:right}
+.commit-message{color:#1e293b;word-break:break-all;flex:1}
+
+/* 可折叠区域 */
+.fold-toggle{cursor:pointer;display:flex;align-items:center;justify-content:space-between;padding:0;min-height:36px;user-select:none}
+.fold-toggle h3{margin:0!important;font-size:15px}
+.fold-arrow{font-size:11px;color:#64748b;transition:transform .2s}
+.fold-content{overflow:hidden;transition:max-height .3s ease}
+.fold-content.collapsed{max-height:0!important}
+.fold-toggle.collapsed .fold-arrow{transform:rotate(-90deg)}
+
+/* PA续期 */
+.pa-status-card{background:linear-gradient(135deg,#667eea,#7c3aed);color:#fff;border-radius:14px;padding:20px;margin-bottom:12px;box-shadow:0 4px 16px rgba(102,126,234,.25)}
+.pa-st-label{font-size:12px;opacity:.85;margin-bottom:2px}
+.pa-st-value{font-size:22px;font-weight:800;letter-spacing:.5px}
+.pa-st-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-top:14px}
+.pa-st-item{background:rgba(255,255,255,.1);border-radius:10px;padding:10px;text-align:center;backdrop-filter:blur(4px)}
+.pa-st-item .l{font-size:11px;opacity:.85;margin-bottom:2px}
+.pa-st-item .v{font-size:13px;font-weight:700;word-break:break-all}
+
+/* PA 表单 */
+.fg{margin-bottom:10px}
+.fl{display:block;font-size:12px;color:#94a3b8;margin-bottom:3px;font-weight:500}
+.finp{width:100%;padding:9px;border:1px solid #d1d5db;border-radius:8px;font-size:14px;min-height:42px;background:#fff;color:#1e293b;font-family:inherit;box-sizing:border-box}
+.ig{display:grid;grid-template-columns:repeat(3,1fr);gap:6px}
+.io{padding:8px 2px;border:1.5px solid #e2e8f0;border-radius:8px;text-align:center;cursor:pointer;font-size:12px;font-weight:500;color:#64748b;background:#fff;user-select:none}
+.io:active{transform:scale(.96)}
+.io.sel{border-color:#6366f1;background:rgba(99,102,241,.08);color:#4f46e5;font-weight:600}
+
+/* PA日志 */
+.pa-log-box{background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:8px;max-height:240px;overflow-y:auto;font-family:Consolas,monospace;font-size:11px;line-height:1.7;color:#334155}
+.pa-log-box .log-ok{color:#059669}
+.pa-log-box .log-err{color:#ef4444}
+.pa-log-box .log-warn{color:#d97706}
+.pa-log-box .log-info{color:#3b82f6}
+.log-stats{display:flex;gap:10px;padding:6px 0;margin-bottom:6px;border-bottom:1px solid #e2e8f0;font-size:10px}
+.log-stat-ok{color:#16a34a}.log-stat-err{color:#ef4444}.log-stat-warn{color:#f59e0b}.log-stat-info{color:#3b82f6}
+.log-tag{display:inline-block;padding:1px 5px;border-radius:3px;font-size:9px;margin-right:4px;font-weight:600}
+.log-tag-ok{background:#dcfce7;color:#16a34a}
+.log-tag-err{background:#fee2e2;color:#ef4444}
+.log-tag-warn{background:#fef9c3;color:#d97706}
+.log-tag-info{background:#dbeafe;color:#3b82f6}
+.log-filter.active{background:#6366f1!important;color:#fff!important;border-color:#a5b4fc!important}
+.log-mod-head{border-bottom:1px solid #e2e8f0;padding:6px 0;margin-bottom:4px;font-weight:600;color:#64748b;font-size:12px}
+
+/* 历史记录 */
+.hi-item{padding:7px 8px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:6px;margin-bottom:4px;border-left:3px solid #6366f1;font-size:11px}
+.hi-item.ok{border-left-color:#22c55e}
+.hi-item.er{border-left-color:#ef4444}
+.hi-time{color:#64748b;font-size:10px}
+
+/* 双栏 */
+.twocol{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.twocol-13{display:grid;grid-template-columns:1fr 2fr;gap:12px}
+
+/* 输出 */
+.output{background:#1e1e2e;color:#a6e3a1;border-radius:8px;padding:12px;font-family:Consolas,monospace;font-size:11px;line-height:1.5;white-space:pre-wrap;word-break:break-all;min-height:36px;max-height:180px;overflow-y:auto;margin-top:10px}
 .output.error{color:#f38ba8}
 .output.info{color:#89b4fa}
 
-/* 提交列表 */
-.commit-list{background:#ffffff;border:1px solid #e2e8f0;border-radius:8px;padding:4px 0;max-height:280px;overflow-y:auto}
-.commit-item{display:flex;align-items:flex-start;padding:6px 12px;font-size:12px;border-bottom:1px solid rgba(148,163,184,.1);gap:8px}
-.commit-item:last-child{border-bottom:none}
-.commit-hash{font-family:Consolas,monospace;color:#a5b4fc;font-size:11px;flex-shrink:0;min-width:52px}
-.commit-date{color:#64748b;font-size:11px;flex-shrink:0;min-width:68px;text-align:right}
-.commit-message{color:#1e293b;word-break:break-all;flex:1}
-.loading{text-align:center;padding:12px;color:#64748b;font-size:13px}
-.empty{text-align:center;padding:35px;color:#94a3b8}
-
-/* 列表项 */
-.list-item{display:flex;align-items:center;justify-content:space-between;padding:10px 12px;background:#ffffff;border:1px solid #e2e8f0;border-radius:8px;margin-bottom:6px;font-size:13px}
+/* 备份列表 */
+.list-item{display:flex;align-items:center;justify-content:space-between;padding:8px 10px;background:#fff;border:1px solid #e2e8f0;border-radius:6px;margin-bottom:4px;font-size:12px}
 .list-info{flex:1;min-width:0}
-.list-name{font-weight:600;color:#1e293b;margin-bottom:2px;word-break:break-all}
-.list-meta{color:#64748b;font-size:11px}
-.list-actions{display:flex;gap:6px;flex-shrink:0}
+.list-name{font-weight:600;color:#1e293b;margin-bottom:1px;word-break:break-all}
+.list-meta{color:#64748b;font-size:10px}
+.list-actions{display:flex;gap:4px;flex-shrink:0}
 
 /* Toast */
 .toast{position:fixed;top:16px;left:50%;transform:translateX(-50%);padding:10px 20px;border-radius:10px;color:#fff;font-size:14px;font-weight:600;z-index:9999;opacity:0;transition:opacity .25s;pointer-events:none}
@@ -75,250 +162,108 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Micr
 .toast-ok{background:#28a745}
 .toast-err{background:#dc2626}
 
-/* 概览 - 指标卡 4列 */
-.metrics-row{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:16px}
-.metric-card{background:#ffffff;border-radius:14px;padding:20px;box-shadow:0 1px 3px rgba(0,0,0,.06);border:1px solid #e2e8f0;display:flex;flex-direction:column;align-items:center;justify-content:center}
-.metric-card.actions{align-items:stretch;justify-content:center;gap:8px}
-.metric-card.actions .btn{width:100%;margin-bottom:0;font-size:13px;min-height:38px}
-.metric-label{font-size:12px;color:#64748b;font-weight:500;margin-bottom:6px;text-align:center}
-.metric-value{font-size:22px;font-weight:800;color:#1e293b;text-align:center}
-.metric-sub{font-size:11px;color:#94a3b8;margin-top:4px;text-align:center}
-
-/* 磁盘环形图 */
-.gauge-wrap{position:relative;width:90px;height:90px}
-.gauge-wrap svg{transform:rotate(-90deg)}
-.gauge-bg{fill:none;stroke:#e2e8f0;stroke-width:8}
-.gauge-fg{fill:none;stroke:#6366f1;stroke-width:8;stroke-linecap:round;transition:stroke-dashoffset .8s ease,stroke .8s}
-.gauge-fg.warn{stroke:#f59e0b}
-.gauge-fg.danger{stroke:#ef4444}
-.gauge-center{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);font-size:20px;font-weight:800;color:#1e293b}
-
-/* PA状态摘要 */
-.pa-summary-status{font-size:12px;font-weight:600;padding:3px 10px;border-radius:12px;display:inline-block;margin-top:4px}
-.pa-summary-status.ok{background:rgba(16,185,129,.12);color:#059669}
-.pa-summary-status.warn{background:rgba(245,158,11,.12);color:#d97706}
-.pa-summary-status.err{background:rgba(239,68,68,.12);color:#dc2626}
-.pa-summary-status.none{background:#f1f5f9;color:#64748b}
-
-/* 存储分布条 */
-.storage-list{display:flex;flex-direction:column;gap:6px;margin-top:10px}
-.storage-item{display:flex;align-items:center;gap:10px;font-size:13px}
-.storage-name{width:90px;text-align:right;color:#94a3b8;font-weight:500;flex-shrink:0}
-.storage-bar-wrap{flex:1;height:20px;background:#f1f5f9;border-radius:6px;overflow:hidden;position:relative}
-.storage-bar{height:100%;border-radius:6px;transition:width .5s ease;min-width:2px}
-.storage-bar.b0{background:#6366f1}.storage-bar.b1{background:#764ba2}.storage-bar.b2{background:#f093fb}
-.storage-bar.b3{background:#4facfe}.storage-bar.b4{background:#43e97b}.storage-bar.b5{background:#fa709a}
-.storage-bar.b6{background:#f6d365}.storage-bar.b7{background:#f5576c}.storage-bar.b8{background:#a18cd1}
-.storage-bar.b9{background:#36d1dc}.storage-bar.bo{background:#e2e8f0}
-.storage-val{width:75px;text-align:left;color:#1e293b;font-weight:600;flex-shrink:0;font-size:12px}
-.storage-pct{width:44px;text-align:right;color:#64748b;font-size:11px;flex-shrink:0}
-
-/* 数据库卡片 */
-.db-cards{display:grid;grid-template-columns:repeat(6,1fr);gap:10px;margin-top:10px}
-.db-card{background:#ffffff;border-radius:10px;padding:14px;text-align:center;border:2px solid transparent;transition:all .2s;cursor:default}
-.db-card:hover{border-color:#818cf8;background:rgba(99,102,241,.06);transform:translateY(-2px);box-shadow:0 4px 12px rgba(99,102,241,.08)}
-.db-card-name{font-size:12px;color:#6366f1;font-weight:600;margin-bottom:6px}
-.db-card-rows{font-size:20px;font-weight:800;color:#1e293b}
-.db-card-size{font-size:11px;color:#64748b;margin-top:3px}
-/* 双栏布局 */
-.twocol{display:grid;grid-template-columns:1fr 1fr;gap:14px}
-.twocol-13{display:grid;grid-template-columns:1fr 2fr;gap:14px}
-
-/* 概览 log-summary */
-.log-summary-item{display:flex;justify-content:space-between;padding:6px 0;font-size:13px;border-bottom:1px solid #f3f4f6}
-.log-summary-item:last-child{border-bottom:none}
-.log-summary-name{color:#94a3b8}
-.log-summary-count{font-weight:600}
-.log-summary-count.err{color:#ef4444}
-
-/* 自动刷新倒计时 */
-.auto-refresh{text-align:right;font-size:11px;color:#64748b;padding:4px 0;margin-top:-10px;margin-bottom:10px}
+.loading{text-align:center;padding:10px;color:#64748b;font-size:12px}
+.empty{text-align:center;padding:30px;color:#94a3b8;font-size:13px}
+.auto-refresh{text-align:right;font-size:10px;color:#64748b;padding:2px 0;margin-bottom:10px}
 .auto-refresh span{font-weight:600;color:#6366f1}
 
-/* PA 续期 - 状态卡 */
-.pa-status-card{background:linear-gradient(135deg,#667eea,#7c3aed);color:#fff;border-radius:14px;padding:24px;margin-bottom:16px;box-shadow:0 4px 16px rgba(102,126,234,.25)}
-.pa-st-label{font-size:13px;opacity:.85;margin-bottom:4px}
-.pa-st-value{font-size:26px;font-weight:800;letter-spacing:.5px}
-.pa-st-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:10px;margin-top:16px}
-.pa-st-item{background:rgba(255,255,255,.1);border-radius:12px;padding:12px;text-align:center;backdrop-filter:blur(4px)}
-.pa-st-item .l{font-size:12px;opacity:.85;margin-bottom:4px}
-.pa-st-item .v{font-size:14px;font-weight:700;word-break:break-all}
-
-/* PA - 表单 */
-.fg{margin-bottom:12px}
-.fl{display:block;font-size:13px;color:#94a3b8;margin-bottom:4px;font-weight:500}
-.finp{width:100%;padding:10px;border:1px solid #d1d5db;border-radius:8px;font-size:14px;min-height:44px;background:#ffffff;color:#1e293b}
-.ig{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
-.io{padding:9px 4px;border:1.5px solid #e2e8f0;border-radius:10px;text-align:center;cursor:pointer;font-size:13px;font-weight:500;color:#64748b;background:#ffffff}
-.io:active{transform:scale(.96)}
-.io.sel{border-color:#6366f1;background:rgba(99,102,241,.08);color:#4f46e5;font-weight:600}
-
-/* PA - 日志 */
-.pa-log-box{background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;padding:10px;max-height:300px;overflow-y:auto;font-family:Consolas,monospace;font-size:12px;line-height:1.8;color:#334155}
-.pa-log-box .log-ok{color:#059669}
-.pa-log-box .log-err{color:#ef4444}
-.pa-log-box .log-warn{color:#d97706}
-.pa-log-box .log-info{color:#3b82f6}
-.log-stats{display:flex;gap:12px;padding:8px 0;margin-bottom:8px;border-bottom:1px solid #333;font-size:11px}
-.log-stat-ok{color:#4ade80}.log-stat-err{color:#f87171}.log-stat-warn{color:#fbbf24}.log-stat-info{color:#60a5fa}
-.log-tag{display:inline-block;padding:1px 6px;border-radius:4px;font-size:10px;margin-right:6px;font-weight:600}
-.log-tag-ok{background:#166534;color:#4ade80}
-.log-tag-err{background:#7f1d1d;color:#f87171}
-.log-tag-warn{background:#78350f;color:#fbbf24}
-.log-tag-info{background:#1e3a5f;color:#60a5fa}
-.log-filter.active{background:#6366f1!important;color:#fff!important;border-color:#a5b4fc!important}
-.log-mod-head{border-bottom:1px solid #30363d;padding:8px 0;margin-bottom:6px;font-weight:600;color:#8899aa;font-size:13px}
-
-/* PA - 历史 */
-.hi-item{padding:8px 10px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;margin-bottom:6px;border-left:3px solid #6366f1;font-size:12px}
-.hi-item.ok{border-left-color:#4ade80}
-.hi-item.er{border-left-color:#ef4444}
-.hi-time{color:#64748b;font-size:11px}
-
-/* 底部链接 */
-.btm-links{display:flex;gap:16px;margin-top:20px;padding:14px 0;border-top:1px solid #eee;flex-wrap:wrap}
-.btm-links a{font-size:12px;color:#64748b;text-decoration:none}
-.btm-links a:hover{color:#a5b4fc}
-
 /* 响应式 */
-@media (max-width:900px){
-  .metrics-row{grid-template-columns:repeat(2,1fr)}
+@media (max-width:768px){
+  main{padding:10px 12px}
+  .metrics-row{grid-template-columns:repeat(2,1fr);gap:8px}
   .db-cards{grid-template-columns:repeat(3,1fr)}
   .twocol,.twocol-13{grid-template-columns:1fr}
+  .pa-st-grid{grid-template-columns:repeat(2,1fr)}
+  .card{padding:14px 12px;border:none}
+  .btn{min-height:44px;font-size:14px}
 }
-@media (max-width:768px){
-  .app-layout{display:block;height:auto;overflow:visible}
-  .sidebar{width:100%;background:linear-gradient(180deg,#6366f1 0%,#4f46e5 40%,#4338ca 100%);display:block;position:sticky;top:0;z-index:100}
-  .hdr{padding:14px 16px;padding-top:calc(14px + env(safe-area-inset-top));padding-left:calc(16px + env(safe-area-inset-left));padding-right:calc(16px + env(safe-area-inset-right));text-align:left;justify-content:flex-start;border-bottom:none;margin-bottom:0;gap:12px}
-  .hdr h1{font-size:18px}
-  .hdr svg{width:32px;height:32px;flex-shrink:0}
-  .nav{flex-direction:row;background:rgba(255,255,255,.95);border:1px solid #e2e8f0;border-radius:12px;padding:4px;box-shadow:0 2px 8px rgba(0,0,0,.08);margin:0 12px 10px;gap:2px}
-  .nb{flex:1;padding:12px 8px;font-size:14px;text-align:center;color:#64748b;font-weight:700;border-left:none;min-height:44px;border-radius:10px}
-  .nb.on{background:#6366f1;color:#fff;font-weight:800;border-left-color:transparent;box-shadow:0 2px 6px rgba(99,102,241,.3)}
-  .nb:hover{background:#6366f1;color:#fff}
-  .ctn{padding:16px 12px;padding-bottom:calc(16px + env(safe-area-inset-bottom))}
-  .card{padding:16px 14px;margin-bottom:12px;border:none}.card h3{font-size:15px;margin-bottom:10px}
-  .btn{padding:12px 16px;font-size:14px;min-height:48px}
-  .metrics-row{grid-template-columns:repeat(2,1fr);gap:8px}
-  .metric-card{padding:14px 10px}
-  .metric-value{font-size:17px}
+@media (max-width:480px){
   .db-cards{grid-template-columns:repeat(2,1fr)}
-  .pa-st-grid{grid-template-columns:1fr 1fr;gap:8px}
-  .pa-st-value{font-size:20px}
-  .pa-status-card{padding:18px}
-  .pa-st-item{padding:10px 6px}
-  .pa-st-item .v{font-size:13px}
-  .pa-st-item .l{font-size:10px}
-  .ig{grid-template-columns:repeat(3,1fr);gap:4px}
-  .io{font-size:14px;padding:8px 2px;min-height:36px;display:flex;align-items:center;justify-content:center}
-  .fg{margin-bottom:10px}
-  .fl{font-size:13px;margin-bottom:4px}
-  .finp{padding:8px 10px;font-size:15px}
-  .pa-log-box{max-height:260px;font-size:11px;word-break:break-all;overflow-wrap:break-word}
-  .ctn{max-width:100vw;overflow-x:hidden}
-  .btn.bsm{padding:10px 14px;font-size:13px;min-height:44px}
-  .hi-item{padding:10px 12px;font-size:13px}
-  .hi-time{font-size:10px}
-  .btm-links{justify-content:center;padding:12px 0;padding-bottom:calc(12px + env(safe-area-inset-bottom));gap:12px}
-  .output{max-height:180px;font-size:11px}
-  .twocol,.twocol-13{grid-template-columns:1fr}
+  .metrics-row{grid-template-columns:repeat(2,1fr)}
+  .ig{grid-template-columns:repeat(3,1fr)}
 }
 @media (min-width:768px){
-  .ctn{padding:24px 32px}
-  .card{padding:24px 28px;margin-bottom:20px}
-  .card h3{font-size:17px;margin-bottom:16px}
+  main{padding:20px 28px}
+  .card{padding:20px 24px;margin-bottom:16px}
 }
 </style>
 </head>
 <body>
-<div class="app-layout">
-  <div class="sidebar">
-    <div class="hdr"><a href="/nav" title="返回导航" style="color:rgba(255,255,255,.85);text-decoration:none;font-size:20px;font-weight:400;line-height:1;display:inline-flex;align-items:center;justify-content:center;min-width:44px;min-height:44px;border-radius:8px" onclick="if(document.referrer.includes('/nav')){history.back();return false}">←</a><svg width="36" height="36" viewBox="0 0 64 64"><defs><linearGradient id="hg" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#fff"/><stop offset="100%" stop-color="#e0d4f5"/></linearGradient></defs><rect width="64" height="64" rx="14" fill="rgba(255,255,255,.1)"/><rect x="16" y="28" width="32" height="26" rx="3" fill="url(#hg)"/><rect x="28" y="28" width="8" height="26" fill="#667eea"/><rect x="16" y="37" width="32" height="5" fill="#667eea"/><circle cx="32" cy="24" r="5" fill="url(#hg)"/><circle cx="32" cy="24" r="3" fill="#667eea"/></svg><h1>管理后台</h1></div>
-    <div class="nav">
-      <button class="nb on" onclick="go('overview')">概览</button>
-      <button class="nb" onclick="go('pa')">PA续期</button>
-      <button class="nb" onclick="go('backup')">数据备份</button>
+
+<header>
+  <a class="back" href="/nav" title="返回导航" onclick="if(document.referrer.includes('/nav')){history.back();return false}">←</a>
+  <h1>管理后台</h1>
+</header>
+
+<main>
+  <div id="T" class="toast"></div>
+
+  <div class="auto-refresh" id="refreshTimer"><span>--</span> 秒后自动刷新</div>
+
+  <!-- ====== 指标卡片行 ====== -->
+  <div class="metrics-row">
+    <div class="metric-card" id="cardDisk">
+      <div class="metric-label">磁盘使用</div>
+      <div class="gauge-wrap">
+        <svg width="80" height="80" viewBox="0 0 80 80">
+          <circle class="gauge-bg" cx="40" cy="40" r="35"/>
+          <circle class="gauge-fg" id="gaugeCircle" cx="40" cy="40" r="35" stroke-dasharray="219.91" stroke-dashoffset="0"/>
+        </svg>
+        <div class="gauge-center" id="gaugePct">0%</div>
+      </div>
+      <div class="metric-sub" id="gaugeDetail">-- / --</div>
+    </div>
+    <div class="metric-card">
+      <div class="metric-label">运行信息</div>
+      <div class="metric-value" id="ovUptime">--</div>
+      <div class="metric-sub">Python <span id="ovPython">--</span></div>
+      <div class="metric-sub" style="margin-top:6px;color:#a5b4fc">PythonAnywhere</div>
+    </div>
+    <div class="metric-card" id="paSummaryCard" style="cursor:pointer" onclick="foldToggle('paFold')">
+      <div class="metric-label">PA续期状态</div>
+      <div class="metric-value" id="paSumExpiry">--</div>
+      <span class="pa-summary-status none" id="paSumStatus">--</span>
+      <div class="metric-sub" id="paSumDetail" style="margin-top:6px">点击查看详情</div>
+    </div>
+    <div class="metric-card actions">
+      <button class="btn bp" onclick="quickPull()">代码更新</button>
+      <button class="btn bs" onclick="foldToggle('backupFold');doBackup()">创建备份</button>
+      <button class="btn bo" onclick="doCleanup()">系统清理</button>
     </div>
   </div>
 
-  <div class="ctn">
-    <div id="T" class="toast"></div>
+  <!-- ====== 数据库卡片 ====== -->
+  <div class="card">
+    <h3>数据库 <span style="font-weight:400;font-size:12px;color:#64748b;margin-left:8px" id="dbTotalLabel">--</span></h3>
+    <div class="db-cards" id="dbCards"><div class="loading" style="grid-column:1/-1">加载中...</div></div>
+    <div id="dbTableDetail" style="display:none;margin-top:10px;padding:10px;background:#f8fafc;border-radius:6px;font-size:11px;color:#475569;line-height:1.7;max-height:180px;overflow-y:auto"></div>
+  </div>
 
-    <!-- ====== 概览 ====== -->
-    <div class="pg on" id="pg-overview">
-      <div class="auto-refresh" id="refreshTimer">-- 秒后自动刷新</div>
+  <!-- ====== 存储分布 ====== -->
+  <div class="card">
+    <h3>存储分布 <span style="font-weight:400;font-size:12px;color:#64748b;margin-left:8px">(PA配额 512MB)</span></h3>
+    <div class="storage-list" id="storageList"><div class="loading">加载中...</div></div>
+  </div>
 
-      <!-- 指标卡片行 -->
-      <div class="metrics-row">
-        <!-- 磁盘 -->
-        <div class="metric-card" id="cardDisk">
-          <div class="metric-label">磁盘使用</div>
-          <div class="gauge-wrap">
-            <svg width="90" height="90" viewBox="0 0 90 90">
-              <circle class="gauge-bg" cx="45" cy="45" r="38"/>
-              <circle class="gauge-fg" id="gaugeCircle" cx="45" cy="45" r="38" stroke-dasharray="238.76" stroke-dashoffset="0"/>
-            </svg>
-            <div class="gauge-center" id="gaugePct">0%</div>
-          </div>
-          <div class="metric-sub" id="gaugeDetail">-- / --</div>
-        </div>
-        <!-- 运行信息 -->
-        <div class="metric-card">
-          <div class="metric-label">运行信息</div>
-          <div class="metric-value" id="ovUptime">--</div>
-          <div class="metric-sub">Python <span id="ovPython">--</span></div>
-          <div class="metric-sub" style="margin-top:8px;color:#a5b4fc">PythonAnywhere</div>
-        </div>
-        <!-- PA续期摘要 -->
-        <div class="metric-card" id="paSummaryCard" style="cursor:pointer" onclick="go('pa')">
-          <div class="metric-label">PA续期状态</div>
-          <div class="metric-value" id="paSumExpiry">--</div>
-          <span class="pa-summary-status none" id="paSumStatus">--</span>
-          <div class="metric-sub" id="paSumDetail" style="margin-top:6px">点击查看详情</div>
-        </div>
-        <!-- 快速操作 -->
-        <div class="metric-card actions">
-          <button class="btn bp" onclick="quickPull()">代码更新</button>
-          <button class="btn bs" onclick="go('backup');setTimeout(function(){document.getElementById('btnBackup').click()},300)">创建备份</button>
-          <button class="btn bo" onclick="doCleanup()">执行清理</button>
-        </div>
-      </div>
-
-      <!-- 数据库卡片 -->
-      <div class="card">
-        <h3>数据库 <span style="font-weight:400;font-size:12px;color:#64748b;margin-left:8px" id="dbTotalLabel">--</span></h3>
-        <div class="db-cards" id="dbCards">
-          <div class="loading" style="grid-column:1/-1">加载中...</div>
-        </div>
-        <div id="dbTableDetail" style="display:none;margin-top:12px;padding:12px;background:#f8fafc;border-radius:8px;font-size:12px;color:#475569;line-height:1.8;max-height:200px;overflow-y:auto"></div>
-      </div>
-
-      <!-- 存储分布 -->
-      <div class="card">
-        <h3>存储分布 <span style="font-weight:400;font-size:12px;color:#64748b;margin-left:8px">(PA配额 512MB)</span></h3>
-        <div class="storage-list" id="storageList">
-          <div class="loading">加载中...</div>
-        </div>
-      </div>
-
-      <!-- Git提交 + 日志摘要 -->
-      <div class="twocol">
-        <div class="card">
-          <h3 style="display:flex;justify-content:space-between;align-items:center">
-            最近提交
-            <button class="btn bsm bp" onclick="quickPull()" style="margin-bottom:0">更新代码</button>
-          </h3>
-          <div class="commit-list" id="commitList"><div class="loading">加载中...</div></div>
-        </div>
-        <div class="card">
-          <h3>日志简报</h3>
-          <div id="logBrief"><div class="loading">加载中...</div></div>
-        </div>
-      </div>
+  <!-- ====== Git + 日志简报 ====== -->
+  <div class="twocol">
+    <div class="card">
+      <h3 style="display:flex;justify-content:space-between;align-items:center">最近提交<button class="btn bsm bp" onclick="quickPull()" style="margin-bottom:0">更新代码</button></h3>
+      <div class="commit-list" id="commitList"><div class="loading">加载中...</div></div>
     </div>
+    <div class="card">
+      <h3>日志简报</h3>
+      <div id="logBrief"><div class="loading">加载中...</div></div>
+    </div>
+  </div>
 
-    <!-- ====== PA续期 ====== -->
-    <div class="pg" id="pg-pa">
+  <!-- ====== PA续期（可折叠） ====== -->
+  <div class="card">
+    <div class="fold-toggle collapsed" onclick="foldToggle('paFold')">
+      <h3>PA续期管理</h3>
+      <span class="fold-arrow">▼</span>
+    </div>
+    <div class="fold-content collapsed" id="paFold" style="max-height:5000px">
       <div class="pa-status-card">
         <div class="pa-st-label">运行状态</div>
         <div class="pa-st-value" id="paRS">就绪</div>
@@ -329,24 +274,23 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Micr
           <div class="pa-st-item"><div class="l">执行周期</div><div class="v" id="paIV">每7天续期一次</div></div>
         </div>
       </div>
-
-      <div class="twocol-13">
-        <div class="card">
-          <h3>账号设置</h3>
+      <div class="twocol-13" style="margin-top:12px">
+        <div>
+          <h3 style="font-size:14px;margin-bottom:8px">账号设置</h3>
           <div class="fg"><div class="fl">用户名</div><input id="paU" class="finp"></div>
           <div class="fg"><div class="fl">密码</div><input type="password" id="paP" class="finp"></div>
-          <div class="fg"><div class="fl">API Token <span style="font-size:11px;color:#64748b">(PA自动重载用)</span></div><input id="paToken" class="finp"></div>
+          <div class="fg"><div class="fl">API Token <span style="font-size:10px;color:#64748b">(PA自动重载用)</span></div><input id="paToken" class="finp"></div>
           <div class="fg"><div class="fl">执行周期</div>
             <div class="ig" id="paIG">
               <div class="io" data-v="1">1天</div><div class="io" data-v="3">3天</div><div class="io" data-v="5">5天</div>
               <div class="io sel" data-v="7">7天</div><div class="io" data-v="14">14天</div><div class="io" data-v="30">30天</div>
             </div>
           </div>
-          <button class="btn bp" onclick="paSaveCfg()">保存设置</button>
+          <button class="btn bp" onclick="paSaveCfg()" style="width:100%">保存设置</button>
         </div>
-        <div class="card">
-          <h3>运行日志</h3>
-          <div style="display:flex;gap:6px;margin-bottom:10px;flex-wrap:wrap">
+        <div>
+          <h3 style="font-size:14px;margin-bottom:8px">运行日志</h3>
+          <div style="display:flex;gap:4px;margin-bottom:8px;flex-wrap:wrap">
             <button class="btn bsm bo log-filter active" data-log="all">全部</button>
             <button class="btn bsm bo log-filter" data-log="pa">PA续期</button>
             <button class="btn bsm bo log-filter" data-log="reload">重载</button>
@@ -355,50 +299,55 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Micr
           <div id="paLB" class="pa-log-box"><div class="empty">暂无日志</div></div>
         </div>
       </div>
-
-      <div class="card"><h3 style="cursor:pointer;display:flex;justify-content:space-between;align-items:center;min-height:44px;padding:0" onclick="toggleHistory()">执行历史 <span id="histToggle" style="font-size:13px;color:#64748b;font-weight:400">收起</span></h3><div id="paHB"><div class="empty">暂无记录</div></div></div>
+      <h3 style="cursor:pointer;display:flex;justify-content:space-between;align-items:center;min-height:36px;padding:0;margin-top:14px;font-size:14px" onclick="toggleHistory()">执行历史 <span id="histToggle" style="font-size:12px;color:#64748b;font-weight:400">收起</span></h3>
+      <div id="paHB"><div class="empty">暂无记录</div></div>
     </div>
+  </div>
 
-    <!-- ====== 数据备份 ====== -->
-    <div class="pg" id="pg-backup">
-      <div class="twocol-13">
-        <div class="card">
-          <h3>操作</h3>
-          <button class="btn bs" id="btnBackup" onclick="doBackup()">立即创建备份</button>
+  <!-- ====== 数据备份（可折叠） ====== -->
+  <div class="card">
+    <div class="fold-toggle collapsed" onclick="foldToggle('backupFold')">
+      <h3>数据备份</h3>
+      <span class="fold-arrow">▼</span>
+    </div>
+    <div class="fold-content collapsed" id="backupFold" style="max-height:5000px">
+      <div class="twocol-13" style="margin-top:0">
+        <div>
+          <h3 style="font-size:14px;margin-bottom:8px">操作</h3>
+          <button class="btn bs" id="btnBackup" onclick="doBackup()" style="width:100%">立即创建备份</button>
           <div class="output" id="backupOutput" style="display:none"></div>
-          <div style="margin-top:24px">
-            <h3>系统清理</h3>
-            <p style="font-size:12px;color:#64748b;margin-bottom:8px">清理PA日志缓存、__pycache__临时文件和过旧日志</p>
-            <button class="btn bw" id="btnCleanup" onclick="doCleanup()">执行清理</button>
+          <div style="margin-top:20px">
+            <h3 style="font-size:14px;margin-bottom:8px">系统清理</h3>
+            <p style="font-size:11px;color:#64748b;margin-bottom:6px">清理PA日志缓存、__pycache__临时文件和过旧日志</p>
+            <button class="btn bw" id="btnCleanup" onclick="doCleanup()" style="width:100%">执行清理</button>
             <div class="output" id="cleanupOutput" style="display:none"></div>
           </div>
         </div>
-        <div class="card">
-          <h3>备份列表</h3>
+        <div>
+          <h3 style="font-size:14px;margin-bottom:8px">备份列表</h3>
           <div id="backupList"><div class="loading">加载中...</div></div>
         </div>
       </div>
     </div>
-
-    <div class="btm-links">
-      <a href="/">礼金记录</a>
-      <a href="/gpa">GPA计算</a>
-      <a href="/hsgrades">成绩查询</a>
-      <a href="/countdown">倒计时</a>
-      <a href="/accounting">个人记账</a>
-    </div>
   </div>
-</div>
+</main>
 
 <script>
-/* ====== 导航 ====== */
-function go(p){
-  document.querySelectorAll('.pg').forEach(function(x){x.classList.remove('on')});
-  document.getElementById('pg-'+p).classList.add('on');
-  var tabs={overview:0,pa:1,backup:2};
-  document.querySelectorAll('.nb').forEach(function(b,i){b.classList.toggle('on',i===tabs[p])});
-  if(p==='pa'){paLoadData();loadLogs(currentLogModule)}
-  if(p==='backup')loadBackups();
+/* ====== 折叠 ====== */
+function foldToggle(id){
+  var el = document.getElementById(id);
+  var toggle = el.parentElement.querySelector('.fold-toggle');
+  if(!el||!toggle) return;
+  var collapsed = !el.classList.contains('collapsed');
+  if(collapsed){
+    el.classList.add('collapsed');
+    toggle.classList.add('collapsed');
+  } else {
+    el.classList.remove('collapsed');
+    toggle.classList.remove('collapsed');
+    if(id==='paFold'){paLoadData();loadLogs(currentLogModule)}
+    if(id==='backupFold') loadBackups();
+  }
 }
 
 /* ====== Toast ====== */
@@ -413,13 +362,10 @@ function sizeStr(bytes){
   return(bytes/1048576).toFixed(1)+" MB";
 }
 function esc(s){return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
-function fmtDate(s){
-  if(!s)return '';
-  return s.substring(0,10);
-}
+function fmtDate(s){if(!s)return'';return s.substring(0,10)}
 
 /* ====== 环形进度条 ====== */
-var gaugeCirc = 2 * Math.PI * 38; // 238.76
+var gaugeCirc = 2 * Math.PI * 35;
 function updateGauge(pct){
   var circle = document.getElementById('gaugeCircle');
   var pctEl = document.getElementById('gaugePct');
@@ -431,21 +377,17 @@ function updateGauge(pct){
   else if(pct>60) circle.classList.add('warn');
 }
 
-/* ====== 概览 - 加载服务器状态 ====== */
+/* ====== 概览 - 服务器状态 ====== */
 async function loadServerStatus(){
   try{
     var res = await fetch("/api/status");
     var d = await res.json();
-    // 磁盘指标卡
     var pct = parseFloat(d.disk.pct) || 0;
     updateGauge(pct);
     document.getElementById('gaugeDetail').textContent = d.disk.used + ' / ' + d.disk.total;
-
-    // 运行信息
     document.getElementById('ovUptime').textContent = d.uptime;
     document.getElementById('ovPython').textContent = d.python;
 
-    // 数据库卡片
     var dbHtml = '';
     if(d.dbs && d.dbs.length){
       d.dbs.forEach(function(db){
@@ -453,23 +395,19 @@ async function loadServerStatus(){
         if(db.tables && db.tables.length){
           tblTip = db.tables.map(function(t){return esc(t.table)+':'+t.rows}).join(', ');
         }
-        dbHtml += '<div class="db-card" style="cursor:pointer" onclick="showDbDetail(\''+esc(db.name)+'\','+JSON.stringify(db.tables||[]).replace(/'/g,'&#39;')+',\''+esc(db.last_modified||'')+'\',\''+esc(db.size||'')+'\','+(db.rows||0)+')" title="'+esc(tblTip)+'"><div class="db-card-name">' + esc(db.name) + '</div><div class="db-card-rows">' + (db.rows||'--') + '</div><div class="db-card-size">' + esc(db.size||'--') + (db.last_modified?'<br><span style="font-size:10px;color:#cbd5e1">'+esc(db.last_modified)+'</span>':'') + '</div></div>';
+        dbHtml += '<div class="db-card" style="cursor:pointer" onclick="showDbDetail(\''+esc(db.name)+'\','+JSON.stringify(db.tables||[]).replace(/'/g,'&#39;')+',\''+esc(db.last_modified||'')+'\',\''+esc(db.size||'')+'\','+(db.rows||0)+')" title="'+esc(tblTip)+'"><div class="db-card-name">' + esc(db.name) + '</div><div class="db-card-rows">' + (db.rows||'--') + '</div><div class="db-card-size">' + esc(db.size||'--') + (db.last_modified?'<br><span style="font-size:9px;color:#cbd5e1">'+esc(db.last_modified)+'</span>':'') + '</div></div>';
       });
     } else {
       dbHtml = '<div class="loading" style="grid-column:1/-1">暂无数据</div>';
     }
     document.getElementById('dbCards').innerHTML = dbHtml;
-    // 总记录数
-    document.getElementById('dbTotalLabel').textContent = (d.total_records||0)+' 条记录 · '+(d.total_db_size_str||'--');
+    document.getElementById('dbTotalLabel').textContent = (d.total_records||0)+' 条记录 / '+(d.total_db_size_str||'--');
 
-    // 存储分布
     var stHtml = '';
     if(d.dir_sizes && d.dir_sizes.length){
       var maxBytes = d.dir_sizes.length > 0 ? d.dir_sizes[0].bytes : 1;
-      var usedBytes = d.disk ? d.disk.used : maxBytes;
-      var barBase = usedBytes > 0 ? usedBytes : 1;
       d.dir_sizes.forEach(function(s, i){
-        var barPct = s.bytes > 0 ? Math.max((s.bytes / barBase) * 100, 1) : 0;
+        var barPct = s.bytes > 0 ? Math.max((s.bytes / maxBytes) * 100, 1) : 0;
         var barCls = 'b' + (i % 10);
         stHtml += '<div class="storage-item">' +
           '<span class="storage-name">' + esc(s.name) + '</span>' +
@@ -483,30 +421,24 @@ async function loadServerStatus(){
     }
     document.getElementById('storageList').innerHTML = stHtml;
 
-    // 日志简报 - 只显示异常
     var logHtml = '';
     if(d.logs && d.logs.length){
-      var hasAny = false;
       d.logs.forEach(function(lg){
         var cls = '';
         if(parseInt(lg.lines) > 100) cls = 'err';
-        hasAny = true;
-        logHtml += '<div class="log-summary-item"><span class="log-summary-name">' + esc(lg.name) + '</span><span class="log-summary-count ' + cls + '">' + (lg.size||'--') + ' / ' + (lg.lines||'0') + '行</span></div>';
+        logHtml += '<div class="log-summary-item" style="display:flex;justify-content:space-between;padding:5px 0;font-size:12px;border-bottom:1px solid #f3f4f6"><span style="color:#94a3b8">' + esc(lg.name) + '</span><span style="font-weight:600" class="'+(cls?'log-summary-count '+cls:'')+'">' + (lg.size||'--') + ' / ' + (lg.lines||'0') + '行</span></div>';
       });
-      if(!hasAny) logHtml = '<div class="loading">暂无日志文件</div>';
     } else {
       logHtml = '<div class="loading">暂无数据</div>';
     }
     document.getElementById('logBrief').innerHTML = logHtml;
-
-    // 遗留目录提示
     if(d.old_dirs && d.old_dirs.length){
-      document.getElementById('logBrief').innerHTML += '<div style="margin-top:12px;font-size:11px;color:#64748b">遗留目录: ' + d.old_dirs.join(', ') + '</div>';
+      document.getElementById('logBrief').innerHTML += '<div style="margin-top:10px;font-size:10px;color:#64748b">遗留目录: ' + d.old_dirs.join(', ') + '</div>';
     }
   }catch(e){}
 }
 
-/* ====== 概览 - 加载PA摘要 ====== */
+/* ====== PA摘要 ====== */
 async function loadPaSummary(){
   try{
     var res = await fetch('/api/pa-summary');
@@ -520,20 +452,17 @@ async function loadPaSummary(){
       statusEl.className = 'pa-summary-status none';
       detailEl.textContent = '点击配置PA自动续期';
     } else if(d.urgent){
-      var expDate = d.expiry ? fmtDate(d.expiry) : '--';
-      expiryEl.textContent = expDate;
+      expiryEl.textContent = d.expiry ? fmtDate(d.expiry) : '--';
       statusEl.textContent = '即将到期';
       statusEl.className = 'pa-summary-status warn';
       detailEl.textContent = '距到期不足3天';
     } else if(d.has_error){
-      var expDate2 = d.expiry ? fmtDate(d.expiry) : '--';
-      expiryEl.textContent = expDate2;
+      expiryEl.textContent = d.expiry ? fmtDate(d.expiry) : '--';
       statusEl.textContent = '上次失败';
       statusEl.className = 'pa-summary-status err';
       detailEl.textContent = d.last_run ? '上次: '+d.last_run.substring(0,10) : '';
     } else {
-      var expDate3 = d.expiry ? fmtDate(d.expiry) : '--';
-      expiryEl.textContent = expDate3 || '--';
+      expiryEl.textContent = d.expiry ? fmtDate(d.expiry) : '--';
       statusEl.textContent = '运行正常';
       statusEl.className = 'pa-summary-status ok';
       detailEl.textContent = '每' + (d.interval||7) + '天续期';
@@ -557,7 +486,7 @@ async function quickPull(){
   }catch(e){toast('请求失败: '+e.message,'err')}
 }
 
-/* ====== Git 提交记录 ====== */
+/* ====== Git 提交 ====== */
 async function loadCommits(){
   var el = document.getElementById("commitList");
   el.innerHTML = '<div class="loading">加载中...</div>';
@@ -585,7 +514,7 @@ function paHtmlLog(logText){
   for(var i=0;i<lines.length;i++){
     var l=lines[i].trim(); if(!l) continue;
     var cls='', tag='';
-    if(l.indexOf('[错误]')>=0||l.indexOf('失败')>=0||l.indexOf('异常')>=0){cls='log-err';tag='错误';stats.err++}
+    if(l.indexOf('失败')>=0||l.indexOf('异常')>=0||l.indexOf('[错误]')>=0){cls='log-err';tag='错误';stats.err++}
     else if(l.indexOf('[警告]')>=0){cls='log-warn';tag='警告';stats.warn++}
     else if(l.indexOf('成功')>=0||l.indexOf('完成')>=0){cls='log-ok';tag='成功';stats.ok++}
     else if(l.indexOf('[1]')>=0||l.indexOf('[2]')>=0||l.indexOf('[3]')>=0||l.indexOf('[4]')>=0||l.indexOf('[5]')>=0){cls='log-info';tag='步骤';stats.info++}
@@ -613,28 +542,19 @@ function paHtmlHistory(history){
 function toggleHistory(){
   var el = document.getElementById('paHB');
   var btn = document.getElementById('histToggle');
+  if(!el||!btn) return;
   var collapsed = !(el.style.display === 'none');
-  if(collapsed){
-    el.style.display = 'none';
-    btn.textContent = '展开';
-  } else {
-    el.style.display = 'block';
-    btn.textContent = '收起';
-  }
-  localStorage.setItem('paHistCollapsed', collapsed ? '1' : '0');
+  if(collapsed){el.style.display='none';btn.textContent='展开'}
+  else{el.style.display='block';btn.textContent='收起'}
+  localStorage.setItem('paHistCollapsed',collapsed?'1':'0');
 }
 function applyHistState(){
   var collapsed = localStorage.getItem('paHistCollapsed') === '1';
   var el = document.getElementById('paHB');
   var btn = document.getElementById('histToggle');
   if(el && btn){
-    if(collapsed){
-      el.style.display = 'none';
-      btn.textContent = '展开';
-    } else {
-      el.style.display = 'block';
-      btn.textContent = '收起';
-    }
+    if(collapsed){el.style.display='none';btn.textContent='展开'}
+    else{el.style.display='block';btn.textContent='收起'}
   }
 }
 
@@ -686,7 +606,7 @@ document.getElementById("paIG").onclick = function(e){
   document.getElementById("paIV").textContent = "每"+paIV+"天";
 };
 
-/* ====== PA 日志展示 ====== */
+/* ====== PA 日志 ====== */
 var logModNames = {pa:'PA续期',reload:'重载',backup:'备份'};
 var currentLogModule = 'all';
 async function loadLogs(module){
@@ -701,27 +621,19 @@ async function loadLogs(module){
       if(currentLogModule === 'all'){
         Object.keys(logModNames).forEach(function(k){
           html += '<div class="log-mod-head">'+logModNames[k]+'</div>';
-          if(d.logs[k]){
-            html += paHtmlLog(d.logs[k]);
-          } else {
-            html += '<div class="empty">暂无日志</div>';
-          }
+          if(d.logs[k]) html += paHtmlLog(d.logs[k]);
+          else html += '<div class="empty">暂无日志</div>';
         });
       } else {
         html += '<div class="log-mod-head">'+logModNames[currentLogModule]+'</div>';
-        if(d.logs[currentLogModule]){
-          html += paHtmlLog(d.logs[currentLogModule]);
-        } else {
-          html += '<div class="empty">暂无日志</div>';
-        }
+        if(d.logs[currentLogModule]) html += paHtmlLog(d.logs[currentLogModule]);
+        else html += '<div class="empty">暂无日志</div>';
       }
       el.innerHTML = html;
     } else {
       el.innerHTML = '<div class="empty">暂无日志</div>';
     }
-  }catch(e){
-    el.innerHTML = '<div class="empty">加载失败</div>';
-  }
+  }catch(e){el.innerHTML = '<div class="empty">加载失败</div>'}
 }
 function initLogFilters(){
   document.querySelectorAll(".log-filter").forEach(function(btn){
@@ -821,11 +733,28 @@ async function doCleanup(){
   }finally{btn.disabled = false}
 }
 
+function showDbDetail(name, tables, lastMod, size, totalRows){
+  var panel = document.getElementById('dbTableDetail');
+  try{table = JSON.parse(tables)}catch(e){tables=[]}
+  if(!tables||tables.length===0){
+    panel.innerHTML = '<div style="color:#94a3b8;text-align:center">'+esc(name)+' 暂无表数据</div>';
+    panel.style.display='';return;
+  }
+  var rows = tables.map(function(t){
+    return '<div style="display:flex;justify-content:space-between;padding:2px 0;border-bottom:1px solid #e2e8f0"><span>' + esc(t.table) + '</span><span style="font-weight:600;color:#6366f1">' + t.rows + '</span></div>';
+  }).join('');
+  var html = '<div style="font-weight:600;margin-bottom:6px;display:flex;justify-content:space-between"><span>' + esc(name) + '</span><span style="color:#64748b;font-size:10px">'+esc(size)+' / '+(lastMod||'--')+'</span></div>';
+  html += '<div style="font-size:10px;color:#94a3b8;margin-bottom:4px">合计 '+totalRows+' 条记录 / '+tables.length+' 张表</div>';
+  html += rows;
+  html += '<div style="margin-top:6px"><a href="javascript:void(0)" onclick="document.getElementById(\'dbTableDetail\').style.display=\'none\'" style="font-size:10px;color:#6366f1">收起明细</a></div>';
+  panel.innerHTML = html;
+  panel.style.display = '';
+}
+
 /* ====== 自动刷新 ====== */
 var REFRESH_INTERVAL = 45;
 var refreshCountdown = REFRESH_INTERVAL;
 var refreshTimerEl = document.getElementById('refreshTimer');
-
 function updateRefreshTimer(){
   refreshCountdown--;
   if(refreshCountdown <= 0){
@@ -836,37 +765,13 @@ function updateRefreshTimer(){
   }
   refreshTimerEl.innerHTML = '<span>' + refreshCountdown + '</span> 秒后自动刷新';
 }
-
 setInterval(updateRefreshTimer, 1000);
 
 /* ====== 初始化 ====== */
-function showDbDetail(name, tables, lastMod, size, totalRows){
-  var panel = document.getElementById('dbTableDetail');
-  try {
-    tables = JSON.parse(tables);
-  } catch(e) { tables = []; }
-  if(!tables||tables.length===0){
-    panel.innerHTML = '<div style="color:#94a3b8;text-align:center">'+esc(name)+' 暂无表数据</div>';
-    panel.style.display='';
-    return;
-  }
-  var rows = tables.map(function(t){
-    return '<div style="display:flex;justify-content:space-between;padding:2px 0;border-bottom:1px solid #e2e8f0"><span>' + esc(t.table) + '</span><span style="font-weight:600;color:#6366f1">' + t.rows + '</span></div>';
-  }).join('');
-  var html = '<div style="font-weight:600;margin-bottom:6px;display:flex;justify-content:space-between"><span>' + esc(name) + '</span><span style="color:#64748b;font-size:11px">'+esc(size)+' · '+(lastMod||'--')+'</span></div>';
-  html += '<div style="font-size:11px;color:#94a3b8;margin-bottom:4px">合计 '+totalRows+' 条记录 · '+tables.length+' 张表</div>';
-  html += rows;
-  html += '<div style="margin-top:6px"><a href="javascript:void(0)" onclick="document.getElementById(\'dbTableDetail\').style.display=\'none\'" style="font-size:11px;color:#6366f1">收起明细</a></div>';
-  panel.innerHTML = html;
-  panel.style.display = '';
-}
-
 initLogFilters();
-paLoadData();
 loadServerStatus();
 loadPaSummary();
 loadCommits();
-
 </script>
 </body>
 </html>
