@@ -19,7 +19,7 @@ body.modal-open{overflow:hidden;position:fixed;width:100%}
 /* 安全区遮罩：确保刘海区域显示 header 背景色 */
 body::before{content:'';position:fixed;top:0;left:0;right:0;height:env(safe-area-inset-top);background:#ffffff;z-index:101;pointer-events:none}
 /* 顶部导航 */
-header{background:#ffffff;border-bottom:1px solid #e2e8f0;padding:12px 16px;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:100}
+header{background:#ffffff;border-bottom:1px solid #e2e8f0;padding:12px 16px;display:flex;align-items:center;justify-content:center;position:sticky;top:0;z-index:100}
 header h1{font-size:17px;font-weight:600;color:#1e293b}
 nav{display:flex;gap:0}
 nav button{padding:14px 20px;border:none;background:none;font-size:14px;color:#64748b;cursor:pointer;border-bottom:3px solid transparent;transition:all .2s;font-family:inherit}
@@ -233,11 +233,9 @@ td.act{white-space:nowrap}
 </head>
 <body>
 
-<header>
-  <div style="display:flex;align-items:center;gap:8px">
-    <a href="/nav" title="返回导航" style="color:#64748b;text-decoration:none;font-size:20px;font-weight:400;line-height:1;display:inline-flex;align-items:center;justify-content:center;min-width:44px;min-height:44px;border-radius:8px" onclick="if(document.referrer.includes('/nav')){history.back();return false}">←</a>
-    <h1>礼金管理系统</h1>
-  </div>
+<header style="display:flex;align-items:center;justify-content:center;gap:8px;position:relative">
+  <div style="position:absolute;left:6px"><a href="/nav" title="返回导航" style="color:#64748b;text-decoration:none;font-size:20px;font-weight:400;line-height:1;display:inline-flex;align-items:center;justify-content:center;min-width:44px;min-height:44px;border-radius:8px" onclick="if(document.referrer.includes('/nav')){history.back();return false}">←</a></div>
+  <h1>礼金管理系统</h1>
   <nav id="topNav">
     <button data-pg="daily" class="active">日常随礼</button>
     <button data-pg="stats">数据总览</button>
