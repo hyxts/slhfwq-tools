@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
-"""倒计时蓝图 - 支持农历/公历互转、生日/高考等倒计时、岁数显示 v2"""
+"""倒计时蓝图 - 支持农历/公历互转、生日/高考等倒计时、岁数显示 v3"""
 import os, json, sqlite3, threading
-from datetime import date, timedelta
+from datetime import date, timedelta, timezone
 
 from .utils import _now, make_logger, make_db
 from flask import Blueprint, request, jsonify, send_from_directory
@@ -11,6 +11,8 @@ BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 CD_DIR = os.path.join(BASE_DIR, '倒计时')
 DB_FILE = os.path.join(CD_DIR, 'countdown.db')
 LOG_FILE = os.path.join(CD_DIR, 'countdown.log')
+
+TZ = timezone(timedelta(hours=8))  # 北京时间 UTC+8
 
 _log = make_logger(LOG_FILE)
 
@@ -24,6 +26,22 @@ except ImportError:
 _HAS_LUNAR_LOCK = threading.Lock()
 
 _get_db = make_db(DB_FILE)
+
+
+def _today():
+    """获取北京时间今天日期"""
+    # 优先使用 _now()（datetime.now(TZ)），如果不可靠则用 UTC 换算
+    try:
+        d = _now().date()
+        # 安全校验：如果日期与预期差距过大（如 server 时钟错误），用 UTC 修正
+        utc_now = datetime.now(timezone.utc)
+        expected = (utc_now + timedelta(hours=8)).date()
+        if abs((d - expected).days) > 1:
+            return expected
+        return d
+    except Exception:
+        utc_now = datetime.now(timezone.utc)
+        return (utc_now + timedelta(hours=8)).date()
 
 
 # ==================== 数据库 ====================
@@ -43,11 +61,12 @@ def init_db():
             note TEXT DEFAULT '',
             display_mode TEXT DEFAULT 'full',
             category TEXT DEFAULT 'custom',
+            birth_year INTEGER DEFAULT 0,
             created_at TEXT DEFAULT (datetime('now','localtime')),
             updated_at TEXT DEFAULT (datetime('now','localtime'))
         )''')
         existing_cols = set(r[1] for r in conn.execute("PRAGMA table_info(events)").fetchall())
-        for col, defval in [('display_mode', "'full'"), ('category', "'custom'")]:
+        for col, defval in [('display_mode', "'full'"), ('category', "'custom'"), ('birth_year', '0')]:
             if col not in existing_cols:
                 conn.execute(f"ALTER TABLE events ADD COLUMN {col} TEXT DEFAULT {defval}")
         conn.commit()
@@ -105,7 +124,7 @@ def get_event_solar_date(event):
 
 def calc_age(birth_date, cal_type='solar'):
     """计算岁数，返回精确岁数（浮点）和整数岁"""
-    today = _now().date()
+    today = _today()
     if not birth_date:
         return None, None
 
@@ -189,6 +208,7 @@ def _validate_event_dates(data):
         'note': (data.get('note', '') or '').strip(),
         'display_mode': data.get('display_mode', 'full'),
         'category': data.get('category', 'custom'),
+        'birth_year': int(data.get('birth_year', 0) or 0),
     }
     return None, clean
 
@@ -229,7 +249,7 @@ def list_events():
         rows = conn.execute("SELECT * FROM events ORDER BY month, day").fetchall()
         conn.close()
 
-        today = _now().date()
+        today = _today()
         events = []
         for r in rows:
             e = dict(r)
@@ -274,9 +294,20 @@ def list_events():
                 else:
                     status = 'upcoming'
 
-            # 计算岁数（仅对非每年重复的过去日期计算）
+            # 计算岁数
+            # 对于每年重复事件：如果有 birth_year，基于 birth_year 计算当前年龄
+            # 对于非重复事件：基于原始日期计算经过的岁数
             exact_age, int_age = None, None
-            if not repeat_annual and solar_date and solar_date <= today:
+            birth_year = e.get('birth_year', 0) or 0
+            if repeat_annual and birth_year > 0:
+                # 生日类事件：年龄 = 今年 - 出生年（如果今年生日已过则用今年，否则-1表示还没到）
+                int_age = today.year - birth_year
+                # 检查今年生日是否已过
+                birthday_this_year = target_date  # 已经是今年的生日日期
+                if birthday_this_year and birthday_this_year > today:
+                    int_age -= 1  # 还没过今年的生日
+                exact_age = float(int_age)  # 近似岁数
+            elif not repeat_annual and solar_date and solar_date <= today:
                 exact_age, int_age = calc_age(solar_date, cal_type)
 
             # 日期描述
@@ -331,6 +362,7 @@ def list_events():
                 'note': e.get('note', ''),
                 'display_mode': e.get('display_mode', 'full'),
                 'category': e.get('category', 'custom'),
+                'birth_year': birth_year,
                 'repeat_annual': repeat_annual,
                 'date_desc': date_desc,
                 'this_year_date': this_year_str,
@@ -370,9 +402,9 @@ def create_event():
 
         conn = _get_db()
         conn.execute(
-            "INSERT INTO events (name, cal_type, year, month, day, is_leap, note, display_mode, category) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            "INSERT INTO events (name, cal_type, year, month, day, is_leap, note, display_mode, category, birth_year) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
             (clean['name'], clean['cal_type'], clean['year'], clean['month'], clean['day'],
-             clean['is_leap'], clean['note'], clean['display_mode'], clean['category']))
+             clean['is_leap'], clean['note'], clean['display_mode'], clean['category'], clean.get('birth_year', 0)))
         conn.commit()
         conn.close()
         _log(f'新增倒计时: {clean["name"]} ({clean["cal_type"]})')
@@ -394,9 +426,9 @@ def update_event(eid):
 
         conn = _get_db()
         conn.execute(
-            "UPDATE events SET name=?, cal_type=?, year=?, month=?, day=?, is_leap=?, note=?, display_mode=?, category=?, updated_at=datetime('now','localtime') WHERE id=?",
+            "UPDATE events SET name=?, cal_type=?, year=?, month=?, day=?, is_leap=?, note=?, display_mode=?, category=?, birth_year=?, updated_at=datetime('now','localtime') WHERE id=?",
             (clean['name'], clean['cal_type'], clean['year'], clean['month'], clean['day'],
-             clean['is_leap'], clean['note'], clean['display_mode'], clean['category'], eid))
+             clean['is_leap'], clean['note'], clean['display_mode'], clean['category'], clean.get('birth_year', 0), eid))
         conn.commit()
         conn.close()
         _log(f'更新倒计时: {clean["name"]} (ID:{eid})')

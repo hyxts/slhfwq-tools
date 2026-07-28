@@ -298,6 +298,11 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Micr
           </div>
           <div class="date-only-hint">每年固定日期重复</div>
         </div>
+        <div class="fg" id="birthYearGroup" style="display:none">
+          <label class="fl">出生年份（可选）</label>
+          <input type="number" id="evtBirthYear" min="1900" max="2100" placeholder="如2020">
+          <div class="date-only-hint">用于计算年龄，留空则不显示岁数</div>
+        </div>
     <div class="fg" id="leapGroup" style="display:none">
       <label class="fl">闰月</label>
       <select id="evtLeap">
@@ -758,7 +763,7 @@ function buildCardListHTML(events){
     var evtData = JSON.stringify({
       id:e.id,name:e.name,cal_type:e.cal_type,year:e.year,month:e.month,day:e.day,
       is_leap:e.is_leap,note:e.note||'',display_mode:e.display_mode||'full',category:cat,
-      repeat_annual:e.repeat_annual||false
+      repeat_annual:e.repeat_annual||false, birth_year:e.birth_year||0
     }).replace(/'/g,"\\x27").replace(/"/g,'&quot;');
 
     html += '<div class="'+cardClass+'" data-event=\''+evtData+'\'>'+
@@ -792,7 +797,7 @@ function openEditCard(btn){
   if(!raw) return;
   try{
     var ed = JSON.parse(raw.replace(/&quot;/g,'"').replace(/\\x27/g,"'"));
-    openEdit(ed.id,ed.name,ed.cal_type,ed.year,ed.month,ed.day,ed.is_leap,ed.note,ed.display_mode,ed.category,ed.repeat_annual);
+    openEdit(ed.id,ed.name,ed.cal_type,ed.year,ed.month,ed.day,ed.is_leap,ed.note,ed.display_mode,ed.category,ed.repeat_annual,ed.birth_year);
   }catch(e){}
 }
 
@@ -806,6 +811,8 @@ function openAdd(){
   document.getElementById('evtDisplayMode').value = 'full';
   document.getElementById('evtCategory').value = 'custom';
   document.getElementById('evtNote').value = '';
+  document.getElementById('evtBirthYear').value = '';
+  document.getElementById('birthYearGroup').style.display = 'none';
   document.getElementById('lunarHint').classList.remove('show','error');
   document.getElementById('leapGroup').style.display = 'none';
   document.getElementById('evtRepeatType').value = 'once';
@@ -814,7 +821,7 @@ function openAdd(){
   setTimeout(function(){document.getElementById('evtName').focus()},350);
 }
 
-function openEdit(id,name,calType,year,month,day,isLeap,note,displayMode,category,repeatAnnual){
+function openEdit(id,name,calType,year,month,day,isLeap,note,displayMode,category,repeatAnnual,birthYear){
   editingId = id;
   var isAnnual = repeatAnnual || year==0;
   document.getElementById('modalTitle').textContent = '编辑事件';
@@ -830,6 +837,8 @@ function openEdit(id,name,calType,year,month,day,isLeap,note,displayMode,categor
   document.getElementById('evtCategory').value = category || 'custom';
   document.getElementById('evtNote').value = note;
   document.getElementById('evtRepeatType').value = isAnnual?'annual':'once';
+  document.getElementById('evtBirthYear').value = birthYear||'';
+  document.getElementById('birthYearGroup').style.display = isAnnual?'block':'none';
   onRepeatTypeChange();
   onCalTypeChange();
   document.getElementById('modalOverlay').classList.add('show');
@@ -850,6 +859,7 @@ function onRepeatTypeChange(){
   var isAnnual = document.getElementById('evtRepeatType').value === 'annual';
   document.getElementById('fgYear').style.display = isAnnual?'none':'block';
   document.getElementById('fgDate').style.display = isAnnual?'block':'none';
+  document.getElementById('birthYearGroup').style.display = isAnnual?'block':'none';
   // 同步月日值
   if(isAnnual){
     var mVal = document.getElementById('evtMonth').value;
@@ -921,7 +931,7 @@ async function saveEvent(){
   if(!month||!day){toast('请选择完整日期','err');return}
   if(!isAnnual && !year){toast('请选择年份','err');return}
 
-  var body = {name:name,cal_type:calType,year:year,month:month,day:day,is_leap:isLeap,note:note,display_mode:displayMode,category:category,repeat_annual:isAnnual};
+  var body = {name:name,cal_type:calType,year:year,month:month,day:day,is_leap:isLeap,note:note,display_mode:displayMode,category:category,repeat_annual:isAnnual,birth_year:parseInt(document.getElementById('evtBirthYear').value)||0};
 
   try{
     var url = editingId?'/api/countdown/events/'+editingId:'/api/countdown/events';
