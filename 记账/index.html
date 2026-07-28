@@ -83,7 +83,33 @@ button { padding:10px 20px; border:none; border-radius:10px; font-size:14px; fon
 .bar-fill.pay { background:var(--pay); }
 .bar-fill.recv { background:var(--recv); }
 .bar-fill.receivable { background:var(--receivable); }
+.bar-fill.accounting { background:var(--primary); }
 .bar-val { width:70px; text-align:right; font-weight:500; flex-shrink:0; }
+/* 统计扩展样式 */
+.stats-section { margin-top:16px; }
+.stats-section h3 { margin:0 0 10px 0; font-size:14px; font-weight:600; color:var(--text-primary); }
+.event-stat-row { display:flex; align-items:center; padding:8px 12px; background:var(--card-bg); border-radius:8px; margin-bottom:6px; gap:10px; box-shadow:0 1px 3px rgba(0,0,0,.04); }
+.event-stat-row .ev-name { flex:1; font-size:13px; font-weight:500; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.event-stat-row .ev-badge { font-size:10px; padding:2px 8px; border-radius:10px; font-weight:500; }
+.ev-badge.settled { background:#dcfce7; color:#16a34a; }
+.ev-badge.ongoing { background:#fef9c3; color:#ca8a04; }
+.category-header { display:flex; align-items:center; padding:6px 0 4px 0; font-size:12px; font-weight:600; color:var(--text-primary); border-bottom:1px solid var(--border); margin-top:8px; }
+.category-header:first-child { margin-top:0; }
+/* 月度趋势 */
+.month-row { display:flex; align-items:flex-end; gap:2px; height:120px; padding:4px 0; }
+.month-col { flex:1; display:flex; flex-direction:column; align-items:center; gap:2px; }
+.month-total { font-size:10px; color:var(--text-secondary); margin-top:4px; text-align:center; writing-mode:vertical-lr; }
+.month-bar { width:100%; max-width:24px; border-radius:3px 3px 0 0; transition:height .3s; min-height:2px; }
+.month-bar.pay { background:var(--pay); }
+.month-bar.recv { background:var(--recv); }
+.month-bar.receivable { background:var(--receivable); }
+.month-label { font-size:10px; color:var(--text-secondary); margin-top:4px; text-align:center; text-overflow:ellipsis; overflow:hidden; width:100%; }
+/* 结清率 */
+.settle-summary { display:flex; gap:10px; align-items:center; padding:10px 14px; background:var(--card-bg); border-radius:10px; margin-bottom:10px; box-shadow:0 1px 3px rgba(0,0,0,.04); }
+.settle-summary .ss-item { text-align:center; }
+.settle-summary .ss-num { font-size:22px; font-weight:700; color:var(--text-primary); }
+.settle-summary .ss-label { font-size:11px; color:var(--text-secondary); }
+.settle-summary .ss-divider { width:1px; height:32px; background:var(--border); }
 .filter-bar { display:flex; gap:6px; align-items:center; flex-wrap:wrap; margin-bottom:10px; }
 .filter-bar select, .filter-bar input { padding:6px 10px; border:1px solid var(--border); border-radius:6px; font-size:12px; background:var(--card-bg); }
 .modal-overlay { position:fixed; inset:0; background:rgba(0,0,0,.4); z-index:200; display:none; align-items:center; justify-content:center; padding:20px; }
@@ -510,16 +536,88 @@ async function loadStats(){
 function renderStats(data){
     const ov=data.overview;
     const net=(ov.total_pay||0)+(ov.total_receivable||0)-(ov.total_recv||0);
-    let html='<div class="stat-overview">';
+    let html='';
+
+    // 1. 总览概览卡片
+    html+='<div class="stat-overview">';
     html+=`<div class="stat-card"><div class="s-label">付给总额</div><div class="s-value pay">${(ov.total_pay||0).toFixed(2)}</div></div>`;
     html+=`<div class="stat-card"><div class="s-label">收到总额</div><div class="s-value recv">${(ov.total_recv||0).toFixed(2)}</div></div>`;
     html+=`<div class="stat-card"><div class="s-label">应收总额</div><div class="s-value receivable">${(ov.total_receivable||0).toFixed(2)}</div></div>`;
     html+=`<div class="stat-card"><div class="s-label">净额</div><div class="s-value ${net>0?'positive':net<0?'negative':''}">${formatMoney(net)}</div></div>`;
-    html+=`<div class="stat-card"><div class="s-label">对象/笔数</div><div class="s-value" style="font-size:16px">${ov.account_count||0} / ${ov.total_count||0}</div></div>`;
+    html+=`<div class="stat-card"><div class="s-label">对象 / 笔数</div><div class="s-value" style="font-size:16px">${ov.account_count||0} / ${ov.total_count||0}</div></div>`;
     html+='</div>';
 
+    // 2. 分类分布（按类型分组：付给 / 收到 / 应收）
+    if(data.by_category&&data.by_category.length){
+        html+='<div class="stats-section"><h3>分类分布</h3>';
+        const types=['付给','应收','收到'];
+        const catMax=Math.max(...data.by_category.map(c=>c.total),1);
+        types.forEach(t=>{
+            const items=data.by_category.filter(c=>c.type===t).sort((a,b)=>b.total-a.total);
+            if(!items.length) return;
+            html+=`<div class="category-header">${t}</div>`;
+            items.forEach(c=>{
+                html+=`<div class="stat-bar-row">
+                    <span class="bar-label" style="width:auto;min-width:60px">${esc(c.category)}</span>
+                    <div class="bar-track"><div class="bar-fill accounting" style="width:${c.total/catMax*100}%"></div></div>
+                    <span class="bar-val">${c.total.toFixed(2)} <span style="font-size:10px;color:var(--text-secondary)">x${c.count}</span></span>
+                </div>`;
+            });
+        });
+        html+='</div>';
+    }
+
+    // 3. 结清率概览
+    if(data.settlement){
+        html+='<div class="stats-section"><h3>事项结清率</h3>';
+        html+=`<div class="settle-summary">
+            <div class="ss-item"><div class="ss-num">${data.settlement.total_events||0}</div><div class="ss-label">总事项</div></div>
+            <div class="ss-divider"></div>
+            <div class="ss-item"><div class="ss-num">${data.settlement.settled_events||0}</div><div class="ss-label">已结清</div></div>
+            <div class="ss-divider"></div>
+            <div class="ss-item"><div class="ss-num">${data.settlement.total_events?(data.settlement.settled_events/data.settlement.total_events*100).toFixed(1):0}%</div><div class="ss-label">结清率</div></div>
+        </div></div>`;
+    }
+
+    // 4. 事项净额明细
+    if(data.by_event&&data.by_event.length){
+        html+='<div class="stats-section"><h3>事项明细</h3>';
+        data.by_event.forEach(e=>{
+            const enet=(e.pay||0)+(e.receivable||0)-(e.recv||0);
+            html+=`<div class="event-stat-row">
+                <div class="ev-name">${esc(e.name||'(默认事项)')}</div>
+                <span class="ev-badge ${e.status==='已结清'?'settled':'ongoing'}">${e.status||'进行中'}</span>
+                <span style="font-size:13px;font-weight:600;white-space:nowrap;color:var(--${enet>0?'positive':enet<0?'negative':'text-secondary'})">${formatMoney(enet)}</span>
+            </div>`;
+        });
+        html+='</div>';
+    }
+
+    // 5. 月度趋势图
+    if(data.by_month&&data.by_month.length){
+        const allVals=data.by_month.flatMap(m=>[m.pay,m.recv,m.receivable]);
+        const mMax=Math.max(...allVals,1);
+        html+='<div class="stats-section"><h3>月度趋势</h3>';
+        html+='<div class="month-row">';
+        data.by_month.forEach(m=>{
+            const month=m.month||'';
+            const label=month.length===7?month.substring(5):month;
+            const pct_pay=(m.pay||0)/mMax*100;
+            const pct_recv=(m.recv||0)/mMax*100;
+            const pct_recvbl=(m.receivable||0)/mMax*100;
+            html+=`<div class="month-col">
+                <div class="month-bar receivable" style="height:${pct_recvbl}%"></div>
+                <div class="month-bar recv" style="height:${pct_recv}%"></div>
+                <div class="month-bar pay" style="height:${pct_pay}%"></div>
+                <div class="month-label">${label}</div>
+            </div>`;
+        });
+        html+='</div></div>';
+    }
+
+    // 6. 各对象明细
     if(data.by_account&&data.by_account.length){
-        html+='<h3 style="margin:16px 0 8px 0;font-size:14px">各对象明细</h3>';
+        html+='<div class="stats-section"><h3>各对象明细</h3>';
         const maxAmt=Math.max(...data.by_account.map(a=>Math.max(a.pay||0,a.recv||0,a.receivable||0,1)));
         data.by_account.forEach(a=>{
             const anet=(a.pay||0)+(a.receivable||0)-(a.recv||0);
@@ -531,7 +629,9 @@ function renderStats(data){
                 <div class="stat-bar-row"><span class="bar-label">收到</span><div class="bar-track"><div class="bar-fill recv" style="width:${(a.recv||0)/maxAmt*100}%"></div></div><span class="bar-val">${(a.recv||0).toFixed(2)}</span></div>
             </div>`;
         });
+        html+='</div>';
     }
+
     $('statsContent').innerHTML=html;
 }
 

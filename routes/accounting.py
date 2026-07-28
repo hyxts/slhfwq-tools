@@ -779,6 +779,26 @@ def get_stats():
             params
         ).fetchall()]
 
+        # 月度趋势（按方向拆分）
+        by_month = [dict(r) for r in conn.execute(
+            f'''SELECT substr(r.date,1,7) as month,
+                COALESCE(SUM(CASE WHEN r.type='付给' THEN r.amount ELSE 0 END), 0) as pay,
+                COALESCE(SUM(CASE WHEN r.type='收到' THEN r.amount ELSE 0 END), 0) as recv,
+                COALESCE(SUM(CASE WHEN r.type='应收' THEN r.amount ELSE 0 END), 0) as receivable,
+                COUNT(*) as count
+            FROM records r WHERE {where_clause}
+            GROUP BY month ORDER BY month ASC''',
+            params
+        ).fetchall()]
+
+        # 事项结清率
+        settlement_stats = dict(conn.execute(
+            '''SELECT
+                COUNT(*) as total_events,
+                SUM(CASE WHEN status='已结清' THEN 1 ELSE 0 END) as settled_events
+            FROM events'''
+        ).fetchone())
+
         conn.close()
         return jsonify({
             'success': True,
@@ -786,7 +806,9 @@ def get_stats():
                 'overview': overview,
                 'by_account': by_account,
                 'by_event': by_event,
-                'by_category': by_category
+                'by_category': by_category,
+                'by_month': by_month,
+                'settlement': settlement_stats
             }
         })
     except Exception as e:
