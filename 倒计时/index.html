@@ -293,15 +293,11 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Micr
         <div class="fg" id="fgDate" style="display:none">
           <label class="fl">日期</label>
           <div class="date-row">
+            <select id="evtYear2"><option value="">年</option></select>
             <select id="evtMonth2"><option value="">月</option></select>
             <select id="evtDay2"><option value="">日</option></select>
           </div>
-          <div class="date-only-hint">每年固定日期重复</div>
-        </div>
-        <div class="fg" id="birthYearGroup" style="display:none">
-          <label class="fl">出生年份（可选）</label>
-          <select id="evtBirthYear"><option value="">年</option></select>
-          <div class="date-only-hint">用于计算年龄，留空则不显示岁数</div>
+          <div class="date-only-hint">出生年月日，用于计算年龄，留空年份则不显示岁数</div>
         </div>
     <div class="fg" id="leapGroup" style="display:none">
       <label class="fl">闰月</label>
@@ -359,11 +355,11 @@ function showOfflineBadge(show){document.getElementById('offlineBadge').classLis
 /* ====== 初始化 ====== */
 function init(){
   var ySel = document.getElementById('evtYear');
-  var bSel = document.getElementById('evtBirthYear');
+  var ySel2 = document.getElementById('evtYear2');
   var nowY = new Date().getFullYear();
-  for(var y=nowY-80;y<=nowY+10;y++){
+  for(var y=1900;y<=nowY+10;y++){
     var o=document.createElement('option');o.value=y;o.textContent=y;ySel.appendChild(o);
-    var o2=document.createElement('option');o2.value=y;o2.textContent=y;bSel.appendChild(o2);
+    var o2=document.createElement('option');o2.value=y;o2.textContent=y;ySel2.appendChild(o2);
   }
   var mSel = document.getElementById('evtMonth');
   for(var m=1;m<=12;m++){
@@ -814,8 +810,7 @@ function openAdd(){
   document.getElementById('evtDisplayMode').value = 'full';
   document.getElementById('evtCategory').value = 'custom';
   document.getElementById('evtNote').value = '';
-  document.getElementById('evtBirthYear').value = '';
-  document.getElementById('birthYearGroup').style.display = 'none';
+  document.getElementById('evtYear2').value = '';
   document.getElementById('lunarHint').classList.remove('show','error');
   document.getElementById('leapGroup').style.display = 'none';
   document.getElementById('evtRepeatType').value = 'once';
@@ -840,8 +835,7 @@ function openEdit(id,name,calType,year,month,day,isLeap,note,displayMode,categor
   document.getElementById('evtCategory').value = category || 'custom';
   document.getElementById('evtNote').value = note;
   document.getElementById('evtRepeatType').value = isAnnual?'annual':'once';
-  document.getElementById('evtBirthYear').value = birthYear||'';
-  document.getElementById('birthYearGroup').style.display = isAnnual?'block':'none';
+  document.getElementById('evtYear2').value = birthYear||'';
   onRepeatTypeChange();
   onCalTypeChange();
   document.getElementById('modalOverlay').classList.add('show');
@@ -862,18 +856,17 @@ function onRepeatTypeChange(){
   var isAnnual = document.getElementById('evtRepeatType').value === 'annual';
   document.getElementById('fgYear').style.display = isAnnual?'none':'block';
   document.getElementById('fgDate').style.display = isAnnual?'block':'none';
-  document.getElementById('birthYearGroup').style.display = isAnnual?'block':'none';
   // 同步月日值
   if(isAnnual){
     var mVal = document.getElementById('evtMonth').value;
     var dVal = document.getElementById('evtDay').value;
     document.getElementById('evtMonth2').value = mVal;
     document.getElementById('evtDay2').value = dVal;
-    // 自动填充出生年份：取原事件年份作为默认出生年（解决改固定日期为每年循环后不显示岁数）
+    // 自动填充出生年份：取原事件年份作为默认出生年
     var yrVal = document.getElementById('evtYear').value;
-    var curBirth = document.getElementById('evtBirthYear').value;
+    var curBirth = document.getElementById('evtYear2').value;
     if(yrVal && !curBirth){
-      document.getElementById('evtBirthYear').value = yrVal;
+      document.getElementById('evtYear2').value = yrVal;
     }
   }else{
     document.getElementById('evtYear').value = document.getElementById('evtYear').value || '';
@@ -940,7 +933,7 @@ async function saveEvent(){
   if(!month||!day){toast('请选择完整日期','err');return}
   if(!isAnnual && !year){toast('请选择年份','err');return}
 
-  var body = {name:name,cal_type:calType,year:year,month:month,day:day,is_leap:isLeap,note:note,display_mode:displayMode,category:category,repeat_annual:isAnnual,birth_year:parseInt(document.getElementById('evtBirthYear').value)||0};
+  var body = {name:name,cal_type:calType,year:year,month:month,day:day,is_leap:isLeap,note:note,display_mode:displayMode,category:category,repeat_annual:isAnnual,birth_year:parseInt(document.getElementById('evtYear2').value)||0};
 
   try{
     var url = editingId?'/api/countdown/events/'+editingId:'/api/countdown/events';
