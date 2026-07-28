@@ -866,6 +866,12 @@ function onRepeatTypeChange(){
     var dVal = document.getElementById('evtDay').value;
     document.getElementById('evtMonth2').value = mVal;
     document.getElementById('evtDay2').value = dVal;
+    // 自动填充出生年份：取原事件年份作为默认出生年（解决改固定日期为每年循环后不显示岁数）
+    var yrVal = document.getElementById('evtYear').value;
+    var curBirth = document.getElementById('evtBirthYear').value;
+    if(yrVal && !curBirth){
+      document.getElementById('evtBirthYear').value = yrVal;
+    }
   }else{
     document.getElementById('evtYear').value = document.getElementById('evtYear').value || '';
   }
