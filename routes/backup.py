@@ -290,6 +290,35 @@ def list_backups():
     return jsonify({'success': True, 'backups': result})
 
 
+# ==================== 定时任务公开接口 ====================
+
+def run_backup():
+    """公开接口：执行备份（供 daily_task.py 定时脚本调用）
+    返回 (success: bool, message: str)"""
+    try:
+        zip_path = _save_server_backup()
+        size = _size_str(os.path.getsize(zip_path))
+        return (True, f'备份完成: {os.path.basename(zip_path)} ({size})')
+    except Exception as e:
+        return (False, f'备份异常: {e}')
+
+
+def run_cleanup():
+    """公开接口：执行清理（供 daily_task.py 定时脚本调用）
+    返回 (success: bool, message: str)"""
+    try:
+        results, freed = _do_cleanup()
+        global _last_cleanup
+        ts = _now().strftime('%Y-%m-%d %H:%M:%S')
+        with _last_cleanup_lock:
+            _last_cleanup = {'time': ts, 'freed': _size_str(freed), 'results': results}
+        return (True, f'清理完成: 释放 {_size_str(freed)}; {"; ".join(results)}')
+    except Exception as e:
+        return (False, f'清理异常: {e}')
+
+
+# ==================== API 端点 ====================
+
 @bp.route('/api/backup/create', methods=['POST'])
 def create_backup():
     """手动创建备份"""

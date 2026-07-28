@@ -705,3 +705,61 @@ def _auto_renew_thread():
 def start_auto_renew():
     t = threading.Thread(target=_auto_renew_thread, daemon=True)
     t.start()
+
+
+# ==================== 定时任务公开接口 ====================
+
+def run_renewal():
+    """公开接口：检查并执行续期（供 daily_task.py 定时脚本调用）
+    返回 (success: bool, message: str)"""
+    try:
+        cfg = _load_config()
+        username = cfg.get('username', '')
+        password = cfg.get('password', '')
+        if not username or not password:
+            _log('[定时] 未配置账号密码，跳过')
+            return (True, '未配置账号密码，跳过')
+
+        interval = cfg.get('interval_days', 7)
+        last_run = cfg.get('last_run', '')
+
+        should_renew = False
+        if last_run:
+            try:
+                last_run_dt = datetime.strptime(last_run, '%Y-%m-%d %H:%M:%S')
+                last_run_dt = last_run_dt.replace(tzinfo=TZ)
+                next_run_dt = last_run_dt + timedelta(days=interval)
+                if _now() >= next_run_dt:
+                    should_renew = True
+            except Exception:
+                should_renew = True
+        else:
+            should_renew = True
+
+        if not should_renew:
+            return (True, '未到续期时间')
+
+        # 防频繁：至少间隔1天
+        if last_run:
+            try:
+                last_run_dt = datetime.strptime(last_run, '%Y-%m-%d %H:%M:%S')
+                last_run_dt = last_run_dt.replace(tzinfo=TZ)
+                if (_now() - last_run_dt).total_seconds() < 86400:
+                    return (True, '距上次续期不足1天，跳过')
+            except Exception:
+                pass
+
+        _log(f'[定时] 开始执行续期')
+        print(f'[{_now().strftime("%Y-%m-%d %H:%M:%S")}] 定时任务触发 PA 续期')
+
+        # 同步执行续期（不另开线程）
+        _renew_thread(username, password)
+
+        result = _status.get('last_result', {})
+        if result.get('success'):
+            return (True, f'续期完成: {result.get("pre")} -> {result.get("post")}')
+        else:
+            return (False, f'续期失败: {result}')
+    except Exception as e:
+        _log(f'[定时] 续期异常: {e}')
+        return (False, f'续期异常: {e}')
