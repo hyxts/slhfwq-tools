@@ -235,10 +235,10 @@ MODULES = [
     ('routes.deploy', 'deploy'),
     ('routes.pa', 'pa'),
     ('routes.countdown', 'countdown'),
-        ('routes.accounting', 'accounting'),
-        ('routes.nav', 'nav'),
-        ('routes.todo', 'todo'),
-    ]
+    ('routes.accounting', 'accounting'),
+    ('routes.nav', 'nav'),
+    ('routes.todo', 'todo'),
+]
 
 # 先导入 deploy（独立容错），确保部署 API 最优先可用
 deploy_bp, _ = _safe_import('routes.deploy')
