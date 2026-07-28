@@ -15,156 +15,223 @@ body{
   height:100%;display:flex;flex-direction:column;
   font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif;
   background:#f0f2f5;color:#1e293b;
-  -webkit-font-smoothing:antialiased;
-  -webkit-tap-highlight-color:transparent;
-  -webkit-text-size-adjust:100%;
-  overflow:hidden;
+  -webkit-font-smoothing:antialiased;-webkit-tap-highlight-color:transparent;
+  -webkit-text-size-adjust:100%;overflow:hidden;
+  padding-left:env(safe-area-inset-left);padding-right:env(safe-area-inset-right);
 }
 
-/* 返回箭头 */
+/* ====== 头部 ====== */
+header{
+  background:#fff;border-bottom:1px solid #e2e8f0;
+  padding:12px 16px;padding-top:calc(12px + env(safe-area-inset-top));
+  font-size:17px;font-weight:600;
+  display:flex;align-items:center;gap:8px;flex-shrink:0;z-index:100;
+}
+.header-spacer{flex:1}
 .back-arrow{
   color:#64748b;font-size:20px;font-weight:400;
   min-width:44px;min-height:44px;border-radius:8px;
-  display:flex;align-items:center;justify-content:center;
-  text-decoration:none;
+  display:flex;align-items:center;justify-content:center;text-decoration:none;
 }
 .back-arrow:active{background:#f1f5f9}
-
-/* 页面头部 */
-header{
-  background:#fff;border-bottom:1px solid #e2e8f0;
-  padding:12px 16px;
-  padding-top:calc(12px + env(safe-area-inset-top));
-  padding-left:calc(16px + env(safe-area-inset-left));
-  padding-right:calc(16px + env(safe-area-inset-right));
-  font-size:17px;font-weight:600;
-  display:flex;align-items:center;gap:8px;
-  flex-shrink:0;z-index:100;
+.header-btn{
+  background:none;border:none;color:#4f46e5;font-size:14px;font-weight:600;
+  min-height:36px;padding:6px 12px;border-radius:10px;
+  cursor:pointer;font-family:inherit;
 }
+.header-btn:active{background:#eef2ff}
+.header-btn.danger{color:#dc2626}
+.header-btn.danger:active{background:#fef2f2}
 
-/* 标签栏 */
+/* ====== 标签栏 ====== */
 .tab-bar{
-  background:#fff;border-bottom:1px solid #e2e8f0;
-  display:flex;gap:0;flex-shrink:0;
+  background:#fff;border-bottom:1px solid #e2e8f0;display:flex;gap:0;flex-shrink:0;
 }
 .tab-btn{
   flex:1;background:none;border:none;
   padding:12px 0;font-size:14px;font-weight:700;color:#94a3b8;
   cursor:pointer;font-family:inherit;min-height:44px;
-  border-bottom:2px solid transparent;
-  transition:color 0.15s,border-color 0.15s;
+  border-bottom:2px solid transparent;transition:color 0.15s,border-color 0.15s;
 }
 .tab-btn.active{color:#4f46e5;border-bottom-color:#4f46e5}
-.tab-btn:active{color:#4f46e5}
 
-/* 主内容区 */
-.main{flex:1;overflow-y:auto;padding:12px 16px;padding-bottom:env(safe-area-inset-bottom,12px)}
-
-/* 面板 */
+/* ====== 主区域 ====== */
+.main{flex:1;overflow-y:auto;overflow-x:hidden}
 .panel{display:none}
 .panel.active{display:block}
+#panel-notes.panel.active{display:flex;flex-direction:column;height:100%}
+#panel-todo.panel.active{display:block}
 
-/* ====== 记事面板 ====== */
-.notes-layout{display:flex;gap:12px;height:100%;min-height:0}
+/* ====== 笔记面板 ====== */
+#panel-notes{display:flex;flex-direction:column}
 
-.note-list-panel{
-  width:260px;flex-shrink:0;background:#fff;
-  border:1px solid #e2e8f0;border-radius:10px;
-  display:flex;flex-direction:column;overflow:hidden;
+/* --- 笔记列表视图 --- */
+.notes-list-view{flex:1;display:flex;flex-direction:column;overflow:hidden}
+.notes-search-bar{padding:10px 16px;background:#fff;border-bottom:1px solid #f1f5f9}
+.notes-search-bar input{
+  width:100%;border:none;background:#f1f5f9;border-radius:10px;
+  padding:10px 14px;font-size:15px;color:#1e293b;outline:none;
+  font-family:inherit;min-height:40px;
 }
-.note-list-header{padding:12px;border-bottom:1px solid #e2e8f0}
-.note-list-header input{
-  width:100%;border:1px solid #e2e8f0;border-radius:10px;
-  padding:8px 10px;font-size:14px;outline:none;font-family:inherit;
-  min-height:44px;background:#fff;
-}
-.note-list-header input:focus{border-color:#4f46e5}
-.new-note-btn{
-  width:100%;margin-top:6px;background:#4f46e5;color:#fff;border:none;
-  border-radius:10px;padding:10px;font-size:13px;font-weight:600;
-  cursor:pointer;font-family:inherit;min-height:44px;
-}
-.new-note-btn:active{opacity:0.8}
+.notes-search-bar input::placeholder{color:#94a3b8}
+.notes-search-bar input:focus{background:#eef2ff}
 
-.note-items{flex:1;overflow-y:auto}
+.note-scroll{flex:1;overflow-y:auto}
+.note-empty{
+  padding:60px 20px;text-align:center;color:#94a3b8;font-size:14px;
+}
+
+/* 笔记列表项 (iPhone 备忘录风格) */
 .note-item{
-  padding:12px;border-bottom:1px solid #f1f5f9;cursor:pointer;
-  min-height:44px;
+  display:flex;align-items:flex-start;padding:11px 16px;cursor:pointer;
+  border-bottom:0.5px solid #f1f5f9;position:relative;
+  background:#fff;min-height:68px;
 }
 .note-item:active{background:#f8fafc}
-.note-item.active{background:#eef2ff;border-left:3px solid #4f46e5}
-.ni-title{font-size:13px;font-weight:600;color:#1e293b;margin-bottom:2px}
-.ni-preview{font-size:11px;color:#94a3b8;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.ni-meta{font-size:10px;color:#cbd5e1;margin-top:2px}
-.ni-pin{color:#f59e0b;font-weight:600;margin-right:4px}
+.note-item.active{background:#eef2ff}
+.note-item .ni-left{flex:1;min-width:0;padding-right:8px}
+.note-item .ni-title{
+  font-size:15px;font-weight:600;color:#1e293b;line-height:1.35;
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+}
+.note-item .ni-date{
+  font-size:12px;color:#94a3b8;margin-top:3px;
+}
+.note-item .ni-preview{
+  font-size:13px;color:#94a3b8;line-height:1.3;margin-top:2px;
+  overflow:hidden;text-overflow:ellipsis;display:-webkit-box;
+  -webkit-line-clamp:1;-webkit-box-orient:vertical;
+}
+.note-item .ni-pin-badge{
+  font-size:11px;color:#f59e0b;font-weight:600;margin-right:4px;white-space:nowrap;
+}
+.note-item .ni-actions{
+  display:flex;flex-direction:column;gap:6px;align-items:center;
+  flex-shrink:0;margin-left:4px;
+}
+.note-item .ni-act{
+  width:32px;height:32px;border-radius:50%;border:none;
+  cursor:pointer;font-size:13px;display:flex;align-items:center;justify-content:center;
+  flex-shrink:0;font-family:inherit;
+}
+.ni-act-del{background:#fef2f2;color:#dc2626}
+.ni-act-del:active{background:#fecaca}
+.ni-act-pin{background:#fff7ed;color:#f59e0b}
+.ni-act-pin:active{background:#fed7aa}
 
-.note-editor-panel{
-  flex:1;background:#fff;border:1px solid #e2e8f0;border-radius:10px;
-  display:flex;flex-direction:column;overflow:hidden;min-width:0;
-}
-.editor-toolbar{
-  display:flex;gap:4px;padding:10px 12px;border-bottom:1px solid #e2e8f0;
-  align-items:center;flex-wrap:wrap;
-}
-.editor-toolbar .edit-title{
-  flex:1;min-width:100px;border:none;outline:none;font-size:15px;font-weight:600;
-  color:#1e293b;font-family:inherit;background:transparent;min-height:36px;
-}
-.editor-toolbar button{
-  background:none;border:1px solid #e2e8f0;border-radius:10px;
-  padding:8px 12px;font-size:12px;color:#64748b;cursor:pointer;
-  font-family:inherit;min-height:36px;
-}
-.editor-toolbar button:active{background:#f1f5f9}
-.editor-toolbar button.danger{color:#dc2626}
+/* searcher active state */
+.note-item .ni-title mark{background:#fef08a;color:#1e293b;border-radius:2px;padding:0 1px}
 
-.editor-body{flex:1;overflow-y:auto;padding:12px}
-.editor-body textarea{
-  width:100%;height:100%;min-height:200px;border:none;outline:none;
-  font-size:15px;color:#334155;line-height:1.7;resize:none;
-  font-family:inherit;background:transparent;
+/* --- 笔记编辑视图 --- */
+.notes-editor-view{display:none;flex-direction:column;flex:1;overflow:hidden}
+.notes-editor-view.show{display:flex}
+
+.editor-header{
+  display:flex;align-items:center;gap:4px;
+  padding:8px 12px;background:#fff;border-bottom:0.5px solid #f1f5f9;
+  flex-shrink:0;
+}
+.editor-header .eh-title{
+  flex:1;font-size:14px;font-weight:600;color:#64748b;text-align:center;
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
 }
 
-.editor-meta{
-  padding:8px 12px;border-top:1px solid #e2e8f0;
-  font-size:11px;color:#94a3b8;display:flex;gap:16px;flex-wrap:wrap;
-}
+.editor-scroll{flex:1;overflow-y:auto;background:#fff}
 
-.editor-placeholder{
-  flex:1;display:flex;align-items:center;justify-content:center;
-  color:#cbd5e1;font-size:14px;
+/* 编辑区域 (iPhone 风格: 日期 + 标题 + 正文) */
+.editor-date{
+  padding:16px 20px 4px;font-size:12px;color:#94a3b8;text-align:center;
 }
+.editor-title-input{
+  display:block;width:100%;border:none;outline:none;
+  padding:8px 20px 12px;font-size:22px;font-weight:700;color:#1e293b;
+  font-family:inherit;background:transparent;resize:none;
+  line-height:1.35;min-height:44px;
+}
+.editor-title-input::placeholder{color:#cbd5e1}
+.editor-body-input{
+  display:block;width:100%;border:none;outline:none;
+  padding:4px 20px 80px;font-size:16px;color:#334155;
+  font-family:-apple-system,"PingFang SC","Microsoft YaHei",sans-serif;
+  background:transparent;resize:none;line-height:1.75;
+  min-height:200px;
+}
+.editor-body-input::placeholder{color:#cbd5e1}
 
-/* 关联任务 */
-.linked-tasks{
-  padding:8px 12px;border-top:1px solid #e2e8f0;
-  max-height:160px;overflow-y:auto;
+/* 关联任务区 */
+.editor-tasks-section{
+  margin:0 20px 20px;border-top:1px solid #f1f5f9;padding-top:12px;
 }
-.lt-header{
-  font-size:12px;font-weight:600;color:#64748b;margin-bottom:6px;
+.ets-header{
+  font-size:12px;font-weight:600;color:#94a3b8;margin-bottom:8px;
   display:flex;align-items:center;gap:8px;flex-wrap:wrap;
 }
-.lt-header button{
+.ets-header .ets-btn{
   font-size:11px;background:#eef2ff;border:none;color:#4f46e5;
-  border-radius:6px;padding:4px 10px;cursor:pointer;font-family:inherit;
-  min-height:32px;
+  border-radius:6px;padding:3px 8px;cursor:pointer;font-family:inherit;min-height:28px;
 }
-.lt-item{
-  display:flex;align-items:center;gap:8px;padding:4px 0;font-size:12px;
-  color:#334155;min-height:32px;
+.ets-btn:active{background:#ddd6fe}
+.ets-add-row{
+  display:flex;gap:6px;margin-top:4px;
 }
-.lt-item.done{text-decoration:line-through;color:#94a3b8}
-.lt-check{
-  width:24px;height:24px;border-radius:50%;border:1.5px solid #cbd5e1;
-  flex-shrink:0;cursor:pointer;min-width:24px;
+.ets-add-row input{
+  flex:1;border:1px solid #e2e8f0;border-radius:8px;
+  padding:6px 10px;font-size:13px;font-family:inherit;outline:none;min-height:36px;
 }
-.lt-item.done .lt-check{background:#059669;border-color:#059669}
+.ets-add-row input:focus{border-color:#4f46e5}
+.ets-add-row button{
+  border:none;background:#4f46e5;color:#fff;border-radius:8px;
+  padding:6px 14px;font-size:13px;font-weight:600;cursor:pointer;font-family:inherit;min-height:36px;
+}
+.ets-add-row button:active{opacity:0.8}
+
+.ets-item{
+  display:flex;align-items:center;gap:8px;padding:7px 0;font-size:14px;
+  color:#334155;min-height:36px;border-bottom:0.5px solid #f8fafc;
+}
+.ets-item.done{text-decoration:line-through;color:#94a3b8}
+.ets-check{
+  width:22px;height:22px;min-width:22px;border-radius:50%;
+  border:1.5px solid #cbd5e1;flex-shrink:0;cursor:pointer;
+  display:flex;align-items:center;justify-content:center;
+}
+.ets-item.done .ets-check{background:#059669;border-color:#059669}
+.ets-item.done .ets-check::after{
+  content:'';width:6px;height:10px;border:2px solid #fff;
+  border-top:none;border-left:none;transform:rotate(45deg) translateY(-1px);
+}
+.ets-item-text{flex:1;min-width:0;word-break:break-word}
+
+/* 桌面端双栏容器 */
+.desktop-dual{display:none}
+@media(min-width:769px){
+  .main{overflow:hidden}
+  #panel-notes{height:calc(100vh - 110px)}
+  .notes-list-view{display:none}
+  .notes-editor-view{display:none;position:static}
+  .desktop-dual{display:flex;gap:0;height:100%;overflow:hidden}
+  .desktop-sidebar{
+    width:280px;flex-shrink:0;background:#f8fafc;
+    border-right:0.5px solid #e2e8f0;display:flex;flex-direction:column;
+    overflow:hidden;
+  }
+  .desktop-sidebar .notes-search-bar{padding:10px 12px;border-bottom:0.5px solid #e2e8f0}
+  .desktop-sidebar .note-scroll{overflow-y:auto}
+  .desktop-editor{
+    flex:1;background:#fff;display:flex;flex-direction:column;overflow:hidden;
+  }
+  .desktop-editor .editor-header{padding:10px 16px}
+  .desktop-editor .editor-scroll{overflow-y:auto}
+  .desktop-placeholder{
+    flex:1;display:flex;align-items:center;justify-content:center;
+    color:#cbd5e1;font-size:14px;flex-direction:column;gap:8px;
+  }
+  .desktop-placeholder .dp-hint{font-size:12px;color:#e2e8f0}
+}
 
 /* ====== 待办面板 ====== */
-.todo-stats{
-  display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap;
-}
-.stat-item{
+.todo-stats{display:flex;gap:8px;padding:12px 16px 0;flex-wrap:wrap}
+.todo-stats .stat-item{
   background:#fff;border:1px solid #e2e8f0;border-radius:10px;
   padding:8px 14px;font-size:12px;color:#64748b;
   flex:1;min-width:70px;text-align:center;
@@ -175,22 +242,17 @@ header{
 .stat-item.done-s .num{color:#059669}
 
 .todo-input-row{
-  display:flex;gap:8px;margin-bottom:12px;
-  background:#fff;border:1px solid #e2e8f0;border-radius:10px;
-  padding:8px;align-items:center;flex-wrap:wrap;
+  display:flex;gap:8px;padding:10px 16px;
+  align-items:center;flex-wrap:wrap;
 }
-.todo-input-row input[type="text"]{
-  flex:1;min-width:120px;border:none;outline:none;
-  font-size:16px;padding:4px 4px;min-height:36px;
-  background:transparent;font-family:inherit;
+.todo-input-row input.ti-text{
+  flex:1;min-width:120px;border:1px solid #e2e8f0;border-radius:10px;
+  padding:10px 12px;font-size:16px;outline:none;min-height:44px;
+  font-family:inherit;background:#fff;
 }
-.todo-input-row input[type="date"]{
+.todo-input-row input.ti-text:focus{border-color:#4f46e5}
+.todo-input-row select,.todo-input-row input[type="date"]{
   border:1px solid #e2e8f0;border-radius:10px;padding:8px 10px;
-  font-size:14px;color:#64748b;outline:none;font-family:inherit;
-  min-height:44px;background:#fff;
-}
-.priority-select{
-  border:1px solid #e2e8f0;border-radius:10px;padding:8px 8px;
   font-size:14px;color:#64748b;outline:none;font-family:inherit;
   min-height:44px;background:#fff;
 }
@@ -199,28 +261,26 @@ header{
   border-radius:10px;padding:10px 18px;font-size:14px;font-weight:600;
   cursor:pointer;white-space:nowrap;font-family:inherit;min-height:44px;
 }
-.todo-input-row .add-btn:active{opacity:0.8}
+.add-btn:active{opacity:0.8}
 
-.todo-filter-row{
-  display:flex;gap:4px;margin-bottom:12px;flex-wrap:wrap;align-items:center;
-}
-.todo-filter-row button{
+.todo-filters{padding:0 16px 10px;display:flex;gap:4px;flex-wrap:wrap;align-items:center}
+.todo-filters button.fbtn{
   background:#fff;border:1px solid #e2e8f0;border-radius:10px;
   padding:8px 14px;font-size:13px;color:#64748b;cursor:pointer;
   font-family:inherit;min-height:36px;
 }
-.todo-filter-row button.active{background:#4f46e5;color:#fff;border-color:#4f46e5}
-.sort-select{
+.todo-filters button.fbtn.active{background:#4f46e5;color:#fff;border-color:#4f46e5}
+.todo-filters .sort-sel{
   margin-left:auto;border:1px solid #e2e8f0;border-radius:10px;
   padding:8px 10px;font-size:13px;color:#64748b;outline:none;
   font-family:inherit;min-height:36px;background:#fff;
 }
 
+.task-list-pad{padding:0 16px 16px}
 .task-list{list-style:none;display:flex;flex-direction:column;gap:6px}
 .task-item{
   background:#fff;border:1px solid #e2e8f0;border-radius:10px;
-  padding:12px 12px;display:flex;align-items:center;gap:10px;
-  min-height:44px;
+  padding:10px 12px;display:flex;align-items:center;gap:10px;min-height:44px;
 }
 .task-item.done{opacity:0.5}
 .task-item.done .task-title{text-decoration:line-through;color:#94a3b8}
@@ -229,7 +289,10 @@ header{
   flex-shrink:0;cursor:pointer;display:flex;align-items:center;justify-content:center;
 }
 .task-item.done .task-check{background:#059669;border-color:#059669}
-.task-item.done .task-check::after{content:'';width:7px;height:11px;border:2px solid #fff;border-top:none;border-left:none;transform:rotate(45deg) translateY(-1px)}
+.task-item.done .task-check::after{
+  content:'';width:7px;height:11px;border:2px solid #fff;
+  border-top:none;border-left:none;transform:rotate(45deg) translateY(-1px);
+}
 .task-body{flex:1;min-width:0}
 .task-title{font-size:14px;color:#1e293b;line-height:1.4;word-break:break-word}
 .task-meta{font-size:11px;color:#94a3b8;margin-top:2px;display:flex;gap:8px;flex-wrap:wrap}
@@ -237,7 +300,7 @@ header{
 .task-meta .pri.p-high{color:#dc2626}
 .task-meta .pri.p-mid{color:#f59e0b}
 .task-meta .pri.p-low{color:#94a3b8}
-.task-meta .dl-overdue{color:#dc2626}
+.task-meta .dl-over{color:#dc2626}
 .task-meta .note-link{cursor:pointer;color:#6366f1;text-decoration:underline}
 .task-actions{display:flex;gap:4px;flex-shrink:0}
 .task-actions button{
@@ -252,7 +315,7 @@ header{
   background:#fff;border:1px solid #e2e8f0;border-radius:10px;
 }
 
-/* 分享面板 */
+/* ====== 分享弹窗 ====== */
 .share-panel{
   position:fixed;top:0;left:0;right:0;bottom:0;
   background:rgba(0,0,0,0.4);z-index:200;
@@ -260,56 +323,39 @@ header{
 }
 .share-panel.show{display:flex}
 .share-box{
-  background:#fff;border-radius:16px;padding:24px;
-  width:min(90vw,360px);
+  background:#fff;border-radius:16px;padding:24px;width:min(90vw,360px);
 }
 .share-box h3{font-size:16px;color:#1e293b;margin-bottom:8px}
 .share-box .tip{font-size:13px;color:#64748b;margin-bottom:12px}
 .share-box .share-url{
   background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;
-  padding:10px;font-size:12px;color:#64748b;word-break:break-all;
-  margin-bottom:12px;user-select:all;
+  padding:10px;font-size:12px;color:#64748b;word-break:break-all;margin-bottom:12px;user-select:all;
 }
 .share-box .share-actions{display:flex;gap:8px}
 .share-box .share-actions button{
   flex:1;padding:10px;border-radius:10px;border:none;
   font-size:14px;font-weight:600;cursor:pointer;font-family:inherit;min-height:44px;
 }
-.btn-copy{background:#4f46e5;color:#fff}
-.btn-copy:active{opacity:0.8}
-.btn-cancel{background:#f1f5f9;color:#64748b}
-.btn-cancel:active{background:#e2e8f0}
+.btn-copy{background:#4f46e5;color:#fff}.btn-copy:active{opacity:0.8}
+.btn-cancel{background:#f1f5f9;color:#64748b}.btn-cancel:active{background:#e2e8f0}
 
 /* Toast */
 .toast{
   position:fixed;top:16px;left:50%;transform:translateX(-50%);
   background:#1e293b;color:#fff;padding:8px 20px;border-radius:8px;
-  font-size:13px;z-index:300;opacity:0;transition:opacity 0.2s;
-  pointer-events:none;
+  font-size:13px;z-index:300;opacity:0;transition:opacity 0.2s;pointer-events:none;
 }
 .toast.show{opacity:1}
 
-/* ====== 桌面端 (>768px) ====== */
+/* ====== 桌面端补充 ====== */
 @media(min-width:769px){
-  .main{max-width:900px;margin:0 auto}
-  .todo-input-row input[type="date"],.priority-select{min-height:36px}
-  .notes-layout{height:calc(100vh - 180px)}
+  .main{max-width:1000px;margin:0 auto;padding:0;overflow:hidden}
+  #panel-todo{height:calc(100vh - 110px);overflow-y:auto}
+  .task-list{display:grid;grid-template-columns:1fr 1fr;gap:8px}
 }
-
-/* ====== 移动端 (<=768px) ====== */
 @media(max-width:768px){
-  .notes-layout{flex-direction:column;height:auto;gap:8px}
-  .note-list-panel{width:100%;max-height:220px}
-  .note-editor-panel{min-height:50vh}
-  .editor-toolbar{flex-wrap:wrap}
-  .editor-toolbar .edit-title{min-width:80px}
-  .editor-body textarea{font-size:16px}
-  .todo-input-row{flex-wrap:wrap}
-  .todo-input-row input[type="date"]{flex:1;min-width:100px}
-  .todo-input-row .add-btn{flex-shrink:0}
-  .task-meta{font-size:10px}
-  .stat-item{padding:8px 10px}
-  .stat-item .num{font-size:18px}
+  .todo-input-row input.ti-text{font-size:16px}
+  .editor-title-input{font-size:20px}
 }
 </style>
 </head>
@@ -317,9 +363,12 @@ header{
 
 <div class="toast" id="toast"></div>
 
-<header>
+<header id="mainHeader">
   <a class="back-arrow" href="/nav">&lt;</a>
-  <span>随身口袋</span>
+  <span id="headerTitle">记事本</span>
+  <span class="header-spacer"></span>
+  <button class="header-btn" id="btnNewNote" onclick="createNote()" style="display:none">新建</button>
+  <button class="header-btn" id="btnAddTask" onclick="scrollToTaskInput()" style="display:none">新增任务</button>
 </header>
 
 <div class="tab-bar">
@@ -329,46 +378,91 @@ header{
 
 <div class="main">
 
-  <!-- ========== 记事面板 (默认) ========== -->
-  <div class="panel active" id="panel-notes">
-    <div class="notes-layout">
-      <div class="note-list-panel">
-        <div class="note-list-header">
-          <input type="text" placeholder="搜索笔记..." oninput="searchNotes()" id="noteSearch">
-          <button class="new-note-btn" onclick="createNote()">新建笔记</button>
-        </div>
-        <div class="note-items" id="noteList"></div>
+  <!-- ========== 记事面板 ========== -->
+  <div class="panel active" id="panel-notes" style="display:flex;flex-direction:column">
+
+    <!-- 移动端: 笔记列表视图 -->
+    <div class="notes-list-view" id="notesListView">
+      <div class="notes-search-bar">
+        <input type="text" placeholder="搜索" oninput="onSearchInput()" id="noteSearch">
       </div>
-      <div class="note-editor-panel" id="editorPanel">
-        <div class="editor-placeholder">选择或新建一条笔记开始书写</div>
+      <div class="note-scroll" id="noteScroll"><div class="note-empty">暂无笔记，点击右上角新建</div></div>
+    </div>
+
+    <!-- 移动端: 笔记编辑视图 -->
+    <div class="notes-editor-view" id="notesEditorView">
+      <div class="editor-header">
+        <a class="back-arrow" href="javascript:closeEditor()" style="font-size:18px">&lt;</a>
+        <span class="eh-title" id="ehTitle">编辑笔记</span>
+        <button class="header-btn" onclick="togglePinInEditor()" id="btnPin" title="置顶">置顶</button>
+        <button class="header-btn" onclick="shareNote()">分享</button>
+        <button class="header-btn danger" onclick="deleteNoteInEditor()">删除</button>
+      </div>
+      <div class="editor-scroll">
+        <div class="editor-date" id="editorDate"></div>
+        <input class="editor-title-input" placeholder="标题" oninput="onEditorChange()" id="editorTitle">
+        <textarea class="editor-body-input" placeholder="开始书写..." oninput="onEditorChange()" id="editorBody"></textarea>
+        <div class="editor-tasks-section" id="editorTasksSection"></div>
       </div>
     </div>
+
+    <!-- 桌面端: 双栏布局 -->
+    <div class="desktop-dual" id="desktopDual">
+      <div class="desktop-sidebar">
+        <div class="notes-search-bar" style="display:flex;gap:6px;align-items:center">
+          <input type="text" placeholder="搜索" oninput="onSearchInput()" id="noteSearchD" style="flex:1;font-size:14px">
+          <button class="header-btn" onclick="createNote()" style="white-space:nowrap;flex-shrink:0;background:#4f46e5;color:#fff;border-radius:10px;padding:8px 14px">新建</button>
+        </div>
+        <div class="note-scroll" id="noteScrollD"><div class="note-empty">暂无笔记</div></div>
+      </div>
+      <div class="desktop-editor" id="desktopEditor">
+        <div class="desktop-placeholder" id="desktopPlaceholder">
+          选择或新建一条笔记开始书写
+          <span class="dp-hint">笔记将自动保存</span>
+        </div>
+        <div id="desktopEditorInner" style="display:none;flex-direction:column;overflow:hidden;flex:1">
+          <div class="editor-header" style="padding:6px 16px">
+            <span class="eh-title" id="deTitle" style="text-align:left">编辑笔记</span>
+            <span style="flex:1"></span>
+            <button class="header-btn" onclick="togglePinInEditor()">置顶</button>
+            <button class="header-btn" onclick="shareNote()">分享</button>
+            <button class="header-btn danger" onclick="deleteNoteInEditor()">删除</button>
+          </div>
+          <div class="editor-scroll">
+            <div class="editor-date" id="deDate"></div>
+            <input class="editor-title-input" id="deTitleInput" placeholder="标题" oninput="onEditorChange()">
+            <textarea class="editor-body-input" id="deBodyInput" placeholder="开始书写..." oninput="onEditorChange()" style="padding-bottom:80px;font-size:15px"></textarea>
+            <div class="editor-tasks-section" id="deTasksSection"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
   </div>
 
   <!-- ========== 待办面板 ========== -->
-  <div class="panel" id="panel-todo">
+  <div class="panel" id="panel-todo" style="display:none">
     <div class="todo-stats" id="todoStats"></div>
     <div class="todo-input-row">
-      <input type="text" id="todoInput" placeholder="添加新任务..." onkeydown="if(event.key==='Enter')addTask()">
-      <select class="priority-select" id="todoPriority">
-        <option value="1">低</option>
-        <option value="2" selected>中</option>
-        <option value="3">高</option>
+      <input type="text" class="ti-text" id="todoInput" placeholder="添加新任务..." onkeydown="if(event.key==='Enter')addTask()">
+      <select id="todoPriority">
+        <option value="1">低</option><option value="2" selected>中</option><option value="3">高</option>
       </select>
       <input type="date" id="todoDeadline">
+      <select id="todoLinkNote" style="min-width:90px"><option value="">不关联</option></select>
       <button class="add-btn" onclick="addTask()">添加</button>
     </div>
-    <div class="todo-filter-row">
-      <button class="active" onclick="setFilter('all')">全部</button>
-      <button onclick="setFilter('active')">待完成</button>
-      <button onclick="setFilter('done')">已完成</button>
-      <select class="sort-select" onchange="setSort(this.value)">
-        <option value="created">按创建时间</option>
+    <div class="todo-filters">
+      <button class="fbtn active" data-f="all" onclick="setFilter('all')">全部</button>
+      <button class="fbtn" data-f="active" onclick="setFilter('active')">待完成</button>
+      <button class="fbtn" data-f="done" onclick="setFilter('done')">已完成</button>
+      <select class="sort-sel" onchange="setSort(this.value)">
+        <option value="created">按创建</option>
         <option value="priority">按优先级</option>
-        <option value="deadline">按截止日期</option>
+        <option value="deadline">按截止</option>
       </select>
     </div>
-    <ul class="task-list" id="taskList"></ul>
+    <div class="task-list-pad"><ul class="task-list" id="taskList"></ul></div>
   </div>
 </div>
 
@@ -387,88 +481,150 @@ header{
 
 <script>
 // ====== 全局状态 ======
-var currentTab = 'notes';
-var todoFilter = 'all';
-var todoSort = 'created';
-var currentNoteId = null;
-var currentNoteData = null;
-var saveTimer = null;
-var noteSearchTimer = null;
+var currentTab='notes';
+var todoFilter='all',todoSort='created';
+var currentNoteId=null,currentNoteData=null;
+var saveTimer=null;var isEditing=false;
+var noteSearchTerm='';
 
-// ====== 工具函数 ======
 function $(id){return document.getElementById(id)}
 function escH(s){var d=document.createElement('div');d.textContent=s||'';return d.innerHTML}
-function fmtDate(d){
+
+function fmtDateRel(d){
   if(!d)return'';
-  var today=new Date();today.setHours(0,0,0,0);
-  var target=new Date(d);target.setHours(0,0,0,0);
+  var t=new Date(d);if(isNaN(t.getTime()))return d;
+  var now=new Date();
+  var today=new Date(now.getFullYear(),now.getMonth(),now.getDate());
+  var target=new Date(t.getFullYear(),t.getMonth(),t.getDate());
   var diff=Math.round((target-today)/86400000);
   if(diff===0)return'今天';
-  if(diff===1)return'明天';
   if(diff===-1)return'昨天';
-  if(diff>1&&diff<=7)return diff+'天后';
-  if(diff<-1&&diff>=-7)return Math.abs(diff)+'天前';
-  return d;
+  if(diff===1)return'明天';
+  if(diff>-7&&diff<0)return Math.abs(diff)+'天前';
+  if(diff>0&&diff<=7)return diff+'天后';
+  var m=t.getMonth()+1,dd=t.getDate();
+  return t.getFullYear()+'/'+m+'/'+dd;
 }
+
+function fmtDateFull(d){
+  if(!d)return'';var t=new Date(d);if(isNaN(t.getTime()))return d;
+  var y=t.getFullYear(),m=t.getMonth()+1,dd=t.getDate();
+  var hh=t.getHours(),mm=t.getMinutes();
+  return y+'年'+m+'月'+dd+'日 '+('0'+hh).slice(-2)+':'+('0'+mm).slice(-2);
+}
+
 function showToast(msg){
   var t=$('toast');t.textContent=msg;t.classList.add('show');
-  setTimeout(function(){t.classList.remove('show')},1800);
+  clearTimeout(t._tid);t._tid=setTimeout(function(){t.classList.remove('show')},1800);
 }
 
 // ====== 标签切换 ======
 function switchTab(tab){
   currentTab=tab;
-  document.querySelectorAll('.tab-btn').forEach(function(b,i){
-    b.classList.toggle('active',(i===0&&tab==='notes')||(i===1&&tab==='todo'));
-  });
-  document.querySelectorAll('.panel').forEach(function(p){
-    p.classList.toggle('active',p.id==='panel-'+tab);
-  });
-  if(tab==='notes')loadNotes();
+  var btns=document.querySelectorAll('.tab-bar .tab-btn');
+  btns[0].classList.toggle('active',tab==='notes');
+  btns[1].classList.toggle('active',tab==='todo');
+  if(tab==='notes'){
+    $('panel-notes').style.display='flex';
+    $('panel-notes').style.flexDirection='column';
+    $('panel-todo').style.display='none';
+  }else{
+    $('panel-notes').style.display='none';
+    $('panel-todo').style.display='block';
+  }
+  $('headerTitle').textContent=tab==='notes'?'记事本':'待办清单';
+  $('btnNewNote').style.display=tab==='notes'?'':'none';
+  $('btnAddTask').style.display=tab==='todo'?'':'none';
+  if(tab==='notes'){ensureViews();loadNotes();}
   else loadTasks();
 }
 
-// ====== 记事逻辑 ======
+function ensureViews(){
+  var isMobile=window.innerWidth<=768;
+  if(isMobile){
+    $('notesListView').style.display='';
+    $('notesEditorView').classList.remove('show');
+    $('desktopDual').style.display='none';
+  }else{
+    $('notesListView').style.display='none';
+    $('notesEditorView').classList.remove('show');
+    $('desktopDual').style.display='flex';
+  }
+}
+
+// ====== 笔记列表 ======
 function loadNotes(){
-  var search=$('noteSearch').value.trim();
+  var term=noteSearchTerm;
   var url='/api/pocket/notes';
-  if(search)url+='?search='+encodeURIComponent(search);
+  if(term)url+='?search='+encodeURIComponent(term);
   fetch(url).then(function(r){return r.json()}).then(function(res){
     if(!res.success)return;
     renderNoteList(res.data);
   });
 }
 
-function searchNotes(){
-  clearTimeout(noteSearchTimer);
-  noteSearchTimer=setTimeout(loadNotes,300);
+function onSearchInput(){
+  noteSearchTerm=($('noteSearch').value||$('noteSearchD').value||'').trim();
+  clearTimeout(onSearchInput._t);
+  onSearchInput._t=setTimeout(loadNotes,250);
 }
 
 function renderNoteList(notes){
-  var list=$('noteList');
+  var isMobile=window.innerWidth<=768;
+  var container=isMobile?$('noteScroll'):$('noteScrollD');
   if(notes.length===0){
-    list.innerHTML='<div style="padding:20px;text-align:center;color:#94a3b8;font-size:12px">暂无笔记</div>';
+    container.innerHTML='<div class="note-empty">暂无笔记</div>';
     return;
   }
   var html='';
   notes.forEach(function(n){
     var activeClass=(currentNoteId===n.id)?' active':'';
-    var pinLabel=n.pinned?'<span class="ni-pin">[顶]</span>':'';
-    html+='<div class="note-item'+activeClass+'" onclick="openNote('+n.id+')">'+
-      '<div class="ni-title">'+pinLabel+escH(n.title)+'</div>'+
-      '<div class="ni-preview">'+escH(n.preview||'空笔记')+'</div>'+
-      '<div class="ni-meta">'+n.updated_at+'</div>'+
+    var pinBadge=n.pinned?'<span class="ni-pin-badge">置顶</span>':'';
+    var preview=n.preview||'空笔记';
+    var dateStr=fmtDateRel(n.updated_at);
+    html+='<div class="note-item'+activeClass+'" onclick="openNote('+n.id+')" data-id="'+n.id+'">'+
+      '<div class="ni-left">'+
+        '<div class="ni-title">'+pinBadge+escH(n.title)+'</div>'+
+        '<div class="ni-date">'+dateStr+'</div>'+
+        '<div class="ni-preview">'+escH(preview)+'</div>'+
+      '</div>'+
+      '<div class="ni-actions" onclick="event.stopPropagation()">'+
+        (n.pinned?
+          '<button class="ni-act ni-act-pin" onclick="togglePinDirect('+n.id+')" title="取消置顶">顶</button>'
+          :'<button class="ni-act ni-act-pin" style="color:#cbd5e1;background:#f8fafc" onclick="togglePinDirect('+n.id+')" title="置顶">顶</button>'
+        )+
+        '<button class="ni-act ni-act-del" onclick="deleteNoteDirect('+n.id+')" title="删除">删</button>'+
+      '</div>'+
     '</div>';
   });
-  list.innerHTML=html;
+  container.innerHTML=html;
 }
 
+function togglePinDirect(id){
+  fetch('/api/pocket/notes/'+id+'/toggle-pin',{method:'POST'})
+    .then(function(r){return r.json()}).then(function(res){
+      if(res.success){loadNotes();if(currentNoteId===id)openNote(id);}
+    });
+}
+
+function deleteNoteDirect(id){
+  if(!confirm('确定删除这条笔记？关联任务不会被删除。'))return;
+  fetch('/api/pocket/notes/'+id,{method:'DELETE'})
+    .then(function(r){return r.json()}).then(function(res){
+      if(res.success){
+        if(currentNoteId===id)closeEditor();
+        loadNotes();
+      }
+    });
+}
+
+// ====== 创建/打开笔记 ======
 function createNote(){
   fetch('/api/pocket/notes',{
     method:'POST',headers:{'Content-Type':'application/json'},
     body:JSON.stringify({title:'无标题',content:''})
   }).then(function(r){return r.json()}).then(function(res){
-    if(res.success){openNote(res.data.id);loadNotes();}
+    if(res.success){openNote(res.data.id);}
   });
 }
 
@@ -478,115 +634,178 @@ function openNote(id){
     if(!res.success)return;
     currentNoteData=res.data;
     renderEditor(res.data);
+    showEditor();
     loadNotes();
   });
 }
 
-function renderEditor(data){
-  var panel=$('editorPanel');
-  var tasksHtml='';
-  if(data.tasks&&data.tasks.length>0){
-    tasksHtml='<div class="linked-tasks"><div class="lt-header">关联任务 '+
-      '<button onclick="extractTasks('+data.id+')">从内容提取任务</button></div>';
-    data.tasks.forEach(function(t){
-      var doneClass=t.done?' done':'';
-      tasksHtml+='<div class="lt-item'+doneClass+'">'+
-        '<div class="lt-check" onclick="toggleLinkedTask('+t.id+','+data.id+')"></div>'+
-        escH(t.title)+
-        '</div>';
-    });
-    tasksHtml+='</div>';
-  }else{
-    tasksHtml='<div class="linked-tasks"><div class="lt-header">关联任务 '+
-      '<button onclick="extractTasks('+data.id+')">从内容提取任务</button></div>'+
-      '<div style="font-size:11px;color:#cbd5e1;padding:4px 0">暂无关联任务</div></div>';
-  }
-
-  var pinBtn=data.pinned?'取消置顶':'置顶';
-  panel.innerHTML=
-    '<div class="editor-toolbar">'+
-      '<input class="edit-title" value="'+escH(data.title)+'" oninput="onTitleChange()" id="editTitle">'+
-      '<button onclick="togglePin('+data.id+')">'+pinBtn+'</button>'+
-      '<button onclick="shareNote('+data.id+')">分享</button>'+
-      '<button class="danger" onclick="deleteNote('+data.id+')">删除</button>'+
-    '</div>'+
-    '<div class="editor-body">'+
-      '<textarea placeholder="开始书写..." oninput="onContentChange()" id="editContent">'+escH(data.content)+'</textarea>'+
-    '</div>'+
-    tasksHtml+
-    '<div class="editor-meta">'+
-      '<span>创建: '+data.created_at+'</span>'+
-      '<span>更新: '+data.updated_at+'</span>'+
-      '<span style="margin-left:auto;color:#059669" id="saveStatus"></span>'+
-    '</div>';
+function closeEditor(){
+  currentNoteId=null;currentNoteData=null;
+  $('notesEditorView').classList.remove('show');
+  $('notesListView').style.display='';
+  $('btnNewNote').style.display=currentTab==='notes'?'':'none';
+  $('desktopPlaceholder').style.display='flex';
+  $('desktopEditorInner').style.display='none';
 }
 
-function onTitleChange(){clearTimeout(saveTimer);saveTimer=setTimeout(saveNote,800)}
-function onContentChange(){clearTimeout(saveTimer);saveTimer=setTimeout(saveNote,800)}
+function showEditor(){
+  $('btnNewNote').style.display='none';
+  var isMobile=window.innerWidth<=768;
+  if(isMobile){
+    $('notesListView').style.display='none';
+    $('notesEditorView').classList.add('show');
+  }else{
+    $('desktopPlaceholder').style.display='none';
+    $('desktopEditorInner').style.display='flex';
+  }
+}
+
+function renderEditor(data){
+  isEditing=true;
+  var isMobile=window.innerWidth<=768;
+  var titleEl=isMobile?$('editorTitle'):$('deTitleInput');
+  var bodyEl=isMobile?$('editorBody'):$('deBodyInput');
+  var dateEl=isMobile?$('editorDate'):$('deDate');
+  var tasksEl=isMobile?$('editorTasksSection'):$('deTasksSection');
+  var titleHdr=isMobile?$('ehTitle'):$('deTitle');
+
+  titleHdr.textContent=data.title||'无标题';
+  titleEl.value=data.title||'';
+  bodyEl.value=data.content||'';
+  dateEl.textContent=fmtDateFull(data.created_at);
+
+  var pinBtn=$('btnPin');
+  if(pinBtn)pinBtn.textContent=data.pinned?'取消置顶':'置顶';
+
+  // 渲染关联任务
+  var tasksHtml='';
+  if(data.tasks&&data.tasks.length>0){
+    tasksHtml='<div class="ets-header">关联任务 ('+data.tasks.length+') '+
+      '<button class="ets-btn" onclick="extractTasks()">从内容提取</button></div>';
+    data.tasks.forEach(function(t){
+      var doneClass=t.done?' done':'';
+      tasksHtml+='<div class="ets-item'+doneClass+'">'+
+        '<div class="ets-check" onclick="toggleLinkedTask('+t.id+')"></div>'+
+        '<span class="ets-item-text">'+escH(t.title)+'</span>'+
+        '</div>';
+    });
+  }else{
+    tasksHtml='<div class="ets-header">关联任务 '+
+      '<button class="ets-btn" onclick="extractTasks()">从内容提取</button></div>'+
+      '<div style="font-size:12px;color:#cbd5e1;padding:4px 0">暂无关联任务</div>';
+  }
+  // 快速添加关联任务
+  tasksHtml+='<div class="ets-add-row">'+
+    '<input type="text" placeholder="输入任务文字..." id="quickTaskInput">'+
+    '<button onclick="quickAddLinkedTask('+data.id+')">添加</button></div>';
+
+  tasksEl.innerHTML=tasksHtml;
+  isEditing=false;
+}
+
+function onEditorChange(){
+  if(isEditing)return;
+  clearTimeout(saveTimer);
+  // 更新标题栏
+  var isMobile=window.innerWidth<=768;
+  var titleEl=isMobile?$('editorTitle'):$('deTitleInput');
+  var titleHdr=isMobile?$('ehTitle'):$('deTitle');
+  var newTitle=titleEl.value.trim()||'无标题';
+  titleHdr.textContent=newTitle;
+  saveTimer=setTimeout(saveNote,600);
+}
 
 function saveNote(){
   if(!currentNoteId)return;
-  var title=$('editTitle').value.trim()||'无标题';
-  var content=$('editContent').value;
-  $('saveStatus').textContent='保存中...';
+  var isMobile=window.innerWidth<=768;
+  var titleEl=isMobile?$('editorTitle'):$('deTitleInput');
+  var bodyEl=isMobile?$('editorBody'):$('deBodyInput');
+  var title=titleEl.value.trim()||'无标题';
+  var content=bodyEl.value;
   fetch('/api/pocket/notes/'+currentNoteId,{
     method:'PUT',headers:{'Content-Type':'application/json'},
     body:JSON.stringify({title:title,content:content})
   }).then(function(r){return r.json()}).then(function(res){
     if(res.success){
-      $('saveStatus').textContent='已保存';
       currentNoteData=res.data;
       loadNotes();
-      setTimeout(function(){var s=$('saveStatus');if(s)s.textContent=''},1500);
     }
   });
 }
 
-function togglePin(id){
-  fetch('/api/pocket/notes/'+id+'/toggle-pin',{method:'POST'})
+// ====== 编辑器操作 ======
+function togglePinInEditor(){
+  if(!currentNoteId)return;
+  fetch('/api/pocket/notes/'+currentNoteId+'/toggle-pin',{method:'POST'})
     .then(function(r){return r.json()}).then(function(res){
-      if(res.success){openNote(id);loadNotes();}
+      if(res.success){openNote(currentNoteId);loadNotes();}
     });
 }
 
-function deleteNote(id){
+function deleteNoteInEditor(){
+  if(!currentNoteId)return;
   if(!confirm('确定删除这条笔记？关联任务不会被删除。'))return;
-  fetch('/api/pocket/notes/'+id,{method:'DELETE'})
+  fetch('/api/pocket/notes/'+currentNoteId,{method:'DELETE'})
     .then(function(r){return r.json()}).then(function(res){
-      if(res.success){
-        currentNoteId=null;
-        $('editorPanel').innerHTML='<div class="editor-placeholder">选择或新建一条笔记开始书写</div>';
-        loadNotes();
-      }
+      if(res.success){closeEditor();loadNotes();}
     });
 }
 
-function extractTasks(nid){
+function extractTasks(){
+  if(!currentNoteId)return;
   if(!confirm('将从笔记内容中提取以 "- [ ]" 或 "- [x]" 开头的行作为任务，是否继续？'))return;
-  fetch('/api/pocket/notes/'+nid+'/extract-tasks',{method:'POST'})
+  fetch('/api/pocket/notes/'+currentNoteId+'/extract-tasks',{method:'POST'})
     .then(function(r){return r.json()}).then(function(res){
-      if(res.success){
-        showToast('已提取 '+res.data.count+' 条任务');
-        openNote(nid);
-        loadNotes();
-      }
+      if(res.success){showToast('已提取 '+res.data.count+' 条任务');openNote(currentNoteId);}
     });
 }
 
-function toggleLinkedTask(tid,nid){
+function toggleLinkedTask(tid){
   fetch('/api/pocket/tasks/'+tid+'/toggle',{method:'POST'})
     .then(function(r){return r.json()}).then(function(res){
-      if(res.success)openNote(nid);
+      if(res.success)openNote(currentNoteId);
     });
+}
+
+function quickAddLinkedTask(nid){
+  var inp=$('quickTaskInput');
+  var title=inp.value.trim();
+  if(!title){inp.focus();return}
+  fetch('/api/pocket/tasks',{
+    method:'POST',headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({title:title,priority:1,note_id:nid})
+  }).then(function(r){return r.json()}).then(function(res){
+    if(res.success){inp.value='';openNote(nid);showToast('任务已添加');}
+  });
 }
 
 // ====== 待办逻辑 ======
+function scrollToTaskInput(){
+  switchTab('todo');
+  setTimeout(function(){$('todoInput').focus()},200);
+}
+
 function loadTasks(){
   var url='/api/pocket/tasks?filter='+todoFilter+'&sort='+todoSort;
   fetch(url).then(function(r){return r.json()}).then(function(res){
     if(!res.success)return;
     renderStats(res.stats);
     renderTasks(res.data);
+  });
+  // 加载笔记列表供关联选择
+  updateLinkNoteSelect();
+}
+
+function updateLinkNoteSelect(){
+  var sel=$('todoLinkNote');
+  fetch('/api/pocket/notes').then(function(r){return r.json()}).then(function(res){
+    if(!res.success)return;
+    var currentVal=sel.value;
+    sel.innerHTML='<option value="">不关联</option>';
+    res.data.forEach(function(n){
+      sel.innerHTML+='<option value="'+n.id+'">'+escH(n.title)+'</option>';
+    });
+    if(currentVal)sel.value=currentVal;
   });
 }
 
@@ -612,12 +831,12 @@ function renderTasks(tasks){
     meta+='<span class="pri '+priCls[t.priority]+'">'+priMap[t.priority]+'优先</span>';
     if(t.deadline){
       var now=new Date();now.setHours(0,0,0,0);
-      var dl=new Date(t.deadline);
+      var dl=new Date(t.deadline);dl.setHours(0,0,0,0);
       var isOver=!t.done&&dl<now;
-      meta+='<span class="'+(isOver?'dl-overdue':'')+'">截止: '+fmtDate(t.deadline)+'</span>';
+      meta+='<span class="'+(isOver?'dl-over':'')+'">截止: '+fmtDateRel(t.deadline)+'</span>';
     }
     if(t.note_id){
-      meta+='<span class="note-link" onclick="event.stopPropagation();openNote('+t.note_id+')">关联笔记</span>';
+      meta+='<span class="note-link" onclick="event.stopPropagation();switchTab(\'notes\');setTimeout(function(){openNote('+t.note_id+')},100)">关联笔记</span>';
     }
     html+='<li class="task-item'+doneClass+'">'+
       '<div class="task-check" onclick="toggleTask('+t.id+')"></div>'+
@@ -634,16 +853,18 @@ function renderTasks(tasks){
 }
 
 function addTask(){
-  var inp=$('todoInput');
-  var title=inp.value.trim();
+  var inp=$('todoInput');var title=inp.value.trim();
   if(!title){inp.focus();return}
   var priority=parseInt($('todoPriority').value);
   var deadline=$('todoDeadline').value||null;
+  var noteId=$('todoLinkNote').value||null;
+  var body={title:title,priority:priority,deadline:deadline};
+  if(noteId)body.note_id=parseInt(noteId);
   fetch('/api/pocket/tasks',{
     method:'POST',headers:{'Content-Type':'application/json'},
-    body:JSON.stringify({title:title,priority:priority,deadline:deadline})
+    body:JSON.stringify(body)
   }).then(function(r){return r.json()}).then(function(res){
-    if(res.success){inp.value='';$('todoDeadline').value='';inp.focus();loadTasks();}
+    if(res.success){inp.value='';$('todoDeadline').value='';$('todoLinkNote').value='';inp.focus();loadTasks();}
     else showToast(res.error||'添加失败');
   });
 }
@@ -664,6 +885,7 @@ function deleteTask(id){
 }
 
 function editTask(id,title,priority,deadline,noteId){
+  // 使用弹窗式编辑代替 prompt（更符合移动端体验）
   var newTitle=prompt('编辑任务',title);
   if(!newTitle||!newTitle.trim())return;
   var newPri=prompt('优先级 (1=低, 2=中, 3=高)',priority);
@@ -682,16 +904,18 @@ function editTask(id,title,priority,deadline,noteId){
 
 function setFilter(f){
   todoFilter=f;
-  var btns=document.querySelectorAll('.todo-filter-row button');
-  var labels=['全部','待完成','已完成'];
-  btns.forEach(function(b,i){if(i<3)b.classList.toggle('active',labels[i]===f)});
+  var fbtns=document.querySelectorAll('.todo-filters .fbtn');
+  fbtns.forEach(function(b){
+    b.classList.toggle('active',b.getAttribute('data-f')===f);
+  });
   loadTasks();
 }
 function setSort(s){todoSort=s;loadTasks()}
 
-// ====== 分享逻辑 ======
-function shareNote(nid){
-  var url=window.location.origin+'/api/pocket/share?note_id='+nid;
+// ====== 分享 ======
+function shareNote(){
+  if(!currentNoteId)return;
+  var url=window.location.origin+'/api/pocket/share?note_id='+currentNoteId;
   $('shareUrl').textContent=url;
   $('sharePanel').classList.add('show');
 }
@@ -713,7 +937,7 @@ function copyShare(){
   }
 }
 
-// ====== 快捷键 ======
+// ====== 快捷键/自动保存 ======
 document.addEventListener('keydown',function(e){
   if((e.ctrlKey||e.metaKey)&&e.key==='s'){
     e.preventDefault();
@@ -721,14 +945,17 @@ document.addEventListener('keydown',function(e){
     showToast('已手动保存');
   }
 });
-
-// 页面关闭前自动保存
 window.addEventListener('beforeunload',function(){
   if(currentTab==='notes'&&currentNoteId)saveNote();
 });
+window.addEventListener('resize',function(){
+  ensureViews();loadNotes();
+});
 
-// ====== 初始化（默认加载记事面板） ======
+// ====== 初始化 ======
+ensureViews();
 loadNotes();
+updateLinkNoteSelect();
 </script>
 </body>
 </html>
