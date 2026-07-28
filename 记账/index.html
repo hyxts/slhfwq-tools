@@ -95,15 +95,6 @@ button { padding:10px 20px; border:none; border-radius:10px; font-size:14px; fon
 .ev-badge.ongoing { background:#fef9c3; color:#ca8a04; }
 .category-header { display:flex; align-items:center; padding:6px 0 4px 0; font-size:12px; font-weight:600; color:var(--text-primary); border-bottom:1px solid var(--border); margin-top:8px; }
 .category-header:first-child { margin-top:0; }
-/* 月度趋势 */
-.month-row { display:flex; align-items:flex-end; gap:2px; height:120px; padding:4px 0; }
-.month-col { flex:1; display:flex; flex-direction:column; align-items:center; gap:2px; }
-.month-total { font-size:10px; color:var(--text-secondary); margin-top:4px; text-align:center; writing-mode:vertical-lr; }
-.month-bar { width:100%; max-width:24px; border-radius:3px 3px 0 0; transition:height .3s; min-height:2px; }
-.month-bar.pay { background:var(--pay); }
-.month-bar.recv { background:var(--recv); }
-.month-bar.receivable { background:var(--receivable); }
-.month-label { font-size:10px; color:var(--text-secondary); margin-top:4px; text-align:center; text-overflow:ellipsis; overflow:hidden; width:100%; }
 /* 结清率 */
 .settle-summary { display:flex; gap:10px; align-items:center; padding:10px 14px; background:var(--card-bg); border-radius:10px; margin-bottom:10px; box-shadow:0 1px 3px rgba(0,0,0,.04); }
 .settle-summary .ss-item { text-align:center; }
@@ -593,29 +584,7 @@ function renderStats(data){
         html+='</div>';
     }
 
-    // 5. 月度趋势图
-    if(data.by_month&&data.by_month.length){
-        const allVals=data.by_month.flatMap(m=>[m.pay,m.recv,m.receivable]);
-        const mMax=Math.max(...allVals,1);
-        html+='<div class="stats-section"><h3>月度趋势</h3>';
-        html+='<div class="month-row">';
-        data.by_month.forEach(m=>{
-            const month=m.month||'';
-            const label=month.length===7?month.substring(5):month;
-            const pct_pay=(m.pay||0)/mMax*100;
-            const pct_recv=(m.recv||0)/mMax*100;
-            const pct_recvbl=(m.receivable||0)/mMax*100;
-            html+=`<div class="month-col">
-                <div class="month-bar receivable" style="height:${pct_recvbl}%"></div>
-                <div class="month-bar recv" style="height:${pct_recv}%"></div>
-                <div class="month-bar pay" style="height:${pct_pay}%"></div>
-                <div class="month-label">${label}</div>
-            </div>`;
-        });
-        html+='</div></div>';
-    }
-
-    // 6. 各对象明细
+    // 5. 各对象明细
     if(data.by_account&&data.by_account.length){
         html+='<div class="stats-section"><h3>各对象明细</h3>';
         const maxAmt=Math.max(...data.by_account.map(a=>Math.max(a.pay||0,a.recv||0,a.receivable||0,1)));
