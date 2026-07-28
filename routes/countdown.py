@@ -253,8 +253,12 @@ def list_events():
         events = []
         for r in rows:
             e = dict(r)
+            # SQLite 返回的可能为字符串，统一转为整数确保类型安全
             cal_type = e['cal_type']
-            is_leap = e.get('is_leap', 0)
+            e['year'] = int(e['year'] or 0)
+            e['month'] = int(e['month'] or 0)
+            e['day'] = int(e['day'] or 0)
+            is_leap = int(e.get('is_leap', 0) or 0)
             repeat_annual = e['year'] == 0
 
             # 获取原始日期（每年重复事件无特定年份）
@@ -298,7 +302,7 @@ def list_events():
             # 对于每年重复事件：如果有 birth_year，基于 birth_year 计算当前年龄
             # 对于非重复事件：基于原始日期计算经过的岁数
             exact_age, int_age = None, None
-            birth_year = e.get('birth_year', 0) or 0
+            birth_year = int(e.get('birth_year', 0) or 0)
             if repeat_annual and birth_year > 0:
                 # 生日类事件：年龄 = 今年 - 出生年（如果今年生日已过则用今年，否则-1表示还没到）
                 int_age = today.year - birth_year
