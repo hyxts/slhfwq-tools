@@ -304,13 +304,20 @@ def list_events():
             exact_age, int_age = None, None
             birth_year = int(e.get('birth_year', 0) or 0)
             if repeat_annual and birth_year > 0:
-                # 生日类事件：年龄 = 今年 - 出生年（如果今年生日已过则用今年，否则-1表示还没到）
+                # 生日类事件：年龄 = 今年 - 出生年（如果今年生日未过则减1）
                 int_age = today.year - birth_year
-                # 检查今年生日是否已过
-                birthday_this_year = target_date  # 已经是今年的生日日期
-                if birthday_this_year and birthday_this_year > today:
-                    int_age -= 1  # 还没过今年的生日
-                exact_age = float(int_age)  # 近似岁数
+                # 独立计算今年生日日期（不能用target_date，因为它是下一个未来日期，可能是明年的）
+                this_year_birthday = None
+                if cal_type == 'lunar' and HAS_LUNAR:
+                    this_year_birthday = lunar_to_solar(today.year, e['month'], e['day'], bool(is_leap))
+                else:
+                    try:
+                        this_year_birthday = date(today.year, e['month'], e['day'])
+                    except ValueError:
+                        pass  # 如2月29日非闰年，忽略
+                if this_year_birthday and this_year_birthday > today:
+                    int_age -= 1  # 今年生日还没过
+                exact_age = float(int_age)
             elif not repeat_annual and solar_date and solar_date <= today:
                 exact_age, int_age = calc_age(solar_date, cal_type)
 
