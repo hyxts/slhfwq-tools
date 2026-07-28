@@ -138,9 +138,11 @@ button { padding:10px 20px; border:none; border-radius:8px; font-size:14px; font
 </style>
 </head>
 <body>
-<header style="position:relative">
-    <a href="/nav" title="返回导航" style="position:absolute;left:6px;color:#64748b;text-decoration:none;font-size:20px;font-weight:400;line-height:1;display:inline-flex;align-items:center;justify-content:center;z-index:10;min-width:44px;min-height:44px;background:var(--card-bg);border-radius:8px" onclick="if(document.referrer.includes('/nav')){history.back();return false}">←</a>
-    <h1>债务往来追踪</h1>
+<header>
+    <div style="display:flex;align-items:center;gap:8px;">
+        <a href="/nav" title="返回导航" style="color:#64748b;text-decoration:none;font-size:20px;font-weight:400;line-height:1;display:inline-flex;align-items:center;justify-content:center;min-width:44px;min-height:44px;border-radius:8px" onclick="if(document.referrer.includes('/nav')){history.back();return false}">←</a>
+        <h1>债务往来追踪</h1>
+    </div>
     <nav class="desktop-nav">
         <button class="nav-btn active" data-tab="records">记录</button>
         <button class="nav-btn" data-tab="accounts">对象</button>
