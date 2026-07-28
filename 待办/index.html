@@ -24,16 +24,12 @@ body{
 header{
   background:#fff;border-bottom:1px solid #e2e8f0;
   padding:12px 16px;padding-top:calc(12px + env(safe-area-inset-top));
+  padding-left:calc(16px + env(safe-area-inset-left));
+  padding-right:calc(16px + env(safe-area-inset-right));
   font-size:17px;font-weight:600;
   display:flex;align-items:center;gap:8px;flex-shrink:0;z-index:100;
 }
 .header-spacer{flex:1}
-.back-arrow{
-  color:#64748b;font-size:20px;font-weight:400;
-  min-width:44px;min-height:44px;border-radius:8px;
-  display:flex;align-items:center;justify-content:center;text-decoration:none;
-}
-.back-arrow:active{background:#f1f5f9}
 .header-btn{
   background:none;border:none;color:#4f46e5;font-size:14px;font-weight:600;
   min-height:36px;padding:6px 12px;border-radius:10px;
@@ -364,7 +360,7 @@ header{
 <div class="toast" id="toast"></div>
 
 <header id="mainHeader">
-  <a class="back-arrow" href="/nav">&lt;</a>
+  <a class="back-arrow" href="/nav" title="返回导航" style="color:#64748b;text-decoration:none;font-size:20px;font-weight:400;line-height:1;display:inline-flex;align-items:center;justify-content:center;min-width:44px;min-height:44px;border-radius:8px" onclick="if(document.referrer.includes('/nav')){history.back();return false}">←</a>
   <span id="headerTitle">记事本</span>
   <span class="header-spacer"></span>
   <button class="header-btn" id="btnNewNote" onclick="createNote()" style="display:none">新建</button>
@@ -392,7 +388,7 @@ header{
     <!-- 移动端: 笔记编辑视图 -->
     <div class="notes-editor-view" id="notesEditorView">
       <div class="editor-header">
-        <a class="back-arrow" href="javascript:closeEditor()" style="font-size:18px">&lt;</a>
+        <a href="javascript:closeEditor()" title="返回" style="color:#64748b;text-decoration:none;font-size:20px;font-weight:400;line-height:1;display:inline-flex;align-items:center;justify-content:center;min-width:44px;min-height:44px;border-radius:8px">←</a>
         <span class="eh-title" id="ehTitle">编辑笔记</span>
         <button class="header-btn" onclick="togglePinInEditor()" id="btnPin" title="置顶">置顶</button>
         <button class="header-btn" onclick="shareNote()">分享</button>
