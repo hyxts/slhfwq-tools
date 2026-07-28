@@ -181,9 +181,7 @@ body::before{
 .card.c6 .card-name{color:#4f46e5}
 .card.c6:active{border-color:rgba(99,102,241,0.3);box-shadow:0 0 24px rgba(99,102,241,0.1)}
 
-.card.c7::before{background:linear-gradient(90deg,#f97316,#ea580c)}
-.card.c7 .card-name{color:#ea580c}
-.card.c7:active{border-color:rgba(249,115,22,0.3);box-shadow:0 0 24px rgba(249,115,22,0.1)}
+
 /* 底部 */
 .footer{
   text-align:center;padding:24px 0 8px;
@@ -194,7 +192,6 @@ body::before{
 @media(min-width:440px){
   .cards{grid-template-columns:1fr 1fr 1fr}
   .cards.len7 .card:nth-child(7){grid-column:1/-1}
-  .cards.len8 .card:nth-child(8){grid-column:1/-1}
   .cards.len6 .card:nth-child(6){grid-column:auto}
 }
 
@@ -292,16 +289,10 @@ body::before{
       <div class="card-desc">收支记录 · 借贷管理 · 分类统计</div>
       <div class="card-arrow">&rsaquo;</div>
     </a>
-    <a class="card c2" href="/todo">
-      <div class="card-label">待办</div>
-      <div class="card-name">待办清单</div>
-      <div class="card-desc">任务管理 · 优先级排序 · 完成追踪</div>
-      <div class="card-arrow">&rsaquo;</div>
-    </a>
-    <a class="card c7" href="/notepad">
-      <div class="card-label">记事</div>
-      <div class="card-name">记事本</div>
-      <div class="card-desc">自由书写 · 自动保存 · 置顶管理</div>
+    <a class="card c2" href="/pocket">
+      <div class="card-label">口袋</div>
+      <div class="card-name">随身口袋</div>
+      <div class="card-desc">待办清单 · 记事本 · 联动管理 · 微信分享</div>
       <div class="card-arrow">&rsaquo;</div>
     </a>
     <a class="card c6" href="/deploy">
@@ -320,8 +311,7 @@ body::before{
 (function(){
   var cards=document.querySelectorAll('.card');
   var grid=document.querySelector('.cards');
-  if(cards.length===8) grid.classList.add('len8');
-  else if(cards.length===7) grid.classList.add('len7');
+  if(cards.length===7) grid.classList.add('len7');
   else if(cards.length===6) grid.classList.add('len6');
   cards.forEach(function(c,i){
     c.style.opacity='0';
