@@ -120,15 +120,6 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Micr
 .db-card-name{font-size:12px;color:#6366f1;font-weight:600;margin-bottom:6px}
 .db-card-rows{font-size:20px;font-weight:800;color:#1e293b}
 .db-card-size{font-size:11px;color:#64748b;margin-top:3px}
-
-/* 程序网格 */
-.app-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-top:10px}
-.app-item{padding:20px 16px;background:#ffffff;border-radius:14px;text-align:center;cursor:pointer;transition:all .2s;border:2px solid transparent}
-.app-item:hover{background:rgba(99,102,241,.06);border-color:#818cf8;transform:translateY(-2px);box-shadow:0 6px 16px rgba(99,102,241,.1)}
-.app-icon{width:52px;height:52px;border-radius:14px;display:flex;align-items:center;justify-content:center;margin:0 auto 10px}
-.app-name{font-size:15px;font-weight:700;color:#1e293b;margin-bottom:4px}
-.app-desc{font-size:12px;color:#64748b}
-
 /* 双栏布局 */
 .twocol{display:grid;grid-template-columns:1fr 1fr;gap:14px}
 .twocol-13{display:grid;grid-template-columns:1fr 2fr;gap:14px}
@@ -212,12 +203,6 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Micr
   .metric-card{padding:14px 10px}
   .metric-value{font-size:17px}
   .db-cards{grid-template-columns:repeat(2,1fr)}
-  .app-grid{grid-template-columns:repeat(2,1fr);gap:10px}
-  .app-item{padding:16px 12px}
-  .app-icon{width:44px;height:44px;border-radius:12px;margin-bottom:8px}
-  .app-icon svg{width:24px;height:24px}
-  .app-name{font-size:14px}
-  .app-desc{font-size:11px}
   .pa-st-grid{grid-template-columns:1fr 1fr;gap:8px}
   .pa-st-value{font-size:20px}
   .pa-status-card{padding:18px}
@@ -242,10 +227,6 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Micr
   .ctn{padding:24px 32px}
   .card{padding:24px 28px;margin-bottom:20px}
   .card h3{font-size:17px;margin-bottom:16px}
-  .app-grid{grid-template-columns:repeat(3,1fr);gap:16px}
-  .app-item{padding:22px 18px}
-  .app-icon{width:56px;height:56px}
-  .app-icon svg{width:30px;height:30px}
 }
 </style>
 </head>
@@ -300,19 +281,6 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Micr
           <button class="btn bp" onclick="quickPull()">代码更新</button>
           <button class="btn bs" onclick="go('backup');setTimeout(function(){document.getElementById('btnBackup').click()},300)">创建备份</button>
           <button class="btn bo" onclick="doCleanup()">执行清理</button>
-        </div>
-      </div>
-
-      <!-- 平台程序 -->
-      <div class="card">
-        <h3>平台程序</h3>
-        <div class="app-grid">
-          <div class="app-item" onclick="location.href='/'"><div class="app-icon" style="background:linear-gradient(135deg,#667eea,#764ba2)"><svg width="28" height="28" viewBox="0 0 64 64"><rect width="64" height="64" rx="14" fill="rgba(255,255,255,.1)"/><rect x="16" y="26" width="32" height="24" rx="3" fill="#fff"/><rect x="28" y="26" width="8" height="24" fill="#667eea"/><circle cx="32" cy="22" r="5" fill="#fff"/></svg></div><div class="app-name">礼金记录</div><div class="app-desc">人情往来管理与分析</div></div>
-          <div class="app-item" onclick="location.href='/gpa'"><div class="app-icon" style="background:linear-gradient(135deg,#fc4a1a,#f7b733)"><svg width="28" height="28" viewBox="0 0 64 64"><rect width="64" height="64" rx="14" fill="rgba(255,255,255,.1)"/><rect x="14" y="12" width="36" height="6" rx="2" fill="#fff"/><rect x="14" y="22" width="36" height="6" rx="2" fill="rgba(255,255,255,.7)"/><rect x="14" y="32" width="36" height="6" rx="2" fill="rgba(255,255,255,.5)"/><rect x="14" y="42" width="36" height="6" rx="2" fill="rgba(255,255,255,.3)"/><circle cx="32" cy="24" r="8" fill="#fff" opacity=".6"/></svg></div><div class="app-name">GPA计算</div><div class="app-desc">学分绩点计算工具</div></div>
-          <div class="app-item" onclick="location.href='/hsgrades'"><div class="app-icon" style="background:linear-gradient(135deg,#4facfe,#00f2fe)"><svg width="28" height="28" viewBox="0 0 64 64"><rect width="64" height="64" rx="14" fill="rgba(255,255,255,.1)"/><rect x="18" y="10" width="28" height="36" rx="3" fill="#fff"/><line x1="22" y1="18" x2="42" y2="18" stroke="#4facfe" stroke-width="2"/><line x1="22" y1="24" x2="42" y2="24" stroke="#4facfe" stroke-width="2"/><line x1="22" y1="30" x2="36" y2="30" stroke="#4facfe" stroke-width="2"/><line x1="22" y1="36" x2="39" y2="36" stroke="#4facfe" stroke-width="2"/></svg></div><div class="app-name">成绩查询</div><div class="app-desc">高中成绩录入查询</div></div>
-          <div class="app-item" onclick="location.href='/countdown'"><div class="app-icon" style="background:linear-gradient(135deg,#fa709a,#fee140)"><svg width="28" height="28" viewBox="0 0 64 64"><rect width="64" height="64" rx="14" fill="rgba(255,255,255,.1)"/><circle cx="32" cy="32" r="18" fill="none" stroke="#fff" stroke-width="4"/><line x1="32" y1="32" x2="32" y2="20" stroke="#fff" stroke-width="3" stroke-linecap="round"/><line x1="32" y1="32" x2="40" y2="38" stroke="#fff" stroke-width="3" stroke-linecap="round"/></svg></div><div class="app-name">倒计时</div><div class="app-desc">重要日期倒计时提醒</div></div>
-          <div class="app-item" onclick="location.href='/deploy'"><div class="app-icon" style="background:linear-gradient(135deg,#8e9eab,#eef2f3)"><svg width="28" height="28" viewBox="0 0 64 64"><rect width="64" height="64" rx="14" fill="rgba(255,255,255,.1)"/><rect x="14" y="22" width="16" height="24" rx="3" fill="#fff"/><rect x="34" y="22" width="16" height="24" rx="3" fill="#fff"/><rect x="20" y="32" width="4" height="4" rx="1" fill="#8e9eab"/><rect x="40" y="32" width="4" height="4" rx="1" fill="#8e9eab"/></svg></div><div class="app-name">运维管理</div><div class="app-desc">部署/备份/PA续期</div></div>
-          <div class="app-item" onclick="location.href='/accounting'"><div class="app-icon" style="background:linear-gradient(135deg,#6d28d9,#a78bfa)"><svg width="28" height="28" viewBox="0 0 64 64"><rect width="64" height="64" rx="14" fill="rgba(255,255,255,.1)"/><rect x="10" y="14" width="44" height="36" rx="6" fill="#fff"/><line x1="30" y1="22" x2="30" y2="42" stroke="#6d28d9" stroke-width="3" stroke-linecap="round"/><line x1="22" y1="32" x2="38" y2="32" stroke="#6d28d9" stroke-width="3" stroke-linecap="round"/></svg></div><div class="app-name">个人记账</div><div class="app-desc">收支与借贷管理</div></div>
         </div>
       </div>
 
