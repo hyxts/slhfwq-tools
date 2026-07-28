@@ -51,6 +51,7 @@ AUTH_HASH = _load_auth()
 _AUTH_LOCK = threading.Lock()
 
 SETUP_PAGE = '''<html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>设置密码</title>
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><defs><linearGradient id='g' x1='0' y1='0' x2='0' y2='1'><stop offset='0%25' stop-color='%236366f1'/><stop offset='100%25' stop-color='%234f46e5'/></linearGradient></defs><rect width='32' height='32' rx='7' fill='url(%23g)'/><text x='16' y='23' text-anchor='middle' font-size='16' font-weight='bold' fill='white' font-family='sans-serif'>PA</text></svg>">
 <style>body{display:flex;justify-content:center;align-items:center;height:100vh;margin:0;background:#f5f7fa;font-family:system-ui}
 .box{background:#fff;padding:32px;border-radius:16px;box-shadow:0 4px 20px rgba(0,0,0,.08);width:320px;text-align:center}
 input{width:100%;padding:12px;border:1px solid #d1d5db;border-radius:10px;font-size:15px;margin:8px 0;box-sizing:border-box}
@@ -80,6 +81,7 @@ def setup():
     return SETUP_PAGE
 
 LOGIN_HTML = '''<html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>登录</title>
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><defs><linearGradient id='g' x1='0' y1='0' x2='0' y2='1'><stop offset='0%25' stop-color='%236366f1'/><stop offset='100%25' stop-color='%234f46e5'/></linearGradient></defs><rect width='32' height='32' rx='7' fill='url(%23g)'/><text x='16' y='23' text-anchor='middle' font-size='16' font-weight='bold' fill='white' font-family='sans-serif'>PA</text></svg>">
 <style>body{display:flex;justify-content:center;align-items:center;height:100vh;margin:0;background:#f5f7fa;font-family:system-ui}
 .box{background:#fff;padding:32px;border-radius:16px;box-shadow:0 4px 20px rgba(0,0,0,.08);width:320px;text-align:center}
 input{width:100%;padding:12px;border:1px solid #d1d5db;border-radius:10px;font-size:15px;margin:12px 0;box-sizing:border-box}
