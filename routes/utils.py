@@ -16,7 +16,7 @@ def safe_json_load(val, default=None):
 FOLDER_MAP = {
     'countdown': '倒计时', 'gpa': '绩点', 'hsgrades': '成绩',
     'pa': '服务器', 'renqing': '人情', 'deploy': '部署',
-    'accounting': '记账', 'pocket': '待办',
+    'accounting': '记账',
 }
 
 
@@ -200,7 +200,7 @@ class JsonStore:
 
 # ==================== 统一模块目录常量 ====================
 # 所有已知模块的中文目录名（用于存储分布、遗留目录检测等）
-KNOWN_MODULE_DIRS = {'人情', '绩点', '成绩', '倒计时', '服务器', '记账', '部署', '导航', '待办'}
+KNOWN_MODULE_DIRS = {'人情', '绩点', '成绩', '倒计时', '服务器', '记账', '部署', '导航'}
 # 项目内部目录（不对外展示为模块，但也不能被清理）
 INTERNAL_DIRS = {'routes', 'backups'}
 # 系统保留目录（扫描时跳过）

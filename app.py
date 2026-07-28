@@ -188,7 +188,7 @@ def check_auth():
     if _rate_limits[rate_key] > limit:
         return jsonify({'success': False, 'error': '请求过于频繁'}), 429
     # 免登录路径
-    PUBLIC_PREFIXES = ('/static', '/countdown', '/accounting', '/renqing/manifest', '/renqing/icon', '/deploy/manifest', '/deploy/icon', '/nav/manifest', '/nav/icon', '/api/accounting', '/api/countdown', '/api/pa/', '/api/pocket', '/api/status')
+    PUBLIC_PREFIXES = ('/static', '/countdown', '/accounting', '/renqing/manifest', '/renqing/icon', '/deploy/manifest', '/deploy/icon', '/nav/manifest', '/nav/icon', '/api/accounting', '/api/countdown', '/api/pa/', '/api/status')
     if request.path in ('/login', '/setup', '/api/ping') or any(request.path.startswith(p) for p in PUBLIC_PREFIXES):
         return
     if session.get('auth'):
@@ -237,7 +237,6 @@ MODULES = [
     ('routes.countdown', 'countdown'),
     ('routes.accounting', 'accounting'),
     ('routes.nav', 'nav'),
-    ('routes.pocket', 'pocket'),
 ]
 
 # 先导入 deploy（独立容错），确保部署 API 最优先可用
@@ -248,9 +247,9 @@ if deploy_bp:
     app.register_blueprint(deploy_bp)
 
 renqing_bp = gpa_bp = hsgrades_bp = None
-backup_bp = pa_bp = countdown_bp = accounting_bp = nav_bp = pocket_bp = None
+backup_bp = pa_bp = countdown_bp = accounting_bp = nav_bp = None
 init_renqing_db = init_gpa_db = init_hsgrades_db = None
-init_pa_db = init_countdown_db = init_accounting_db = init_pocket_db = None
+init_pa_db = init_countdown_db = init_accounting_db = None
 start_auto_backup = start_auto_clean = start_auto_renew = None
 
 for mod_name, key in MODULES:
@@ -277,8 +276,6 @@ for mod_name, key in MODULES:
         accounting_bp, init_accounting_db = bp_obj, init_fn
     elif key == 'nav':
         nav_bp = bp_obj
-    elif key == 'pocket':
-        pocket_bp, init_pocket_db = bp_obj, init_fn
     if bp_obj:
         app.register_blueprint(bp_obj)
 
@@ -286,7 +283,7 @@ _LOADED_MODULES = [name for name, bp in [
     ('renqing', renqing_bp), ('gpa', gpa_bp), ('hsgrades', hsgrades_bp),
     ('deploy', deploy_bp), ('backup', backup_bp), ('pa', pa_bp),
     ('countdown', countdown_bp), ('accounting', accounting_bp),
-    ('nav', nav_bp), ('pocket', pocket_bp),
+    ('nav', nav_bp),
 ] if bp]
 
 # ==================== 全局错误处理 ====================
@@ -431,11 +428,6 @@ def accounting_icon_192():
 def accounting_icon_512():
     return send_from_directory('记账', 'icon-512.svg')
 
-@app.route('/pocket')
-@app.route('/pocket/')
-def pocket_index():
-    return send_from_directory('待办', 'index.html')
-
 # ==================== 启动 ====================
 
 _diag('开始初始化数据库...')
@@ -446,7 +438,6 @@ _SAFE_INITS = [
     ('pa', init_pa_db),
     ('countdown', init_countdown_db),
     ('accounting', init_accounting_db),
-    ('pocket', init_pocket_db),
 ]
 for _name, _fn in _SAFE_INITS:
     if _fn:
