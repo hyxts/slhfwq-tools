@@ -8,7 +8,7 @@
 
 用法: python daily_task.py
 """
-import sys, os
+import sys, os, shutil, subprocess
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, BASE_DIR)
@@ -16,6 +16,100 @@ sys.path.insert(0, BASE_DIR)
 from routes.pa import run_renewal
 from routes.backup import run_backup, run_cleanup
 from routes.utils import _now
+
+
+def _count_files(path):
+    """统计目录下文件总数"""
+    try:
+        return sum(1 for _ in (os.path.join(r, f)
+                   for r, _, fs in os.walk(path) for f in fs))
+    except Exception:
+        return -1
+
+
+def _size_str(b):
+    """字节数转可读字符串"""
+    if b < 1024:
+        return f'{b}B'
+    if b < 1048576:
+        return f'{b/1024:.1f}KB'
+    return f'{b/1048576:.1f}MB'
+
+
+def run_file_cleanup():
+    """每日轻量清理：删除 __pycache__ 缓存文件，控制 PA 文件数配额
+    返回 (success, message, stats_dict)"""
+    results = []
+    removed = 0
+
+    # 1. 清理 __pycache__ 目录
+    for root, dirs, files in os.walk(BASE_DIR):
+        if '__pycache__' in dirs:
+            cache_path = os.path.join(root, '__pycache__')
+            try:
+                cnt = len(os.listdir(cache_path))
+                shutil.rmtree(cache_path, ignore_errors=True)
+                removed += cnt
+                results.append(os.path.relpath(cache_path, BASE_DIR))
+            except Exception:
+                pass
+
+    # 2. 清理散落的 .pyc 文件
+    pyc_count = 0
+    for root, dirs, files in os.walk(BASE_DIR):
+        for f in files:
+            if f.endswith('.pyc'):
+                try:
+                    os.remove(os.path.join(root, f))
+                    pyc_count += 1
+                except Exception:
+                    pass
+    if pyc_count:
+        removed += pyc_count
+        results.append(f'散落pyc: {pyc_count}个')
+
+    # 3. 每周日执行 git gc（打包松散对象，减少文件数）
+    today = _now().weekday()
+    if today == 6:
+        try:
+            r = subprocess.run(
+                ['git', '-C', BASE_DIR, 'gc', '--auto'],
+                capture_output=True, text=True, timeout=60
+            )
+            if r.returncode == 0:
+                results.append('git gc 完成')
+            else:
+                results.append(f'git gc: {r.stderr.strip()[:80]}')
+        except Exception as e:
+            results.append(f'git gc 跳过: {e}')
+
+    # 4. 统计当前状态
+    total_files = _count_files(BASE_DIR)
+    try:
+        import glob as _glob
+        total_size = sum(os.path.getsize(f)
+                         for r, _, fs in os.walk(BASE_DIR) for f in fs
+                         if os.path.isfile(os.path.join(r, f)))
+    except Exception:
+        total_size = -1
+
+    stats = {
+        'removed': removed,
+        'total_files': total_files,
+        'total_size': _size_str(total_size) if total_size > 0 else 'N/A',
+        'dirs_cleaned': len([r for r in results if r.startswith('routes') or r.endswith('pyc')]),
+    }
+
+    msg_parts = []
+    if removed > 0:
+        msg_parts.append(f'清理 {removed} 个文件')
+    else:
+        msg_parts.append('无缓存需清理')
+    msg_parts.append(f'当前 {total_files} 个文件/{stats["total_size"]}')
+    if results:
+        msg_parts.append('; '.join(results[:3]))
+
+    return True, ' | '.join(msg_parts)
 
 
 def main():
@@ -38,16 +132,24 @@ def main():
     except Exception as e:
         print(f'[备份] 异常: {e}')
 
-    # ---- 3. 清理（仅周日执行） ----
+    # ---- 3. 每日文件缓存清理 ----
+    try:
+        ok, msg = run_file_cleanup()
+        status = '成功' if ok else '失败'
+        print(f'[文件清理] {status}: {msg}')
+    except Exception as e:
+        print(f'[文件清理] 异常: {e}')
+
+    # ---- 4. 深度清理（仅周日执行） ----
     if _now().weekday() == 6:
         try:
             ok, msg = run_cleanup()
             status = '成功' if ok else '失败'
-            print(f'[清理] {status}: {msg}')
+            print(f'[深度清理] {status}: {msg}')
         except Exception as e:
-            print(f'[清理] 异常: {e}')
+            print(f'[深度清理] 异常: {e}')
     else:
-        print(f'[清理] 跳过（非周日）')
+        print(f'[深度清理] 跳过（非周日）')
 
     ts = _now().strftime('%Y-%m-%d %H:%M:%S')
     print(f'[{ts}] ===== 每日任务完成 =====')

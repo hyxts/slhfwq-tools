@@ -114,10 +114,20 @@ _last_cleanup = {'time': '-', 'freed': '-', 'results': []}
 _last_cleanup_lock = threading.Lock()
 
 
+def _count_files(path):
+    """统计目录下文件总数"""
+    try:
+        return sum(1 for _ in (os.path.join(r, f)
+                   for r, _, fs in os.walk(path) for f in fs))
+    except Exception:
+        return -1
+
+
 def _do_cleanup():
-    """清理日志和临时文件"""
+    """清理日志、缓存，打包 git 对象，控制 PA 文件数配额"""
     results = []
     total_freed = 0
+    files_before = _count_files(BASE_DIR)
 
     # 1. 截断 PA 续期日志
     log_path = os.path.join(BASE_DIR, '服务器', 'renew.log')
@@ -147,7 +157,7 @@ def _do_cleanup():
             except Exception:
                 pass
 
-    # 3. 清理已废弃的旧目录和文件（模块已迁移或移除后残留）
+    # 3. 计算目录文件总数
     # 4. 截断系统日志（500错误日志、重载日志等）
     SYSTEM_LOGS = [
         '500_error.log', 'reload_stdout.log', 'reload_stderr.log'
@@ -169,7 +179,31 @@ def _do_cleanup():
             except Exception:
                 pass
 
-    # 5. 动态检测并清理无关联模块的遗留目录
+    # 5. git gc 打包松散对象（减少文件数）
+    try:
+        import subprocess as _sp
+        r = _sp.run(
+            ['git', '-C', BASE_DIR, 'gc', '--prune=now', '--quiet'],
+            capture_output=True, text=True, timeout=120
+        )
+        if r.returncode == 0:
+            results.append('git gc 完成')
+        else:
+            err = r.stderr.strip()[:80] if r.stderr else 'unknown'
+            results.append(f'git gc: {err}')
+    except Exception:
+        pass  # git 不存在或不支持时不报错
+
+    # 6. 统计清理后文件数变化
+    files_after = _count_files(BASE_DIR)
+    if files_before > 0 and files_after > 0 and files_before != files_after:
+        delta = files_before - files_after
+        if delta > 0:
+            results.append(f'文件数: {files_before} → {files_after} (减少{delta})')
+        else:
+            results.append(f'文件数: {files_before} → {files_after}')
+
+    # 7. 动态检测并清理无关联模块的遗留目录
     from .utils import ALL_SAFE_DIRS
     try:
         for entry in os.scandir(BASE_DIR):
@@ -191,7 +225,7 @@ def _do_cleanup():
     except OSError:
         pass
 
-    # 6. 清理已知废弃文件
+    # 8. 清理已知废弃文件
     ORPHAN_FILES = ['服务器/data_report.log']
     for fname in ORPHAN_FILES:
         fpath = os.path.join(BASE_DIR, fname)
