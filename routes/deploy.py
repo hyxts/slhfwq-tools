@@ -298,6 +298,7 @@ def _build_server_status():
                 full_path = os.path.join(dirpath, f)
                 try:
                     sz = os.path.getsize(full_path)
+                    c = None
                     c = sqlite3.connect(full_path, timeout=2)
                     tables = [t[0] for t in c.execute(
                         "SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'"
@@ -305,10 +306,13 @@ def _build_server_status():
                     rows = 0
                     for t in tables[:5]:
                         rows += c.execute(f"SELECT COUNT(*) FROM [{t}]").fetchone()[0]
-                    c.close()
                     dbs.append({'name': f'{dirname}/{f}', 'size': _size_str(sz), 'rows': rows})
                 except Exception:
                     pass
+                finally:
+                    if c:
+                        try: c.close()
+                        except Exception: pass
     dbs.sort(key=lambda x: x['name'])
 
     # 日志
@@ -404,7 +408,7 @@ def server_status():
             _STATUS_CACHE['timestamp'] = now
         return jsonify(data)
     except Exception as e:
-        return jsonify({'error': str(e)}), 500
+        return jsonify({'success': False, 'error': str(e)}), 500
 
 
 @bp.route('/api/pa-summary')
@@ -413,13 +417,13 @@ def pa_summary():
     try:
         pa_db = os.path.join(BASE_DIR, '服务器', 'pa.db')
         if not os.path.exists(pa_db):
-            return jsonify({'configured': False})
+            return jsonify({'success': True, 'configured': False})
         conn = sqlite3.connect(pa_db, timeout=3)
         conn.row_factory = sqlite3.Row
         row = conn.execute("SELECT expiry, last_run, interval_days, last_result FROM pa_config WHERE id = 1").fetchone()
         conn.close()
         if not row:
-            return jsonify({'configured': False})
+            return jsonify({'success': True, 'configured': False})
         expiry = row['expiry'] or ''
         last_run = row['last_run'] or ''
         interval = row['interval_days'] or 7
@@ -447,7 +451,7 @@ def pa_summary():
             'urgent': urgent,
         })
     except Exception as e:
-        return jsonify({'configured': False, 'error': str(e)})
+        return jsonify({'success': False, 'configured': False, 'error': str(e)})
 
 
 @bp.route('/api/cleanup-old-folders', methods=['POST'])

@@ -247,7 +247,7 @@ def add_event():
         return jsonify({'success': False, 'error': f'保存失败: {str(e)[:100]}'}), 500
     finally:
         try: c.close()
-        except: pass
+        except Exception: pass
 
 
 @bp.route('/events/<int:eid>', methods=['PUT'])
@@ -269,7 +269,7 @@ def update_event(eid):
         return jsonify({'success': False, 'error': f'保存失败: {str(e)[:100]}'}), 500
     finally:
         try: c.close()
-        except: pass
+        except Exception: pass
 
 
 def _toggle_event_flag(eid, field, label_map):
@@ -842,7 +842,7 @@ def db_check():
     finally:
         if c:
             try: c.rollback()
-            except: pass
+            except Exception: pass
             try: c.close()
-            except: pass
+            except Exception: pass
     return jsonify(result)

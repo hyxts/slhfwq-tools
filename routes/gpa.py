@@ -3,7 +3,7 @@
 import os, json
 from flask import Blueprint, request, jsonify
 
-from .utils import make_logger, make_db
+from .utils import make_logger, make_db, safe_json_load
 
 bp = Blueprint('gpa', __name__)
 
@@ -40,13 +40,6 @@ DEFAULT_COURSES_SEM1 = [
 ]
 
 
-def _safe_json_load(val, default=None):
-    """安全解析 JSON，失败时返回默认值"""
-    if not val: return default or []
-    try: return json.loads(val)
-    except (json.JSONDecodeError, TypeError): return default or []
-
-
 def init_db():
     try:
         os.makedirs(os.path.dirname(GPA_DB_PATH), exist_ok=True)
@@ -64,7 +57,7 @@ def init_db():
                           json.dumps(DEFAULT_COURSES_SEM1, ensure_ascii=False)))
         else:
             changed = False
-            cur_courses = _safe_json_load(existing[2])
+            cur_courses = safe_json_load(existing[2])
             has_sem1 = any(c.get('semesterId') == 'sem-1' for c in cur_courses if isinstance(c, dict))
             if not has_sem1:
                 cur_courses.extend(DEFAULT_COURSES_SEM1)
@@ -89,8 +82,8 @@ def get_data():
         if not row:
             return jsonify({'success': False, 'error': '无数据'}), 404
         return jsonify({'success': True, 'data': {
-            'semesters': _safe_json_load(row[1]),
-            'courses': _safe_json_load(row[2]),
+            'semesters': safe_json_load(row[1]),
+            'courses': safe_json_load(row[2]),
             'updated_at': row[3]
         }})
     except Exception as e:

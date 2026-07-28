@@ -87,8 +87,6 @@ def _init_db_impl():
         pass
 
 
-
-
 def _read_log(n=100):
     global _LOG_CACHE
     try:
@@ -229,33 +227,40 @@ def save_data():
 
 @bp.route('/api/pa/status', methods=['GET'])
 def status():
-    cfg = _load_config()
-    interval = cfg.get('interval_days', 7)
-    expiry = cfg.get('expiry', '')
-    last_run = cfg.get('last_run', '')
-    next_run = ''
-    if last_run:
-        try:
-            next_run = (datetime.strptime(last_run, '%Y-%m-%d %H:%M:%S') + timedelta(days=interval)).strftime('%Y-%m-%d %H:%M')
-        except Exception:
-            next_run = '计算失败'
-    else:
-        next_run = '首次续期后自动计算'
-    lr = _status.get('last_result') or cfg.get('last_result')
-    return jsonify({
-        'running': _status['running'],
-        'last_result': lr,
-        'last_run': last_run,
-        'expiry': cfg.get('expiry', ''),
-        'interval': interval,
-        'next_run': next_run,
-        'history': _load_history(),
-    })
+    try:
+        cfg = _load_config()
+        interval = cfg.get('interval_days', 7)
+        expiry = cfg.get('expiry', '')
+        last_run = cfg.get('last_run', '')
+        next_run = ''
+        if last_run:
+            try:
+                next_run = (datetime.strptime(last_run, '%Y-%m-%d %H:%M:%S') + timedelta(days=interval)).strftime('%Y-%m-%d %H:%M')
+            except Exception:
+                next_run = '计算失败'
+        else:
+            next_run = '首次续期后自动计算'
+        lr = _status.get('last_result') or cfg.get('last_result')
+        return jsonify({
+            'success': True,
+            'running': _status['running'],
+            'last_result': lr,
+            'last_run': last_run,
+            'expiry': cfg.get('expiry', ''),
+            'interval': interval,
+            'next_run': next_run,
+            'history': _load_history(),
+        })
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
 
 
 @bp.route('/api/pa/log', methods=['GET'])
 def log():
-    return jsonify({'log': ''.join(_read_log())})
+    try:
+        return jsonify({'success': True, 'log': ''.join(_read_log())})
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e), 'log': ''}), 500
 
 
 @bp.route('/api/pa/logs', methods=['GET'])

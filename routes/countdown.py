@@ -51,6 +51,9 @@ def init_db():
             if col not in existing_cols:
                 conn.execute(f"ALTER TABLE events ADD COLUMN {col} TEXT DEFAULT {defval}")
         conn.commit()
+    except Exception as e:
+        print(f'[countdown] 数据库初始化失败: {e}')
+        raise
     finally:
         conn.close()
 

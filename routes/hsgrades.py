@@ -3,7 +3,7 @@
 import os, json
 from flask import Blueprint, request, jsonify
 
-from .utils import make_logger, make_db
+from .utils import make_logger, make_db, safe_json_load
 
 bp = Blueprint('hsgrades', __name__)
 
@@ -20,13 +20,6 @@ DEFAULT_EXAMS = [
 ]
 
 
-def _safe_json_load(val, default=None):
-    """安全解析 JSON"""
-    if not val: return default or []
-    try: return json.loads(val)
-    except (json.JSONDecodeError, TypeError): return default or []
-
-
 def init_db():
     try:
         os.makedirs(os.path.dirname(HSGRADES_DB_PATH), exist_ok=True)
@@ -41,7 +34,7 @@ def init_db():
             conn.execute('INSERT INTO hsgrades_data (exams) VALUES (?)',
                          (json.dumps(DEFAULT_EXAMS, ensure_ascii=False),))
         else:
-            cur_exams = _safe_json_load(existing[1])
+            cur_exams = safe_json_load(existing[1])
             if len(cur_exams) == 0:
                 conn.execute("UPDATE hsgrades_data SET exams = ?, updated_at = datetime('now','localtime')",
                              (json.dumps(DEFAULT_EXAMS, ensure_ascii=False),))
@@ -59,7 +52,7 @@ def get_data():
         row = conn.execute('SELECT id, exams FROM hsgrades_data LIMIT 1').fetchone()
         if not row:
             return jsonify({'success': False, 'error': '无数据'}), 404
-        return jsonify({'success': True, 'data': {'exams': _safe_json_load(row[1])}})
+        return jsonify({'success': True, 'data': {'exams': safe_json_load(row[1])}})
     except Exception as e:
         import traceback
         print(f'[hsgrades_get_data ERROR] {e}\n{traceback.format_exc()}', flush=True)

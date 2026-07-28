@@ -5,6 +5,13 @@ from datetime import datetime, timedelta, timezone
 
 TZ = timezone(timedelta(hours=8))  # 北京时间 UTC+8
 
+
+def safe_json_load(val, default=None):
+    """安全解析 JSON，失败时返回默认值"""
+    if not val: return default or []
+    try: return json.loads(val)
+    except (json.JSONDecodeError, TypeError): return default or []
+
 # 中文/英文目录映射
 FOLDER_MAP = {
     'countdown': '倒计时', 'gpa': '绩点', 'hsgrades': '成绩',
