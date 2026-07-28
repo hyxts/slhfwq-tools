@@ -257,8 +257,15 @@ def update_event(eid):
     try:
         err = _lock_check(c, eid)
         if err: return err
+        new_date = d.get('event_date', '')
+        old_evt = c.execute('SELECT event_date FROM events WHERE id=?', (eid,)).fetchone()
         c.execute("UPDATE events SET name=?,event_type=?,event_date=?,page_size=? WHERE id=?",
-                  (d.get('name',''), d.get('event_type','事件'), d.get('event_date',''), d.get('page_size', 12), eid))
+                  (d.get('name',''), d.get('event_type','事件'), new_date, d.get('page_size', 12), eid))
+        # 事件日期变更时，同步更新该事件下所有记录的日期，确保年度统计准确
+        old_date = old_evt['event_date'] if old_evt else ''
+        if new_date and new_date != old_date:
+            c.execute('UPDATE records SET date=? WHERE event_id=?', (new_date, eid))
+            _log(f'同步更新事件 {d["name"]} 下所有记录日期: {old_date} -> {new_date}')
         c.commit()
         _log(f'更新事件: {d["name"]}')
         return jsonify({'success': True})
