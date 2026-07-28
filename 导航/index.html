@@ -288,6 +288,12 @@ body::before{
       <div class="card-desc">收支记录 · 借贷管理 · 分类统计</div>
       <div class="card-arrow">&rsaquo;</div>
     </a>
+    <a class="card c2" href="/todo">
+      <div class="card-label">待办</div>
+      <div class="card-name">待办清单</div>
+      <div class="card-desc">任务管理 · 优先级排序 · 完成追踪</div>
+      <div class="card-arrow">&rsaquo;</div>
+    </a>
     <a class="card c6" href="/deploy">
       <div class="card-label">运维</div>
       <div class="card-name">管理平台</div>
@@ -304,7 +310,8 @@ body::before{
 (function(){
   var cards=document.querySelectorAll('.card');
   var grid=document.querySelector('.cards');
-  if(cards.length===6) grid.classList.add('len6');
+  if(cards.length===7) grid.classList.add('len7');
+  else if(cards.length===6) grid.classList.add('len6');
   cards.forEach(function(c,i){
     c.style.opacity='0';
     c.style.transform='translateY(20px)';

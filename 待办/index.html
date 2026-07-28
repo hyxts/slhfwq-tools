@@ -1,0 +1,509 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,user-scalable=no,viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="待办">
+<meta name="theme-color" content="#f59e0b">
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='7' fill='%23f59e0b'/><text x='16' y='23' text-anchor='middle' font-size='17' font-weight='bold' fill='white' font-family='sans-serif'>TD</text></svg>">
+<title>待办清单</title>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+button,input,select,textarea{font:inherit;color:inherit}
+html,body{width:100%;min-height:100vh;min-height:100dvh}
+body{
+  font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif;
+  background:#f8fafc;color:#1e293b;font-size:15px;line-height:1.5;
+  -webkit-font-smoothing:antialiased;-webkit-tap-highlight-color:transparent;
+  overflow-x:hidden;
+}
+.header{
+  background:#ffffff;padding:12px 16px;
+  padding-top:calc(12px + env(safe-area-inset-top));
+  padding-left:calc(16px + env(safe-area-inset-left));
+  padding-right:calc(16px + env(safe-area-inset-right));
+  position:sticky;top:0;z-index:100;
+  border-bottom:1px solid #e2e8f0;
+  display:flex;align-items:center;justify-content:center;
+  box-shadow:0 1px 3px rgba(0,0,0,.04);
+}
+.header .back{
+  position:absolute;left:calc(6px + env(safe-area-inset-left));
+  color:#64748b;text-decoration:none;font-size:20px;
+  display:inline-flex;align-items:center;justify-content:center;
+  min-width:44px;min-height:44px;border-radius:8px;
+  font-weight:400;line-height:1;
+}
+.header .title{
+  font-weight:700;font-size:17px;color:#d97706;
+  display:flex;align-items:center;gap:6px;
+}
+.main{max-width:600px;margin:0 auto;padding:12px 16px 40px}
+
+/* 快速添加栏 */
+.quick-add{
+  display:flex;gap:8px;margin-bottom:12px;
+}
+.quick-add input{
+  flex:1;padding:10px 14px;border:1px solid #d1d5db;
+  border-radius:12px;font-size:15px;min-height:44px;
+  background:#ffffff;outline:none;
+}
+.quick-add input:focus{border-color:#d97706;box-shadow:0 0 0 3px rgba(217,119,6,.12)}
+.quick-add select{
+  width:80px;padding:10px 4px;border:1px solid #d1d5db;
+  border-radius:12px;font-size:13px;min-height:44px;
+  background:#ffffff;outline:none;text-align:center;
+}
+.quick-add button{
+  min-width:44px;min-height:44px;
+  background:#d97706;color:#fff;border:none;
+  border-radius:12px;font-size:22px;font-weight:700;
+  cursor:pointer;transition:background 0.15s;
+  display:flex;align-items:center;justify-content:center;
+  padding:0 14px;
+}
+.quick-add button:active{background:#b45309}
+
+/* 统计栏 */
+.stats-bar{
+  display:flex;gap:8px;margin-bottom:12px;
+}
+.stat-item{
+  flex:1;background:#ffffff;border-radius:10px;
+  padding:10px;text-align:center;
+  border:1px solid #e2e8f0;box-shadow:0 1px 2px rgba(0,0,0,.03);
+}
+.stat-item .num{font-size:22px;font-weight:800;color:#1e293b;line-height:1.2}
+.stat-item .lbl{font-size:11px;color:#94a3b8;font-weight:500}
+.stat-item.high .num{color:#dc2626}
+.stat-item.medium .num{color:#d97706}
+.stat-item.low .num{color:#94a3b8}
+
+/* 过滤栏 */
+.filter-bar{
+  display:flex;gap:4px;margin-bottom:12px;
+  background:#f1f5f9;border-radius:10px;padding:3px;
+}
+.filter-btn{
+  flex:1;padding:8px 0;border:none;background:none;
+  font-size:13px;font-weight:600;color:#64748b;
+  border-radius:8px;cursor:pointer;transition:all 0.15s;
+  min-height:36px;
+}
+.filter-btn.active{background:#ffffff;color:#1e293b;box-shadow:0 1px 3px rgba(0,0,0,.08)}
+
+/* 排序 */
+.sort-row{
+  display:flex;justify-content:flex-end;margin-bottom:8px;
+}
+.sort-row select{
+  padding:6px 10px;border:1px solid #e2e8f0;
+  border-radius:8px;font-size:12px;color:#64748b;
+  background:#ffffff;min-height:32px;outline:none;
+}
+
+/* 待办列表 */
+.todo-item{
+  display:flex;align-items:center;gap:10px;
+  background:#ffffff;border:1px solid #e2e8f0;
+  border-radius:12px;padding:12px 14px;margin-bottom:8px;
+  box-shadow:0 1px 2px rgba(0,0,0,.03);
+  transition:border-color 0.15s,box-shadow 0.15s;
+  min-height:52px;
+}
+.todo-item:active{border-color:#cbd5e1;box-shadow:0 2px 6px rgba(0,0,0,.06)}
+.todo-item.done{opacity:0.55}
+.todo-item.done .todo-title{text-decoration:line-through;color:#94a3b8}
+
+/* checkbox */
+.cb{
+  width:24px;height:24px;border-radius:50%;
+  border:2px solid #cbd5e1;flex-shrink:0;
+  cursor:pointer;transition:all 0.15s;
+  display:flex;align-items:center;justify-content:center;
+  font-size:12px;font-weight:700;color:#fff;
+}
+.cb:active{transform:scale(0.9)}
+.cb.checked{
+  background:#10b981;border-color:#10b981;
+}
+
+.todo-body{flex:1;min-width:0;cursor:pointer}
+.todo-title{font-size:15px;font-weight:500;color:#1e293b;word-break:break-word}
+.todo-meta{display:flex;gap:8px;margin-top:3px;align-items:center}
+
+.pri-badge{
+  display:inline-block;padding:2px 8px;border-radius:4px;
+  font-size:10px;font-weight:700;letter-spacing:0.5px;
+}
+.pri-high{background:#fef2f2;color:#dc2626}
+.pri-medium{background:#fffbeb;color:#d97706}
+.pri-low{background:#f1f5f9;color:#94a3b8}
+
+.due-date{
+  font-size:11px;color:#94a3b8;
+}
+.due-overdue{color:#dc2626;font-weight:600}
+
+.todo-actions{display:flex;gap:4px;flex-shrink:0}
+.btn-icon{
+  width:32px;height:32px;border-radius:8px;
+  border:none;background:#f1f5f9;color:#64748b;
+  font-size:14px;font-weight:600;cursor:pointer;
+  display:flex;align-items:center;justify-content:center;
+  transition:all 0.15s;
+}
+.btn-icon:active{background:#e2e8f0;color:#475569}
+.btn-icon.danger:active{background:#fef2f2;color:#dc2626}
+
+/* 空状态 */
+.empty{
+  text-align:center;padding:60px 20px;color:#94a3b8;
+}
+.empty .big{font-size:48px;color:#cbd5e1;margin-bottom:12px;font-weight:200}
+.empty .msg{font-size:14px}
+
+/* Modal */
+.modal{
+  position:fixed;inset:0;background:rgba(0,0,0,.45);
+  display:none;align-items:flex-end;z-index:1000;
+}
+.modal.show{display:flex}
+.modal-box{
+  background:#ffffff;border-radius:20px 20px 0 0;
+  width:100%;max-width:600px;padding:20px;
+  padding-bottom:calc(20px + env(safe-area-inset-bottom));
+  box-shadow:0 -4px 20px rgba(0,0,0,.1);
+}
+.modal-box h4{margin-bottom:14px;font-size:17px;color:#1e293b;font-weight:700}
+.modal-box label{display:block;font-size:13px;color:#64748b;margin-bottom:4px;font-weight:500}
+.modal-box input,.modal-box select,.modal-box textarea{
+  width:100%;padding:10px 12px;border:1px solid #d1d5db;
+  border-radius:10px;font-size:15px;margin-bottom:10px;
+  background:#ffffff;color:#1e293b;min-height:44px;outline:none;
+}
+.modal-box textarea{resize:none;min-height:72px}
+.modal-box input:focus,.modal-box select:focus,.modal-box textarea:focus{
+  border-color:#d97706;box-shadow:0 0 0 3px rgba(217,119,6,.12)
+}
+.modal-row{display:flex;gap:8px}
+.modal-row>*{flex:1}
+.modal-btns{display:flex;gap:8px;margin-top:14px}
+.modal-btns button{
+  flex:1;padding:11px;border:none;border-radius:10px;
+  font-size:14px;font-weight:600;cursor:pointer;min-height:44px;
+}
+.btn-cancel{background:#e2e8f0;color:#475569}
+.btn-save{background:#d97706;color:#fff}
+.btn-danger{background:#dc2626;color:#fff}
+
+/* 确认框 */
+.confirm-overlay{
+  position:fixed;inset:0;background:rgba(0,0,0,.45);
+  display:none;align-items:center;justify-content:center;z-index:2000;
+}
+.confirm-overlay.show{display:flex}
+.confirm-box{
+  background:#fff;border-radius:16px;width:90%;max-width:320px;
+  padding:28px 24px 20px;text-align:center;
+  box-shadow:0 8px 30px rgba(0,0,0,.12);
+}
+.confirm-box .ct{font-size:17px;font-weight:700;margin-bottom:8px;color:#1e293b}
+.confirm-box .cm{font-size:13px;color:#64748b;margin-bottom:24px}
+.confirm-btns{display:flex;gap:10px}
+.confirm-btns button{flex:1;padding:10px;border-radius:10px;font-size:14px;font-weight:600;min-height:44px;border:none;cursor:pointer}
+
+/* 响应式 */
+@media(min-width:768px){
+  .main{max-width:640px;margin:0 auto;padding:16px 24px 40px}
+  .modal-box{max-width:500px;margin:0 auto}
+}
+</style>
+</head>
+<body>
+
+<div class="header">
+  <a class="back" href="/nav" title="返回导航" onclick="if(document.referrer.includes('/nav')){history.back();return false}">←</a>
+  <div class="title">
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#d97706" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11"/>
+    </svg>
+    待办清单
+  </div>
+</div>
+
+<div class="main">
+  <!-- 快速添加 -->
+  <div class="quick-add">
+    <input type="text" id="quickTitle" placeholder="添加待办事项..." maxlength="200" autocomplete="off">
+    <select id="quickPriority">
+      <option value="medium">中</option>
+      <option value="high">高</option>
+      <option value="low">低</option>
+    </select>
+    <button onclick="quickAdd()" title="添加">+</button>
+  </div>
+
+  <!-- 统计 -->
+  <div class="stats-bar">
+    <div class="stat-item high"><div class="num" id="statHigh">0</div><div class="lbl">高优先级</div></div>
+    <div class="stat-item medium"><div class="num" id="statPending">0</div><div class="lbl">待完成</div></div>
+    <div class="stat-item low"><div class="num" id="statDone">0</div><div class="lbl">已完成</div></div>
+  </div>
+
+  <!-- 过滤 -->
+  <div class="filter-bar">
+    <button class="filter-btn active" data-filter="all" onclick="setFilter('all')">全部</button>
+    <button class="filter-btn" data-filter="pending" onclick="setFilter('pending')">待完成</button>
+    <button class="filter-btn" data-filter="done" onclick="setFilter('done')">已完成</button>
+  </div>
+
+  <!-- 排序 -->
+  <div class="sort-row">
+    <select id="sortSelect" onchange="onSortChange()">
+      <option value="created">按创建时间</option>
+      <option value="priority">按优先级</option>
+      <option value="due">按截止日期</option>
+    </select>
+  </div>
+
+  <!-- 待办列表 -->
+  <div id="todoList"></div>
+</div>
+
+<!-- 编辑 Modal -->
+<div class="modal" id="editModal">
+  <div class="modal-box">
+    <h4 id="modalTitle">编辑待办</h4>
+    <input type="hidden" id="editId">
+    <label for="editTitle">标题</label>
+    <input type="text" id="editTitle" placeholder="待办事项标题" maxlength="200">
+    <div class="modal-row">
+      <div><label for="editPriority">优先级</label>
+        <select id="editPriority">
+          <option value="high">高</option>
+          <option value="medium" selected>中</option>
+          <option value="low">低</option>
+        </select>
+      </div>
+      <div><label for="editDue">截止日期</label>
+        <input type="date" id="editDue">
+      </div>
+    </div>
+    <label for="editNote">备注</label>
+    <textarea id="editNote" placeholder="备注（可选）" maxlength="500"></textarea>
+    <div class="modal-btns">
+      <button class="btn-cancel" onclick="closeEdit()">取消</button>
+      <button class="btn-save" onclick="saveEdit()">保存</button>
+    </div>
+  </div>
+</div>
+
+<!-- 确认删除 -->
+<div class="confirm-overlay" id="confirmOverlay">
+  <div class="confirm-box">
+    <div class="ct">确认删除</div>
+    <div class="cm" id="confirmMsg">确定要删除该待办吗？</div>
+    <div class="confirm-btns">
+      <button class="btn-cancel" onclick="closeConfirm()">取消</button>
+      <button class="btn-danger" id="confirmBtn" onclick="">删除</button>
+    </div>
+  </div>
+</div>
+
+<script>
+var API='/api/todo';
+var todos=[], currentFilter='all', currentSort='created';
+var confirmId=null;
+
+function qs(s){return document.querySelector(s)}
+function qid(s){return document.getElementById(s)}
+function esc(s){var d=document.createElement('div');d.textContent=s||'';return d.innerHTML}
+
+/* ===== 快速添加 ===== */
+function quickAdd(){
+  var el=qid('quickTitle');
+  var title=el.value.trim();
+  if(!title){el.focus();return}
+  var pri=qid('quickPriority').value;
+  fetch(API+'/create',{
+    method:'POST',
+    headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({title:title,priority:pri})
+  }).then(function(r){return r.json()}).then(function(res){
+    if(res.success){el.value='';loadList()}
+    else{alert(res.error||'添加失败')}
+  }).catch(function(){alert('网络错误')});
+  el.focus();
+}
+
+/* ===== 加载列表 ===== */
+function loadList(){
+  var params='?status='+(currentFilter==='all'?'':currentFilter)+'&sort='+currentSort;
+  fetch(API+'/list'+params).then(function(r){return r.json()}).then(function(res){
+    if(res.success){todos=res.data||[];renderList();updateStats()}
+  }).catch(function(){});
+}
+
+/* ===== 渲染列表 ===== */
+function renderList(){
+  var el=qid('todoList');
+  if(!todos.length){
+    var msgs={'all':'暂无待办事项','pending':'所有待办已完成','done':'暂无已完成的待办'};
+    el.innerHTML='<div class="empty"><div class="big">-</div><div class="msg">'+(msgs[currentFilter]||'暂无数据')+'</div></div>';
+    return;
+  }
+  el.innerHTML=todos.map(function(t){
+    var done=t.status==='done';
+    var cls=done?'done':'';
+    var cbCls=done?'checked':'';
+    var cbInner=done?'-':'';
+    var priLabel={'high':'高','medium':'中','low':'低'};
+    var pri=t.priority||'medium';
+
+    var dueHtml='';
+    if(t.due_date){
+      var now=new Date();now.setHours(0,0,0,0);
+      var due=new Date(t.due_date);
+      due.setHours(0,0,0,0);
+      var diffDays=Math.ceil((due-now)/86400000);
+      var isOverdue=diffDays<0 && !done;
+      var dueText=diffDays===0?'今天':(diffDays===1?'明天':(diffDays>0?diffDays+'天后':(-diffDays)+'天前'));
+      dueHtml='<span class="due-date'+(isOverdue?' due-overdue':'')+'">'+dueText+'</span>';
+    }
+
+    var noteHtml=t.note?'<div style="font-size:11px;color:#94a3b8;margin-top:2px">'+esc(t.note)+'</div>':'';
+
+    return '<div class="todo-item '+cls+'">'+
+      '<div class="cb '+cbCls+'" onclick="toggleDone('+t.id+')">'+cbInner+'</div>'+
+      '<div class="todo-body" onclick="openEdit('+t.id+')">'+
+        '<div class="todo-title">'+esc(t.title)+'</div>'+
+        '<div class="todo-meta">'+
+          '<span class="pri-badge pri-'+pri+'">'+priLabel[pri]+'</span>'+
+          dueHtml+
+        '</div>'+noteHtml+
+      '</div>'+
+      '<div class="todo-actions">'+
+        '<button class="btn-icon" onclick="event.stopPropagation();openEdit('+t.id+')">/</button>'+
+        '<button class="btn-icon danger" onclick="event.stopPropagation();confirmDel('+t.id+')">X</button>'+
+      '</div>'+
+    '</div>';
+  }).join('');
+}
+
+/* ===== 统计 ===== */
+function updateStats(){
+  var all=todos;
+  var high=0, pending=0, done=0;
+  all.forEach(function(t){
+    if(t.status==='done')done++;
+    if(t.status==='pending'||currentFilter!=='done'){
+      if(t.status!=='done')pending++;
+      if(t.priority==='high'&&t.status==='pending')high++;
+    }
+  });
+  qid('statHigh').textContent=high;
+  qid('statPending').textContent=pending;
+  qid('statDone').textContent=done;
+}
+
+/* ===== 切换完成状态 ===== */
+function toggleDone(id){
+  fetch(API+'/'+id+'/toggle',{method:'PUT'}).then(function(r){return r.json()}).then(function(res){
+    if(res.success)loadList();
+  }).catch(function(){});
+}
+
+/* ===== 过滤 ===== */
+function setFilter(f){
+  currentFilter=f;
+  document.querySelectorAll('.filter-btn').forEach(function(b){
+    b.classList.toggle('active',b.dataset.filter===f);
+  });
+  loadList();
+}
+
+/* ===== 排序 ===== */
+function onSortChange(){
+  currentSort=qid('sortSelect').value;
+  loadList();
+}
+
+/* ===== 编辑 Modal ===== */
+function openEdit(id){
+  var t=todos.find(function(x){return x.id===id});
+  if(!t)return;
+  qid('editId').value=t.id;
+  qid('editTitle').value=t.title;
+  qid('editPriority').value=t.priority||'medium';
+  qid('editDue').value=t.due_date||'';
+  qid('editNote').value=t.note||'';
+  qid('modalTitle').textContent='编辑待办';
+  qid('editModal').classList.add('show');
+  setTimeout(function(){qid('editTitle').focus()},100);
+}
+
+function closeEdit(){
+  qid('editModal').classList.remove('show');
+}
+
+function saveEdit(){
+  var id=parseInt(qid('editId').value);
+  var title=qid('editTitle').value.trim();
+  if(!title){alert('请输入标题');return}
+  var body={
+    title:title,
+    priority:qid('editPriority').value,
+    due_date:qid('editDue').value,
+    note:qid('editNote').value
+  };
+  fetch(API+'/'+id,{
+    method:'PUT',
+    headers:{'Content-Type':'application/json'},
+    body:JSON.stringify(body)
+  }).then(function(r){return r.json()}).then(function(res){
+    if(res.success){closeEdit();loadList()}
+    else{alert(res.error||'保存失败')}
+  }).catch(function(){alert('网络错误')});
+}
+
+/* ===== 删除确认 ===== */
+function confirmDel(id){
+  confirmId=id;
+  var t=todos.find(function(x){return x.id===id});
+  qid('confirmMsg').textContent='确定删除「'+(t?t.title:'')+'」？';
+  qid('confirmBtn').onclick=function(){execDelete()};
+  qid('confirmOverlay').classList.add('show');
+}
+
+function execDelete(){
+  if(!confirmId)return;
+  fetch(API+'/'+confirmId,{method:'DELETE'}).then(function(r){return r.json()}).then(function(res){
+    if(res.success){closeConfirm();loadList()}
+    else{alert(res.error||'删除失败')}
+  }).catch(function(){alert('网络错误')});
+}
+
+function closeConfirm(){
+  qid('confirmOverlay').classList.remove('show');
+  confirmId=null;
+}
+
+/* ===== 键盘快捷添加 ===== */
+qid('quickTitle').addEventListener('keydown',function(e){
+  if(e.key==='Enter')quickAdd();
+});
+
+/* ===== 初始加载 ===== */
+loadList();
+
+/* ===== 编辑框回车保存 ===== */
+qid('editTitle').addEventListener('keydown',function(e){
+  if(e.key==='Enter')saveEdit();
+});
+</script>
+</body>
+</html>
