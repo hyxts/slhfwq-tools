@@ -502,6 +502,50 @@ def stats():
         c.close()
 
 
+@bp.route('/yearly-summary')
+def yearly_summary():
+    """年度收支汇总：按年统计收/送/净额/人数"""
+    c = _get_db()
+    try:
+        rows = c.execute('''
+            SELECT
+                substr(r.date, 1, 4) as year,
+                COALESCE(SUM(CASE WHEN r.direction='收' THEN r.amount ELSE 0 END),0) as total_rec,
+                COALESCE(SUM(CASE WHEN r.direction='送' THEN r.amount ELSE 0 END),0) as total_send,
+                COUNT(*) as record_count,
+                COUNT(DISTINCT r.name) as person_count
+            FROM records r
+            WHERE r.date IS NOT NULL AND r.date != ''
+            GROUP BY year
+            ORDER BY year DESC
+        ''').fetchall()
+        result = []
+        for row in rows:
+            year = row['year']
+            if not year:
+                continue
+            total_rec = row['total_rec'] or 0
+            total_send = row['total_send'] or 0
+            record_count = row['record_count']
+            person_count = row['person_count']
+            net = total_rec - total_send
+            result.append({
+                'year': year,
+                'total_rec': round(total_rec, 2),
+                'total_send': round(total_send, 2),
+                'net': round(net, 2),
+                'record_count': record_count,
+                'person_count': person_count,
+                'avg_rec': round(total_rec / person_count, 2) if person_count else 0,
+                'avg_send': round(total_send / person_count, 2) if person_count else 0,
+            })
+        return jsonify({'success': True, 'data': result})
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+    finally:
+        c.close()
+
+
 @bp.route('/suggestions')
 def suggestions():
     q = request.args.get('q', '').strip()

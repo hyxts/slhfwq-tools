@@ -318,10 +318,11 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Micr
 
       <!-- 数据库卡片 -->
       <div class="card">
-        <h3>数据库</h3>
+        <h3>数据库 <span style="font-weight:400;font-size:12px;color:#64748b;margin-left:8px" id="dbTotalLabel">--</span></h3>
         <div class="db-cards" id="dbCards">
           <div class="loading" style="grid-column:1/-1">加载中...</div>
         </div>
+        <div id="dbTableDetail" style="display:none;margin-top:12px;padding:12px;background:#f8fafc;border-radius:8px;font-size:12px;color:#475569;line-height:1.8;max-height:200px;overflow-y:auto"></div>
       </div>
 
       <!-- 存储分布 -->
@@ -480,12 +481,18 @@ async function loadServerStatus(){
     var dbHtml = '';
     if(d.dbs && d.dbs.length){
       d.dbs.forEach(function(db){
-        dbHtml += '<div class="db-card"><div class="db-card-name">' + esc(db.name) + '</div><div class="db-card-rows">' + (db.rows||'--') + '</div><div class="db-card-size">' + (db.size||'--') + '</div></div>';
+        var tblTip = '';
+        if(db.tables && db.tables.length){
+          tblTip = db.tables.map(function(t){return esc(t.table)+':'+t.rows}).join(', ');
+        }
+        dbHtml += '<div class="db-card" style="cursor:pointer" onclick="showDbDetail(\''+esc(db.name)+'\','+JSON.stringify(db.tables||[]).replace(/'/g,'&#39;')+',\''+esc(db.last_modified||'')+'\',\''+esc(db.size||'')+'\','+(db.rows||0)+')" title="'+esc(tblTip)+'"><div class="db-card-name">' + esc(db.name) + '</div><div class="db-card-rows">' + (db.rows||'--') + '</div><div class="db-card-size">' + esc(db.size||'--') + (db.last_modified?'<br><span style="font-size:10px;color:#cbd5e1">'+esc(db.last_modified)+'</span>':'') + '</div></div>';
       });
     } else {
       dbHtml = '<div class="loading" style="grid-column:1/-1">暂无数据</div>';
     }
     document.getElementById('dbCards').innerHTML = dbHtml;
+    // 总记录数
+    document.getElementById('dbTotalLabel').textContent = (d.total_records||0)+' 条记录 · '+(d.total_db_size_str||'--');
 
     // 存储分布
     var stHtml = '';
@@ -865,6 +872,27 @@ function updateRefreshTimer(){
 setInterval(updateRefreshTimer, 1000);
 
 /* ====== 初始化 ====== */
+function showDbDetail(name, tables, lastMod, size, totalRows){
+  var panel = document.getElementById('dbTableDetail');
+  try {
+    tables = JSON.parse(tables);
+  } catch(e) { tables = []; }
+  if(!tables||tables.length===0){
+    panel.innerHTML = '<div style="color:#94a3b8;text-align:center">'+esc(name)+' 暂无表数据</div>';
+    panel.style.display='';
+    return;
+  }
+  var rows = tables.map(function(t){
+    return '<div style="display:flex;justify-content:space-between;padding:2px 0;border-bottom:1px solid #e2e8f0"><span>' + esc(t.table) + '</span><span style="font-weight:600;color:#6366f1">' + t.rows + '</span></div>';
+  }).join('');
+  var html = '<div style="font-weight:600;margin-bottom:6px;display:flex;justify-content:space-between"><span>' + esc(name) + '</span><span style="color:#64748b;font-size:11px">'+esc(size)+' · '+(lastMod||'--')+'</span></div>';
+  html += '<div style="font-size:11px;color:#94a3b8;margin-bottom:4px">合计 '+totalRows+' 条记录 · '+tables.length+' 张表</div>';
+  html += rows;
+  html += '<div style="margin-top:6px"><a href="javascript:void(0)" onclick="document.getElementById(\'dbTableDetail\').style.display=\'none\'" style="font-size:11px;color:#6366f1">收起明细</a></div>';
+  panel.innerHTML = html;
+  panel.style.display = '';
+}
+
 initLogFilters();
 paLoadData();
 loadServerStatus();

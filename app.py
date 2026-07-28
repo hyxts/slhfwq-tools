@@ -236,6 +236,7 @@ MODULES = [
     ('routes.pa', 'pa'),
     ('routes.countdown', 'countdown'),
     ('routes.accounting', 'accounting'),
+    ('routes.nav', 'nav'),
 ]
 
 # 先导入 deploy（独立容错），确保部署 API 最优先可用
@@ -246,7 +247,7 @@ if deploy_bp:
     app.register_blueprint(deploy_bp)
 
 renqing_bp = gpa_bp = hsgrades_bp = None
-backup_bp = pa_bp = countdown_bp = accounting_bp = None
+backup_bp = pa_bp = countdown_bp = accounting_bp = nav_bp = None
 init_renqing_db = init_gpa_db = init_hsgrades_db = None
 init_pa_db = init_countdown_db = init_accounting_db = None
 start_auto_backup = start_auto_clean = start_auto_renew = None
@@ -273,6 +274,8 @@ for mod_name, key in MODULES:
         countdown_bp, init_countdown_db = bp_obj, init_fn
     elif key == 'accounting':
         accounting_bp, init_accounting_db = bp_obj, init_fn
+    elif key == 'nav':
+        nav_bp = bp_obj
     if bp_obj:
         app.register_blueprint(bp_obj)
 
@@ -280,6 +283,7 @@ _LOADED_MODULES = [name for name, bp in [
     ('renqing', renqing_bp), ('gpa', gpa_bp), ('hsgrades', hsgrades_bp),
     ('deploy', deploy_bp), ('backup', backup_bp), ('pa', pa_bp),
     ('countdown', countdown_bp), ('accounting', accounting_bp),
+    ('nav', nav_bp),
 ] if bp]
 
 # ==================== 全局错误处理 ====================

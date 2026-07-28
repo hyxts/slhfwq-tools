@@ -322,6 +322,25 @@ td.act{white-space:nowrap}
   <!-- 全局数据 -->
   <div class="stat-row" id="sSummary"></div>
 
+  <!-- 年度收支汇总 -->
+  <div class="card" id="yearlySummaryCard" style="display:none">
+    <div class="card-title">年度收支汇总</div>
+    <div class="t-wrap">
+      <table><thead><tr>
+        <th style="text-align:center">年份</th>
+        <th style="text-align:center">收到</th>
+        <th style="text-align:center">送出</th>
+        <th style="text-align:center">净额</th>
+        <th style="text-align:center">记录数</th>
+        <th style="text-align:center">人数</th>
+        <th style="text-align:center">人均收到</th>
+        <th style="text-align:center">人均送出</th>
+      </tr></thead>
+        <tbody id="sYearlyTable"></tbody>
+      </table>
+    </div>
+  </div>
+
   <!-- 人员查找 -->
   <div class="card">
     <div class="card-title">
@@ -880,6 +899,9 @@ async function loadStats(){
       <td class="amt num" style="text-align:center;color:${x.net>0?'#27ae60':x.net<0?'#c0392b':''}">${x.net>0?'+'+fmtA(x.net):x.net<0?fmtA(x.net):'0'}</td>
       <td style="text-align:center;color:#64748b;font-size:12px">${x.label}</td>
     </tr>`).join(''):'<tr><td colspan="5" style="text-align:center;padding:20px;color:#64748b">暂无数据</td></tr>';
+
+    // 年度收支汇总
+    loadYearlySummary();
   }catch(e){$('sSummary').innerHTML='<div style="text-align:center;color:#64748b;padding:20px">加载失败，请刷新重试</div>';}
 
   // 人员查找：附加模糊搜索并监听输入
@@ -929,6 +951,33 @@ async function loadPersonDetail(){
       ${d.events.length===0?`<tr><td colspan="5" style="text-align:center;color:#64748b;padding:12px">暂无记录</td></tr>`:''}
       </tbody></table></div>`;
   }catch(e){box.innerHTML='';}
+}
+
+// ==================== 年度收支汇总 ====================
+async function loadYearlySummary(){
+  try{
+    const d=await apiGet('/yearly-summary');
+    if(!d.success||!d.data||d.data.length===0){
+      $('yearlySummaryCard').style.display='none';return;
+    }
+    const rows=d.data.map(r=>{
+      const net=r.net;
+      const netClr=net>0?'#059669':net<0?'#dc2626':'';
+      const netTxt=net>0?'+'+fmtA(net):net<0?fmtA(net):'0';
+      return `<tr>
+        <td style="text-align:center"><b>${escH(r.year)}</b></td>
+        <td class="num" style="text-align:center;color:#059669">${fmtA(r.total_rec)}</td>
+        <td class="num" style="text-align:center;color:#dc2626">${fmtA(r.total_send)}</td>
+        <td class="num" style="text-align:center;color:${netClr}">${netTxt}</td>
+        <td style="text-align:center">${r.record_count}</td>
+        <td style="text-align:center">${r.person_count}</td>
+        <td class="num" style="text-align:center">${fmtA(r.avg_rec)}</td>
+        <td class="num" style="text-align:center">${fmtA(r.avg_send)}</td>
+      </tr>`;
+    }).join('');
+    $('sYearlyTable').innerHTML=rows;
+    $('yearlySummaryCard').style.display='';
+  }catch(e){console.error(e);}
 }
 
 // ==================== 键盘快捷键 ====================

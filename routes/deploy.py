@@ -290,6 +290,8 @@ def _build_server_status():
     # 数据库信息（只读查询，不做 WAL 设置，数据库创建时已设好）
     KNOWN_DB_ROOTS = [(d, os.path.join(BASE_DIR, d)) for d in KNOWN_DB_DIRS]
     dbs = []
+    total_records = 0
+    total_db_size = 0
     for dirname, dirpath in KNOWN_DB_ROOTS:
         if not os.path.isdir(dirpath):
             continue
@@ -298,15 +300,32 @@ def _build_server_status():
                 full_path = os.path.join(dirpath, f)
                 try:
                     sz = os.path.getsize(full_path)
+                    try:
+                        mtime = datetime.fromtimestamp(os.path.getmtime(full_path), TZ)
+                        last_modified = mtime.strftime('%Y-%m-%d %H:%M')
+                    except Exception:
+                        last_modified = ''
                     c = None
                     c = sqlite3.connect(full_path, timeout=2)
                     tables = [t[0] for t in c.execute(
                         "SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'"
                     ).fetchall()]
                     rows = 0
-                    for t in tables[:5]:
-                        rows += c.execute(f"SELECT COUNT(*) FROM [{t}]").fetchone()[0]
-                    dbs.append({'name': f'{dirname}/{f}', 'size': _size_str(sz), 'rows': rows})
+                    table_counts = []
+                    for t in tables[:20]:
+                        cnt = c.execute(f"SELECT COUNT(*) FROM [{t}]").fetchone()[0]
+                        rows += cnt
+                        table_counts.append({'table': t, 'rows': cnt})
+                    dbs.append({
+                        'name': f'{dirname}/{f}',
+                        'size': _size_str(sz),
+                        'size_bytes': sz,
+                        'rows': rows,
+                        'last_modified': last_modified,
+                        'tables': table_counts,
+                    })
+                    total_records += rows
+                    total_db_size += sz
                 except Exception:
                     pass
                 finally:
@@ -376,6 +395,7 @@ def _build_server_status():
         'disk': disk, 'dbs': dbs, 'logs': logs, 'old_dirs': old_dirs,
         'uptime': uptime, 'python': sys.version.split()[0],
         'dir_sizes': dir_sizes,
+        'total_records': total_records, 'total_db_size_str': _size_str(total_db_size),
     }
 
 

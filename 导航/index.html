@@ -193,6 +193,38 @@ body::before{
   .card:nth-child(7){grid-column:1/-1}
   .cards.len6 .card:nth-child(6){grid-column:auto}
 }
+
+/* ====== 数据摘要 ====== */
+.summary-section{margin-bottom:16px}
+.summary-cards{
+  display:grid;grid-template-columns:1fr 1fr;
+  gap:8px;
+}
+.summary-item{
+  background:#ffffff;
+  border:1px solid #e2e8f0;
+  border-radius:12px;
+  padding:12px;
+  font-size:12px;color:#475569;
+  box-shadow:0 1px 3px rgba(0,0,0,0.03);
+  line-height:1.6;
+}
+.summary-item .si-title{
+  font-size:11px;font-weight:600;color:#94a3b8;
+  letter-spacing:1px;margin-bottom:4px;
+}
+.summary-item .si-value{
+  font-size:18px;font-weight:700;color:#1e293b;
+}
+.summary-item .si-sub{
+  font-size:11px;color:#94a3b8;margin-top:2px;
+}
+.summary-item .si-pos{color:#059669}
+.summary-item .si-neg{color:#dc2626}
+.summary-item .si-neutral{color:#6366f1}
+@media(min-width:440px){
+  .summary-cards{grid-template-columns:repeat(4,1fr)}
+}
 </style>
 </head>
 <body>
@@ -215,6 +247,12 @@ body::before{
     <a href="/deploy">管理</a>
     <span class="user-dot"></span>
     <a href="/logout">退出</a>
+  </div>
+
+  <!-- 数据摘要 -->
+  <div class="summary-section" id="summarySection" style="display:none">
+    <div class="grid-title">数据摘要</div>
+    <div class="summary-cards" id="summaryCards"></div>
   </div>
 
   <!-- 模块导航 -->
@@ -278,7 +316,6 @@ body::before{
   });
   // 注册 Service Worker（PWA 离线缓存增强）
   if('serviceWorker' in navigator){
-    // 简单策略：如果已注册则复用
     navigator.serviceWorker.getRegistrations().then(function(regs){
       if(regs.length===0){
         // 不做 SW 注册，保持简洁
@@ -286,7 +323,65 @@ body::before{
       }
     });
   }
+  // 加载数据摘要
+  loadSummary();
 })();
+
+function escH(s){var d=document.createElement('div');d.textContent=s||'';return d.innerHTML}
+function fmtN(n){return n!=null?Number(n).toFixed(2):'--'}
+function loadSummary(){
+  fetch('/api/nav/summary')
+    .then(function(r){return r.json()})
+    .then(function(res){
+      if(!res.success)return;
+      var d=res.data;
+      var cards=document.getElementById('summaryCards');
+      var items=[];
+
+      // 倒计时
+      if(d.countdown&&d.countdown.length>0){
+        var cd=d.countdown[0];
+        var cdDay=cd.days!==null?(cd.days+'天'):cd.date;
+        var cdSub=d.countdown[1]?(d.countdown[1].name+' '+d.countdown[1].days+'天后'):'';
+        items.push('<div class="summary-item"><div class="si-title">最近倒计时</div>'+
+          '<div class="si-value">'+escH(cd.name)+'</div>'+
+          '<div class="si-sub si-neutral">'+cdDay+(cdSub?' · '+escH(cdSub):'')+'</div></div>');
+      }
+
+      // 记账
+      if(d.accounting&&d.accounting.month_records>0){
+        var net=d.accounting.month_net;
+        var cls=net>=0?'si-pos':'si-neg';
+        var sign=net>=0?'+':'';
+        items.push('<div class="summary-item"><div class="si-title">本月记账</div>'+
+          '<div class="si-value '+cls+'">'+sign+fmtN(net)+'</div>'+
+          '<div class="si-sub">收入 '+fmtN(d.accounting.month_income)+' · 支出 '+fmtN(d.accounting.month_expense)+'</div></div>');
+      }
+
+      // GPA
+      if(d.gpa&&d.gpa.semester){
+        items.push('<div class="summary-item"><div class="si-title">最新绩点</div>'+
+          '<div class="si-value">'+(d.gpa.gpa!=null?d.gpa.gpa.toFixed(2):'--')+'</div>'+
+          '<div class="si-sub">'+escH(d.gpa.semester)+(d.gpa.credits?' · '+d.gpa.credits+'学分':'')+'</div></div>');
+      }
+
+      // 人情
+      if(d.renqing&&d.renqing.record_count>0){
+        var rn=d.renqing.net;
+        var rcls=rn>=0?'si-pos':'si-neg';
+        var rsign=rn>=0?'+':'';
+        items.push('<div class="summary-item"><div class="si-title">今年人情</div>'+
+          '<div class="si-value '+rcls+'">'+rsign+fmtN(rn)+'</div>'+
+          '<div class="si-sub">收到 '+fmtN(d.renqing.total_rec)+' · 送出 '+fmtN(d.renqing.total_send)+'</div></div>');
+      }
+
+      if(items.length>0){
+        cards.innerHTML=items.join('');
+        document.getElementById('summarySection').style.display='';
+      }
+    })
+    .catch(function(){/* 静默失败 */});
+}
 </script>
 </body>
 </html>
