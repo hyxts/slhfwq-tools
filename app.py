@@ -193,6 +193,14 @@ def check_auth():
         return
     if session.get('auth'):
         return
+    # 异地备份同步端点：独立密钥验证
+    if request.path == '/api/backup/sync':
+        backup_token = request.headers.get('X-Backup-Token', '')
+        BACKUP_SYNC_TOKEN = os.environ.get('BACKUP_SYNC_TOKEN', 'ce952b9ded0733ed')
+        if backup_token == BACKUP_SYNC_TOKEN:
+            return
+        return jsonify({'success': False, 'error': '未授权'}), 401
+
     # 部署/续期接口允许令牌认证
     if request.path in ('/api/git-pull', '/api/status', '/api/ping', '/api/restore-db',
                          '/api/backup/restore-latest', '/api/renqing/db-check') or \
