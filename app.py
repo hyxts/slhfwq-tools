@@ -193,7 +193,7 @@ def check_auth():
         return
     if session.get('auth'):
         return
-    # 异地备份同步端点：独立密钥验证
+    # 备份同步端点：独立密钥验证（供本地拉取脚本使用）
     if request.path == '/api/backup/sync':
         backup_token = request.headers.get('X-Backup-Token', '')
         BACKUP_SYNC_TOKEN = os.environ.get('BACKUP_SYNC_TOKEN', 'ce952b9ded0733ed')
