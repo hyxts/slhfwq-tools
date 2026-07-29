@@ -18,6 +18,9 @@ AUTO_BACKUP_INTERVAL = 86400       # 备份间隔：24小时
 AUTO_CLEAN_INTERVAL = 604800       # 清理间隔：7天
 MAX_LOG_LINES = 200                # 日志最多保留行数
 
+# 异地备份推送目标
+REMOTE_BACKUP_URL = 'https://slhfwq.pythonanywhere.com/api/backup/receive'
+
 # 数据库路径
 DB_PATHS = [
     ('gifts.db', os.path.join(BASE_DIR, '人情', 'gifts.db')),
@@ -84,6 +87,7 @@ def _auto_backup_thread():
                 zip_path = _save_server_backup()
                 ts = _now().strftime('%Y-%m-%d %H:%M:%S')
                 print(f'[{ts}] 首次自动备份完成: {os.path.basename(zip_path)}')
+                _push_latest_to_remote()
                 sleep_sec = AUTO_BACKUP_INTERVAL
             else:
                 next_time = last + timedelta(seconds=AUTO_BACKUP_INTERVAL)
@@ -91,6 +95,7 @@ def _auto_backup_thread():
                     zip_path = _save_server_backup()
                     ts = _now().strftime('%Y-%m-%d %H:%M:%S')
                     print(f'[{ts}] 自动备份完成: {os.path.basename(zip_path)}')
+                    _push_latest_to_remote()
                     sleep_sec = AUTO_BACKUP_INTERVAL
                 else:
                     sleep_sec = max(3600, (next_time - now).total_seconds())
@@ -329,13 +334,60 @@ def list_backups():
 
 # ==================== 定时任务公开接口 ====================
 
+def _push_latest_to_remote():
+    """将最新备份推送到 slhfwq 异地备份，返回 (success, message)"""
+    os.makedirs(BACKUP_DIR, exist_ok=True)
+    backups = sorted([f for f in os.listdir(BACKUP_DIR) if f.endswith('.zip')], reverse=True)
+    if not backups:
+        return (False, '本地没有备份文件')
+    latest = backups[0]
+    filepath = os.path.join(BACKUP_DIR, latest)
+    try:
+        import urllib.request
+        boundary = '----BackupPushBoundary'
+        body = (
+            f'--{boundary}\r\n'
+            f'Content-Disposition: form-data; name="file"; filename="{latest}"\r\n'
+            f'Content-Type: application/zip\r\n\r\n'
+        ).encode('utf-8')
+        with open(filepath, 'rb') as f:
+            body += f.read()
+        body += f'\r\n--{boundary}--\r\n'.encode('utf-8')
+        req = urllib.request.Request(REMOTE_BACKUP_URL, data=body,
+            headers={
+                'X-Backup-Token': BACKUP_SYNC_TOKEN,
+                'Content-Type': f'multipart/form-data; boundary={boundary}',
+            }, method='POST')
+        with urllib.request.urlopen(req, timeout=120) as resp:
+            import json
+            result = json.loads(resp.read().decode())
+            if result.get('success'):
+                return (True, f'已推送 {latest} ({_size_str(os.path.getsize(filepath))})')
+            return (False, result.get('error', '未知错误'))
+    except Exception as e:
+        err = str(e)
+        if hasattr(e, 'read'):
+            try:
+                err = e.read().decode()[:200]
+            except Exception:
+                pass
+        return (False, f'推送失败: {err}')
+
+
 def run_backup():
     """公开接口：执行备份（供 daily_task.py 定时脚本调用）
     返回 (success: bool, message: str)"""
     try:
         zip_path = _save_server_backup()
         size = _size_str(os.path.getsize(zip_path))
-        return (True, f'备份完成: {os.path.basename(zip_path)} ({size})')
+        result = f'备份完成: {os.path.basename(zip_path)} ({size})'
+        # 推送到 slhfwq 异地备份
+        try:
+            pok, pmsg = _push_latest_to_remote()
+            result += f' | 异地: {pmsg}'
+        except Exception as e:
+            result += f' | 异地推送异常: {e}'
+        return (True, result)
     except Exception as e:
         return (False, f'备份异常: {e}')
 
