@@ -4,9 +4,12 @@ import os, re, shutil, zipfile, threading, time as time_mod
 from datetime import timedelta
 
 from .utils import _now, _size_str
-from flask import Blueprint, jsonify
+from flask import Blueprint, jsonify, request
 
 bp = Blueprint('backup', __name__)
+
+# 异地备份同步密钥（供 slhfwq 拉取备份时验证）
+BACKUP_SYNC_TOKEN = 'ce952b9ded0733ed'
 
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 BACKUP_DIR = os.path.join(BASE_DIR, 'backups')
@@ -406,3 +409,28 @@ def download_backup(filename):
         return jsonify({'success': False, 'error': '备份文件不存在'}), 404
     from flask import send_file
     return send_file(filepath, as_attachment=True, download_name=filename)
+
+
+@bp.route('/api/backup/sync', methods=['POST'])
+def sync_backup():
+    """异地备份同步端点：slhfwq 拉取最新备份
+    需要 X-Backup-Token 请求头验证，返回最新备份 zip 文件"""
+    token = request.headers.get('X-Backup-Token', '') or request.args.get('token', '')
+    if token != BACKUP_SYNC_TOKEN:
+        return jsonify({'success': False, 'error': '未授权'}), 403
+
+    os.makedirs(BACKUP_DIR, exist_ok=True)
+    backups = sorted([f for f in os.listdir(BACKUP_DIR) if f.endswith('.zip')], reverse=True)
+
+    if not backups:
+        # 没有现有备份，现场创建一个
+        try:
+            zip_path = _save_server_backup()
+            backups = [os.path.basename(zip_path)]
+        except Exception as e:
+            return jsonify({'success': False, 'error': f'备份创建失败: {e}'}), 500
+
+    latest = backups[0]
+    filepath = os.path.join(BACKUP_DIR, latest)
+    from flask import send_file
+    return send_file(filepath, as_attachment=True, download_name=latest)
