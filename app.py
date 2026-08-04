@@ -8,7 +8,7 @@ from flask import Flask, jsonify, send_from_directory, request, session, redirec
 
 # 启动耗时诊断
 _start_ts = time_mod.time()
-def _diag(msg):
+def _diag(msg):  # pyright: ignore[reportMissingParameterType]
     elapsed = time_mod.time() - _start_ts
     print(f'[STARTUP {elapsed:.2f}s] {msg}')
 
@@ -47,7 +47,7 @@ def _load_auth():
     # 未设置密码，返回空（需要走setup流程）
     return ''
 
-AUTH_HASH = _load_auth()
+_auth_hash = _load_auth()
 _AUTH_LOCK = threading.Lock()
 
 SETUP_PAGE = '''<html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>设置密码</title>
@@ -72,11 +72,11 @@ def setup():
             return SETUP_PAGE.replace('请设置系统访问密码', '密码至少4位')
         if pw != pw2:
             return SETUP_PAGE.replace('请设置系统访问密码', '两次密码不一致')
-        global AUTH_HASH
+        global _auth_hash
         with _AUTH_LOCK:
-            AUTH_HASH = _hash(pw)
+            _auth_hash = _hash(pw)
             with open(AUTH_FILE, 'w') as f:
-                f.write(AUTH_HASH)
+                f.write(_auth_hash)
         return redirect('/login')
     return SETUP_PAGE
 
@@ -94,8 +94,8 @@ button:hover{background:#5a6fd6}.err{color:#dc2626;font-size:13px;margin-top:8px
 @app.route('/login', methods=['GET', 'POST'])
 def login():
     with _AUTH_LOCK:
-        auth_set = bool(AUTH_HASH)
-        current_hash = AUTH_HASH
+        auth_set = bool(_auth_hash)
+        current_hash = _auth_hash
     if not auth_set:
         return redirect('/setup')
     if request.method == 'POST':
