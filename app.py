@@ -4,6 +4,7 @@ Flask 后端（主站）
 适用于 PythonAnywhere 部署
 """
 import os, hashlib, traceback, time as time_mod, threading, sys, sqlite3
+from typing import Any
 from flask import Flask, jsonify, send_from_directory, request, session, redirect
 
 # 启动耗时诊断
@@ -29,13 +30,13 @@ app.config.update(
 
 AUTH_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), '.auth')
 
-def _hash(pw):
+def _hash(pw: str) -> str:
     return hashlib.sha256(pw.encode()).hexdigest()
 
-def _load_auth():
+def _load_auth() -> str:
     try:
         # 优先从环境变量读取密码
-        env_pw = os.environ.get('SITE_PASSWORD', '')
+        env_pw: str = os.environ.get('SITE_PASSWORD', '')
         if env_pw:
             return _hash(env_pw)
         # 其次从文件读取
@@ -47,8 +48,8 @@ def _load_auth():
     # 未设置密码，返回空（需要走setup流程）
     return ''
 
-_auth_hash = _load_auth()
-_AUTH_LOCK = threading.Lock()
+_auth_hash: str = _load_auth()
+_AUTH_LOCK: threading.Lock = threading.Lock()
 
 SETUP_PAGE = '''<html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>设置密码</title>
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><defs><linearGradient id='g' x1='0' y1='0' x2='0' y2='1'><stop offset='0%25' stop-color='%236366f1'/><stop offset='100%25' stop-color='%234f46e5'/></linearGradient></defs><rect width='32' height='32' rx='7' fill='url(%23g)'/><text x='16' y='23' text-anchor='middle' font-size='16' font-weight='bold' fill='white' font-family='sans-serif'>PA</text></svg>">
@@ -64,7 +65,7 @@ button:hover{background:#5a6fd6}.tip{color:#666;font-size:12px;margin-top:12px}<
 <div class="tip">设置后可通过访问 /setup 重新修改密码</div></div></body></html>'''
 
 @app.route('/setup', methods=['GET', 'POST'])
-def setup():
+def setup() -> Any:
     if request.method == 'POST':
         pw = request.form.get('password', '')
         pw2 = request.form.get('password2', '')
@@ -76,7 +77,7 @@ def setup():
         with _AUTH_LOCK:
             _auth_hash = _hash(pw)
             with open(AUTH_FILE, 'w') as f:
-                f.write(_auth_hash)
+                _ = f.write(_auth_hash)
         return redirect('/login')
     return SETUP_PAGE
 
@@ -92,7 +93,7 @@ button:hover{background:#5a6fd6}.err{color:#dc2626;font-size:13px;margin-top:8px
 <button type="submit">登录</button></form>__ERROR_PLACEHOLDER__</div></body></html>'''
 
 @app.route('/login', methods=['GET', 'POST'])
-def login():
+def login() -> Any:
     with _AUTH_LOCK:
         auth_set = bool(_auth_hash)
         current_hash = _auth_hash
@@ -111,29 +112,29 @@ def login():
     return LOGIN_HTML.replace('__ERROR_PLACEHOLDER__', '')
 
 @app.route('/logout')
-def logout():
+def logout() -> Any:
     session.clear()
     return redirect('/login')
 
 DEPLOY_TOKEN = os.environ.get('DEPLOY_TOKEN', 'ce952b9ded0733ed')
 
 # 请求频率限制（基于内存 + SQLite 持久化）
-_rate_limits = {}
-RATE_LIMIT_WINDOW = 60       # 60秒窗口
-RATE_LIMIT_MAX_JSON = 30     # API最大请求数
-RATE_LIMIT_MAX_HTML = 60     # 页面最大请求数
+_rate_limits: dict[str, int] = {}
+RATE_LIMIT_WINDOW: int = 60       # 60秒窗口
+RATE_LIMIT_MAX_JSON: int = 30     # API最大请求数
+RATE_LIMIT_MAX_HTML: int = 60     # 页面最大请求数
 _RATE_DB_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), '.rate_limits.db')
 _RATE_DB_LOCK = threading.Lock()
 
-def _init_rate_db():
+def _init_rate_db() -> bool:
     """初始化速率限制 SQLite 数据库"""
     try:
         with _RATE_DB_LOCK:
             conn = sqlite3.connect(_RATE_DB_PATH)
-            conn.execute('PRAGMA journal_mode=WAL')
-            conn.execute('CREATE TABLE IF NOT EXISTS ratelimit (ip_window TEXT PRIMARY KEY, count INTEGER, updated REAL)')
+            _ = conn.execute('PRAGMA journal_mode=WAL')
+            _ = conn.execute('CREATE TABLE IF NOT EXISTS ratelimit (ip_window TEXT PRIMARY KEY, count INTEGER, updated REAL)')
             # 加载已有数据到内存
-            rows = conn.execute('SELECT ip_window, count FROM ratelimit').fetchall()
+            rows: list[Any] = conn.execute('SELECT ip_window, count FROM ratelimit').fetchall()
             for ip_window, count in rows:
                 _rate_limits[ip_window] = count
             conn.commit()
@@ -142,12 +143,12 @@ def _init_rate_db():
     except Exception:
         return False
 
-def _flush_rate_db():
+def _flush_rate_db() -> None:
     """将内存中的速率限制写入 SQLite"""
     try:
         with _RATE_DB_LOCK:
             conn = sqlite3.connect(_RATE_DB_PATH)
-            conn.execute('PRAGMA journal_mode=WAL')
+            _ = conn.execute('PRAGMA journal_mode=WAL')
             now = time_mod.time()
             # 只写入当前窗口的数据
             current_window = int(now // RATE_LIMIT_WINDOW)
@@ -155,48 +156,48 @@ def _flush_rate_db():
                 try:
                     key_time = int(key.split(':')[-1])
                     if key_time >= current_window - 1:
-                        conn.execute(
+                        _ = conn.execute(
                             'INSERT OR REPLACE INTO ratelimit(ip_window, count, updated) VALUES(?,?,?)',
                             (key, count, now)
                         )
                 except Exception:
                     pass
             # 清理超过 5 分钟的旧记录
-            conn.execute('DELETE FROM ratelimit WHERE updated < ?', (now - 300,))
+            _ = conn.execute('DELETE FROM ratelimit WHERE updated < ?', (now - 300,))
             conn.commit()
             conn.close()
     except Exception:
         pass
 
 # 启动时加载持久化数据
-_init_rate_db()
+_ = _init_rate_db()
 
 @app.before_request
-def check_auth():
+def check_auth() -> Any:
     # 部署健康检查：最先放行，不走频率限制、认证、任何其他逻辑
     if request.path == '/api/ping':
         return
 
     # 频率限制
-    client_ip = request.remote_addr or 'unknown'
-    path = request.path
-    now_key = int(time_mod.time() // RATE_LIMIT_WINDOW)
-    rate_key = f'{client_ip}:{now_key}'
-    _rate_limits.setdefault(rate_key, 0)
+    client_ip: str = request.remote_addr or 'unknown'
+    path: str = request.path
+    now_key: int = int(time_mod.time() // RATE_LIMIT_WINDOW)
+    rate_key: str = f'{client_ip}:{now_key}'
+    _ = _rate_limits.setdefault(rate_key, 0)
     _rate_limits[rate_key] += 1
-    limit = RATE_LIMIT_MAX_JSON if path.startswith('/api/') else RATE_LIMIT_MAX_HTML
+    limit: int = RATE_LIMIT_MAX_JSON if path.startswith('/api/') else RATE_LIMIT_MAX_HTML
     if _rate_limits[rate_key] > limit:
         return jsonify({'success': False, 'error': '请求过于频繁'}), 429
     # 免登录路径
-    PUBLIC_PREFIXES = ('/static', '/countdown', '/accounting', '/hsgrades/icon', '/hsgrades/manifest', '/gpa/icon', '/gpa/manifest', '/renqing/manifest', '/renqing/icon', '/deploy/manifest', '/deploy/icon', '/nav/manifest', '/nav/icon', '/api/accounting', '/api/countdown', '/api/pa/', '/api/status')
+    PUBLIC_PREFIXES: tuple[str, ...] = ('/static', '/countdown', '/accounting', '/hsgrades/icon', '/hsgrades/manifest', '/gpa/icon', '/gpa/manifest', '/renqing/manifest', '/renqing/icon', '/deploy/manifest', '/deploy/icon', '/nav/manifest', '/nav/icon', '/api/accounting', '/api/countdown', '/api/pa/', '/api/status')
     if request.path in ('/login', '/setup', '/api/ping') or any(request.path.startswith(p) for p in PUBLIC_PREFIXES):
         return
     if session.get('auth'):
         return
     # 备份同步端点：独立密钥验证（供本地拉取脚本使用）
     if request.path.startswith('/api/backup/'):
-        backup_token = request.headers.get('X-Backup-Token', '')
-        BACKUP_SYNC_TOKEN = os.environ.get('BACKUP_SYNC_TOKEN', 'ce952b9ded0733ed')
+        backup_token: str = request.headers.get('X-Backup-Token', '')
+        BACKUP_SYNC_TOKEN: str = os.environ.get('BACKUP_SYNC_TOKEN', 'ce952b9ded0733ed')
         if backup_token == BACKUP_SYNC_TOKEN:
             return
 
@@ -205,7 +206,7 @@ def check_auth():
                          '/api/backup/restore-latest', '/api/renqing/db-check') or \
        request.path.startswith('/api/backup/') or \
        request.path.startswith('/api/cleanup'):
-        token = request.headers.get('X-Deploy-Token', '')
+        token: str = request.headers.get('X-Deploy-Token', '')
         if DEPLOY_TOKEN and token == DEPLOY_TOKEN:
             return
         return jsonify({'success': False, 'error': '未授权'}), 401
@@ -217,7 +218,7 @@ def check_auth():
 
 # 路由模块导入 —— 单个模块出错不影响其他模块和部署 API
 # deploy 先注册，确保部署 API 始终可用
-def _safe_import(module_name, what='bp, init_db'):
+def _safe_import(module_name: str, _what: str = 'bp, init_db') -> tuple[Any, Any]:
     try:
         mod = __import__(module_name, fromlist=['bp'])
         return getattr(mod, 'bp', None), getattr(mod, 'init_db', None)
@@ -225,7 +226,7 @@ def _safe_import(module_name, what='bp, init_db'):
         print(f'[WARNING] 模块 {module_name} 导入失败: {e}', flush=True)
         return None, None
 
-def _safe_import_extra(module_name, attrs):
+def _safe_import_extra(module_name: str, attrs: list[str] | tuple[str, ...]) -> tuple[Any, ...]:
     """导入模块的额外属性（如 start_auto_backup）"""
     try:
         mod = __import__(module_name, fromlist=attrs)
@@ -300,7 +301,7 @@ ERROR_LOG_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), '500_e
 _ERROR_LOG_LOCK = threading.Lock()
 
 @app.errorhandler(OSError)
-def handle_os_error(e):
+def handle_os_error(e: Exception) -> Any:
     """客户端断开静默处理：不写日志不traceback，直接丢弃"""
     err_str = str(e).lower()
     if 'write error' in err_str or isinstance(e, (BrokenPipeError, ConnectionResetError)):
@@ -309,18 +310,18 @@ def handle_os_error(e):
 
 
 @app.errorhandler(500)
-def handle_500(e):
-    err_msg = str(e)
-    tb = traceback.format_exc()
+def handle_500(e: Exception) -> Any:
+    err_msg: str = str(e)
+    tb: str = traceback.format_exc()
     app.logger.error(f"500 error: {err_msg}\n{tb}")
     # 写入错误日志文件便于远程诊断（加锁防止并发竞争）
     try:
         with _ERROR_LOG_LOCK:
             with open(ERROR_LOG_FILE, 'a', encoding='utf-8') as f:
-                f.write(f'[{time_mod.strftime("%Y-%m-%d %H:%M:%S")}] {request.method} {request.path}\n{err_msg}\n{tb}\n{"-"*60}\n')
+                _ = f.write(f'[{time_mod.strftime("%Y-%m-%d %H:%M:%S")}] {request.method} {request.path}\n{err_msg}\n{tb}\n{"-"*60}\n')
             # 保留最近 N 行
             with open(ERROR_LOG_FILE, 'r', encoding='utf-8') as f:
-                lines = f.readlines()
+                lines: list[str] = f.readlines()
             if len(lines) > ERROR_LOG_MAX_LINES:
                 with open(ERROR_LOG_FILE, 'w', encoding='utf-8') as f:
                     f.writelines(lines[-ERROR_LOG_MAX_LINES:])
@@ -329,13 +330,13 @@ def handle_500(e):
     return jsonify({'success': False, 'error': f'服务器内部错误: {err_msg[:200]}'}), 500
 
 @app.errorhandler(404)
-def handle_404(e):
+def handle_404(_e: Exception) -> Any:
     return jsonify({'success': False, 'error': '资源不存在'}), 404
 
 # ==================== 前端路由 ====================
 
 @app.route('/')
-def index():
+def index() -> Any:
     return redirect('/nav')
 
 @app.route('/nav')
@@ -487,10 +488,10 @@ def _deferred_starts():
             _diag(f'[延迟] 缓存构建失败: {e}')
 
 
-threading.Thread(target=_deferred_starts, daemon=True).start()
+_ = threading.Thread(target=_deferred_starts, daemon=True).start()
 
 @app.route('/api/version')
-def api_version():
+def api_version() -> Any:
     return jsonify({
         'version': '3.8.0',
         'build': '2026-07-27',
@@ -499,32 +500,32 @@ def api_version():
     })
 
 # 定期清理过期速率记录和持久化
-def _clean_rate_limits():
+def _clean_rate_limits() -> None:
     while True:
         time_mod.sleep(60)  # 每分钟清理
         try:
-            now_key = int(time_mod.time() // RATE_LIMIT_WINDOW)
-            keys = list(_rate_limits.keys())
+            now_key: int = int(time_mod.time() // RATE_LIMIT_WINDOW)
+            keys: list[str] = list(_rate_limits.keys())
             for k in keys:
                 try:
-                    key_time = int(k.split(':')[-1])
+                    key_time: int = int(k.split(':')[-1])
                     if key_time < now_key - 1:
-                        _rate_limits.pop(k, None)
+                        _ = _rate_limits.pop(k, None)
                 except Exception:
-                    _rate_limits.pop(k, None)
+                    _ = _rate_limits.pop(k, None)
             # 防止极端情况下内存暴涨（超过1000个条目时强制清掉最旧的）
             if len(_rate_limits) > 1000:
-                old_keys = sorted(_rate_limits.keys(),
+                old_keys: list[str] = sorted(_rate_limits.keys(),
                     key=lambda k: int(k.split(':')[-1]) if ':' in k else 0)[:500]
                 for k in old_keys:
-                    _rate_limits.pop(k, None)
+                    _ = _rate_limits.pop(k, None)
             # 持久化当前速率数据到 SQLite
             _flush_rate_db()
         except Exception:
             pass
 
-_thread = threading.Thread(target=_clean_rate_limits, daemon=True)
-_thread.start()
+_rate_thread: threading.Thread = threading.Thread(target=_clean_rate_limits, daemon=True)
+_rate_thread.start()
 
 if __name__ == '__main__':
     print('礼金记录系统: http://127.0.0.1:5000')
