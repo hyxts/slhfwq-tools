@@ -65,7 +65,7 @@ button:hover{background:#5a6fd6}.tip{color:#666;font-size:12px;margin-top:12px}<
 <div class="tip">设置后可通过访问 /setup 重新修改密码</div></div></body></html>'''
 
 @app.route('/setup', methods=['GET', 'POST'])
-def setup() -> Any:
+def setup():
     if request.method == 'POST':
         pw = request.form.get('password', '')
         pw2 = request.form.get('password2', '')
@@ -93,7 +93,7 @@ button:hover{background:#5a6fd6}.err{color:#dc2626;font-size:13px;margin-top:8px
 <button type="submit">登录</button></form>__ERROR_PLACEHOLDER__</div></body></html>'''
 
 @app.route('/login', methods=['GET', 'POST'])
-def login() -> Any:
+def login():
     with _AUTH_LOCK:
         auth_set = bool(_auth_hash)
         current_hash = _auth_hash
@@ -112,7 +112,7 @@ def login() -> Any:
     return LOGIN_HTML.replace('__ERROR_PLACEHOLDER__', '')
 
 @app.route('/logout')
-def logout() -> Any:
+def logout():
     session.clear()
     return redirect('/login')
 
@@ -173,7 +173,7 @@ def _flush_rate_db() -> None:
 _ = _init_rate_db()
 
 @app.before_request
-def check_auth() -> Any:
+def check_auth():
     # 部署健康检查：最先放行，不走频率限制、认证、任何其他逻辑
     if request.path == '/api/ping':
         return
@@ -301,7 +301,7 @@ ERROR_LOG_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), '500_e
 _ERROR_LOG_LOCK = threading.Lock()
 
 @app.errorhandler(OSError)
-def handle_os_error(e: Exception) -> Any:
+def handle_os_error(e: Exception):
     """客户端断开静默处理：不写日志不traceback，直接丢弃"""
     err_str = str(e).lower()
     if 'write error' in err_str or isinstance(e, (BrokenPipeError, ConnectionResetError)):
@@ -310,7 +310,7 @@ def handle_os_error(e: Exception) -> Any:
 
 
 @app.errorhandler(500)
-def handle_500(e: Exception) -> Any:
+def handle_500(e: Exception):
     err_msg: str = str(e)
     tb: str = traceback.format_exc()
     app.logger.error(f"500 error: {err_msg}\n{tb}")
@@ -330,13 +330,13 @@ def handle_500(e: Exception) -> Any:
     return jsonify({'success': False, 'error': f'服务器内部错误: {err_msg[:200]}'}), 500
 
 @app.errorhandler(404)
-def handle_404(_e: Exception) -> Any:
+def handle_404(_e: Exception):
     return jsonify({'success': False, 'error': '资源不存在'}), 404
 
 # ==================== 前端路由 ====================
 
 @app.route('/')
-def index() -> Any:
+def index():
     return redirect('/nav')
 
 @app.route('/nav')
@@ -491,7 +491,7 @@ def _deferred_starts():
 _ = threading.Thread(target=_deferred_starts, daemon=True).start()
 
 @app.route('/api/version')
-def api_version() -> Any:
+def api_version():
     return jsonify({
         'version': '3.8.0',
         'build': '2026-07-27',
