@@ -225,6 +225,23 @@ def save_data():
 
 
 
+@bp.route('/api/pa/renew', methods=['POST'])
+def trigger_renew():
+    """手动触发一次PA续期检查"""
+    try:
+        cfg = _load_config()
+        username = cfg.get('username', '')
+        password = cfg.get('password', '')
+        if not username or not password:
+            return jsonify({'success': False, 'error': '未配置账号密码'}), 400
+        if _status['running']:
+            return jsonify({'success': False, 'error': '续期正在进行中'}), 409
+        threading.Thread(target=_renew_thread, args=(username, password, cfg.get('api_token', '')), daemon=True).start()
+        return jsonify({'success': True, 'message': '续期已触发，请稍后查看结果'})
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
 @bp.route('/api/pa/status', methods=['GET'])
 def status():
     try:
