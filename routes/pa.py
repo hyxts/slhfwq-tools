@@ -436,38 +436,37 @@ def _pa_login(session, username, password):
             from bs4 import BeautifulSoup
             soup_err = BeautifulSoup(r.text, 'html.parser')
             err_text = ''
-            # PA 的错误信息在 <ul class="errorlist"> 或 <p> 标签中，包含 "incorrect" 或 "wrong"
+            # 方法1: 精确查找 PA 的 errorlist
             err_el = soup_err.find('ul', class_='errorlist')
             if err_el:
                 err_text = err_el.get_text(strip=True)
             if not err_text:
+                # 方法2: 正则直接搜索页面文本中的错误短句（限制长度避免匹配到整个页面头）
+                m = re.search(r'(?:用户名或密码错误|密码不正确|账号或密码错误|user name or password is incorrect|username or password is incorrect|incorrect username or password|password incorrect|invalid login|account locked|disabled|CAPTCHA|verification required)[^<]*', r.text, re.I)
+                if m:
+                    err_text = m.group(0).strip()
+            if not err_text:
+                # 方法3: 在标签文本中搜索关键词，但限制文本长度不超过200字符
                 for tag in soup_err.find_all(['p', 'div', 'span', 'li']):
                     txt = tag.get_text(strip=True)
+                    if len(txt) > 200:
+                        continue  # 跳过超长文本（可能是导航栏等）
                     if txt and ('incorrect' in txt.lower() or 'wrong' in txt.lower()
-                              or 'password' in txt.lower() or 'username' in txt.lower()):
-                        err_text = txt
+                              or 'password' in txt.lower() or 'username' in txt.lower()
+                              or 'locked' in txt.lower() or 'captcha' in txt.lower()):
+                        err_text = txt[:200]
                         break
             if not err_text:
-                # 尝试找 class 含 error/alert 的元素
+                # 方法4: 尝试找 class 含 error/alert 的元素
                 err_el = soup_err.find(class_=re.compile(r'error|alert|message', re.I))
                 if err_el:
-                    err_text = err_el.get_text(strip=True)
+                    err_text = err_el.get_text(strip=True)[:200]
             if err_text:
                 d(f'  [2失败] 登录失败: {err_text}')
             else:
-                # 最后兜底：直接搜索页面中的关键短语
-                page_text = soup_err.get_text()
-                for keyword in ['incorrect', 'wrong', 'Invalid', 'locked', 'disabled',
-                                'confirm your email', 'CAPTCHA', 'verification']:
-                    idx = page_text.lower().find(keyword.lower())
-                    if idx >= 0:
-                        snippet = page_text[max(0,idx-20):idx+len(keyword)+80].strip()
-                        d(f'  [2失败] 登录页面提示: ...{snippet}...')
-                        break
-                else:
-                    d(f'  [2失败] 登录失败，停留在登录页面')
+                d(f'  [2失败] 登录失败，停留在登录页面（用户名或密码错误）')
         except Exception:
-            d(f'  [2失败] 登录失败，停留在登录页面')
+            d(f'  [2失败] 登录失败，用户名或密码错误')
         return (False, '登录失败，请检查账号密码', details, '')
     d('  登录成功')
     d(f'  登录后跳转地址: {r.url}')
