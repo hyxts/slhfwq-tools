@@ -8,7 +8,7 @@ from flask import Flask, jsonify, send_from_directory, request, session, redirec
 
 # 启动耗时诊断
 _start_ts = time_mod.time()
-def _diag(msg):  # pyright: ignore[reportMissingParameterType]
+def _diag(msg: str):
     elapsed = time_mod.time() - _start_ts
     print(f'[STARTUP {elapsed:.2f}s] {msg}')
 
