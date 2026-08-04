@@ -24,7 +24,7 @@ def now_ts():
     return datetime.now(TZ)
 
 
-def _size_str(b):
+def size_str(b: int) -> str:
     """字节数转可读字符串"""
     if b < 1024:
         return f'{b}B'

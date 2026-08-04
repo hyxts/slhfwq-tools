@@ -27,7 +27,7 @@ def _count_files(path):
         return -1
 
 
-def _size_str(b):
+def size_str(b):
     """字节数转可读字符串"""
     if b < 1024:
         return f'{b}B'
@@ -96,7 +96,7 @@ def run_file_cleanup():
     stats = {
         'removed': removed,
         'total_files': total_files,
-        'total_size': _size_str(total_size) if total_size > 0 else 'N/A',
+        'total_size': size_str(total_size) if total_size > 0 else 'N/A',
         'dirs_cleaned': len([r for r in results if r.startswith('routes') or r.endswith('pyc')]),
     }
 

@@ -3,7 +3,7 @@
 import os, sys, subprocess, json, base64, sqlite3, shutil, time as time_mod, threading
 from datetime import datetime
 
-from .utils import TZ, _size_str, db_has_data, FOLDER_MAP
+from .utils import TZ, size_str, db_has_data, FOLDER_MAP
 from flask import Blueprint, jsonify, request
 
 bp = Blueprint('deploy', __name__)
@@ -284,7 +284,7 @@ def _build_server_status():
 
     free = max(0, QUOTA - total_used)
     pct = round(total_used / QUOTA * 100, 1)
-    disk = {'total': _size_str(QUOTA), 'used': _size_str(total_used), 'free': _size_str(free), 'pct': pct,
+    disk = {'total': size_str(QUOTA), 'used': size_str(total_used), 'free': size_str(free), 'pct': pct,
             'warn': pct > 80}
 
     # 数据库信息（只读查询，不做 WAL 设置，数据库创建时已设好）
@@ -318,7 +318,7 @@ def _build_server_status():
                         table_counts.append({'table': t, 'rows': cnt})
                     dbs.append({
                         'name': f'{dirname}/{f}',
-                        'size': _size_str(sz),
+                        'size': size_str(sz),
                         'size_bytes': sz,
                         'rows': rows,
                         'last_modified': last_modified,
@@ -346,7 +346,7 @@ def _build_server_status():
                     sz = os.path.getsize(full_path)
                     with open(full_path, 'r', encoding='utf-8') as lf:
                         lines = sum(1 for _ in lf)
-                    logs.append({'name': f'{dirname}/{f}', 'size': _size_str(sz), 'lines': lines})
+                    logs.append({'name': f'{dirname}/{f}', 'size': size_str(sz), 'lines': lines})
                 except Exception:
                     pass
     for f in os.listdir(BASE_DIR):
@@ -356,7 +356,7 @@ def _build_server_status():
                 sz = os.path.getsize(full_path)
                 with open(full_path, 'r', encoding='utf-8') as lf:
                     lines = sum(1 for _ in lf)
-                logs.append({'name': f, 'size': _size_str(sz), 'lines': lines})
+                logs.append({'name': f, 'size': size_str(sz), 'lines': lines})
             except Exception:
                 pass
     logs.sort(key=lambda x: x['name'])
@@ -371,17 +371,17 @@ def _build_server_status():
     dir_sizes = []
     for dname, sz in subdir_sizes.items():
         dir_sizes.append({
-            'name': dname, 'bytes': sz, 'size_str': _size_str(sz),
+            'name': dname, 'bytes': sz, 'size_str': size_str(sz),
             'pct': round(sz / QUOTA * 100, 1),
         })
     if root_file_sz > 0:
         dir_sizes.append({
             'name': '(根目录文件)', 'bytes': root_file_sz,
-            'size_str': _size_str(root_file_sz), 'pct': round(root_file_sz / QUOTA * 100, 1),
+            'size_str': size_str(root_file_sz), 'pct': round(root_file_sz / QUOTA * 100, 1),
         })
     for dname, sz in other_dirs.items():
         dir_sizes.append({
-            'name': dname, 'bytes': sz, 'size_str': _size_str(sz),
+            'name': dname, 'bytes': sz, 'size_str': size_str(sz),
             'pct': round(sz / QUOTA * 100, 1),
         })
     dir_sizes.sort(key=lambda x: x['bytes'], reverse=True)
@@ -395,7 +395,7 @@ def _build_server_status():
         'disk': disk, 'dbs': dbs, 'logs': logs, 'old_dirs': old_dirs,
         'uptime': uptime, 'python': sys.version.split()[0],
         'dir_sizes': dir_sizes,
-        'total_records': total_records, 'total_db_size_str': _size_str(total_db_size),
+        'total_records': total_records, 'total_db_size_str': size_str(total_db_size),
     }
 
 
@@ -493,7 +493,7 @@ def cleanup_old_folders():
                          for r, _, fs in os.walk(entry.path) for f in fs
                          if os.path.isfile(os.path.join(r, f)))
                 shutil.rmtree(entry.path)
-                results.append(f'已清理遗留目录: {dname}/ ({_size_str(sz)})')
+                results.append(f'已清理遗留目录: {dname}/ ({size_str(sz)})')
             except Exception as e:
                 results.append(f'清理失败 {dname}: {e}')
     except OSError:

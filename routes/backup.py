@@ -1,9 +1,22 @@
+
+
+
+
+
+
+
+
+
+
+
+
+
 # -*- coding: utf-8 -*-
 """数据库备份 Blueprint（含每日自动备份、每周自动清理）"""
 import os, re, shutil, zipfile, threading, time as time_mod
 from datetime import timedelta
 
-from .utils import now_ts, _size_str
+from .utils import now_ts, size_str
 from flask import Blueprint, jsonify, request
 
 bp = Blueprint('backup', __name__)
@@ -117,7 +130,7 @@ _last_cleanup = {'time': '-', 'freed': '-', 'results': []}
 _last_cleanup_lock = threading.Lock()
 
 
-def _count_files(path):
+def _count_files(path):  # pyright: ignore[reportMissingParameterType]
     """统计目录下文件总数"""
     try:
         return sum(1 for _ in (os.path.join(r, f)
@@ -144,7 +157,7 @@ def _do_cleanup():
             size_after = os.path.getsize(log_path)
             freed = size_before - size_after
             total_freed += freed
-            results.append(f'PA日志: {len(lines)}行 → {MAX_LOG_LINES}行, 释放 {_size_str(freed)}')
+            results.append(f'PA日志: {len(lines)}行 → {MAX_LOG_LINES}行, 释放 {size_str(freed)}')
 
     # 2. 清理 __pycache__ 目录
     for root, dirs, files in os.walk(BASE_DIR):
@@ -178,7 +191,7 @@ def _do_cleanup():
                     size_after = os.path.getsize(log_path)
                     freed = size_before - size_after
                     total_freed += freed
-                    results.append(f'{log_name}: {len(lines)}行 → {MAX_LOG_LINES}行, 释放 {_size_str(freed)}')
+                    results.append(f'{log_name}: {len(lines)}行 → {MAX_LOG_LINES}行, 释放 {size_str(freed)}')
             except Exception:
                 pass
 
@@ -222,7 +235,7 @@ def _do_cleanup():
                          if os.path.isfile(os.path.join(r, f)))
                 shutil.rmtree(entry.path)
                 total_freed += sz
-                results.append(f'已清理遗留目录: {dname}/ ({_size_str(sz)})')
+                results.append(f'已清理遗留目录: {dname}/ ({size_str(sz)})')
             except Exception:
                 pass
     except OSError:
@@ -237,7 +250,7 @@ def _do_cleanup():
                 sz = os.path.getsize(fpath)
                 os.remove(fpath)
                 total_freed += sz
-                results.append(f'已清理废弃文件: {fname} ({_size_str(sz)})')
+                results.append(f'已清理废弃文件: {fname} ({size_str(sz)})')
             except Exception:
                 pass
 
@@ -274,8 +287,8 @@ def _auto_clean_thread():
             results, freed = _do_cleanup()
             ts = now_ts().strftime('%Y-%m-%d %H:%M:%S')
             with _last_cleanup_lock:
-                _last_cleanup = {'time': ts, 'freed': _size_str(freed), 'results': results}
-            print(f'[{ts}] 自动清理完成: 释放 {_size_str(freed)}; {"; ".join(results)}')
+                _last_cleanup = {'time': ts, 'freed': size_str(freed), 'results': results}
+            print(f'[{ts}] 自动清理完成: 释放 {size_str(freed)}; {"; ".join(results)}')
             time_mod.sleep(AUTO_CLEAN_INTERVAL)
 
         except Exception as e:
@@ -301,8 +314,8 @@ def manual_cleanup():
             results, freed = _do_cleanup()
             ts = now_ts().strftime('%Y-%m-%d %H:%M:%S')
             with _last_cleanup_lock:
-                _last_cleanup = {'time': ts, 'freed': _size_str(freed), 'results': results}
-            return jsonify({'success': True, 'results': results, 'freed': _size_str(freed)})
+                _last_cleanup = {'time': ts, 'freed': size_str(freed), 'results': results}
+            return jsonify({'success': True, 'results': results, 'freed': size_str(freed)})
         except Exception as e:
             return jsonify({'success': False, 'error': str(e)}), 500
 
@@ -323,7 +336,7 @@ def list_backups():
     for f in files:
         fp = os.path.join(BACKUP_DIR, f)
         sz = os.path.getsize(fp)
-        result.append({'name': f, 'size': _size_str(sz), 'size_bytes': sz})
+        result.append({'name': f, 'size': size_str(sz), 'size_bytes': sz})
     return jsonify({'success': True, 'backups': result})
 
 
@@ -334,7 +347,7 @@ def run_backup():
     返回 (success: bool, message: str)"""
     try:
         zip_path = _save_server_backup()
-        size = _size_str(os.path.getsize(zip_path))
+        size = size_str(os.path.getsize(zip_path))
         return (True, f'备份完成: {os.path.basename(zip_path)} ({size})')
     except Exception as e:
         return (False, f'备份异常: {e}')
@@ -348,8 +361,8 @@ def run_cleanup():
         global _last_cleanup
         ts = now_ts().strftime('%Y-%m-%d %H:%M:%S')
         with _last_cleanup_lock:
-            _last_cleanup = {'time': ts, 'freed': _size_str(freed), 'results': results}
-        return (True, f'清理完成: 释放 {_size_str(freed)}; {"; ".join(results)}')
+            _last_cleanup = {'time': ts, 'freed': size_str(freed), 'results': results}
+        return (True, f'清理完成: 释放 {size_str(freed)}; {"; ".join(results)}')
     except Exception as e:
         return (False, f'清理异常: {e}')
 
@@ -362,7 +375,7 @@ def create_backup():
     try:
         zip_path = _save_server_backup()
         return jsonify({'success': True, 'file': os.path.basename(zip_path),
-                        'size': _size_str(os.path.getsize(zip_path))})
+                        'size': size_str(os.path.getsize(zip_path))})
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)}), 500
 
