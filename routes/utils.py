@@ -20,7 +20,7 @@ FOLDER_MAP = {
 }
 
 
-def _now():
+def now_ts():
     return datetime.now(TZ)
 
 
@@ -56,7 +56,7 @@ def make_logger(log_file):
     t.start()
 
     def _log(msg):
-        ts = _now().strftime('%Y-%m-%d %H:%M:%S')
+        ts = now_ts().strftime('%Y-%m-%d %H:%M:%S')
         _log_queue.put(f'[{ts}] {msg}\n')
 
     return _log

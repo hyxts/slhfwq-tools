@@ -15,7 +15,7 @@ sys.path.insert(0, BASE_DIR)
 
 from routes.pa import run_renewal
 from routes.backup import run_backup, run_cleanup
-from routes.utils import _now
+from routes.utils import now_ts
 
 
 def _count_files(path):
@@ -69,7 +69,7 @@ def run_file_cleanup():
         results.append(f'散落pyc: {pyc_count}个')
 
     # 3. 每周日执行 git gc（打包松散对象，减少文件数）
-    today = _now().weekday()
+    today = now_ts().weekday()
     if today == 6:
         try:
             r = subprocess.run(
@@ -113,7 +113,7 @@ def run_file_cleanup():
 
 
 def main():
-    ts = _now().strftime('%Y-%m-%d %H:%M:%S')
+    ts = now_ts().strftime('%Y-%m-%d %H:%M:%S')
     print(f'[{ts}] ===== 每日任务开始 =====')
 
     # ---- 1. PA 续期检查 ----
@@ -141,7 +141,7 @@ def main():
         print(f'[文件清理] 异常: {e}')
 
     # ---- 4. 深度清理（仅周日执行） ----
-    if _now().weekday() == 6:
+    if now_ts().weekday() == 6:
         try:
             ok, msg = run_cleanup()
             status = '成功' if ok else '失败'
@@ -151,7 +151,7 @@ def main():
     else:
         print(f'[深度清理] 跳过（非周日）')
 
-    ts = _now().strftime('%Y-%m-%d %H:%M:%S')
+    ts = now_ts().strftime('%Y-%m-%d %H:%M:%S')
     print(f'[{ts}] ===== 每日任务完成 =====')
 
 

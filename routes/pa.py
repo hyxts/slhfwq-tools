@@ -3,7 +3,7 @@
 import os, json, re, threading, sqlite3, time as time_mod
 from datetime import datetime, timedelta
 
-from .utils import TZ, _now, make_logger, make_db, encode_pw, decode_pw, extract_csrf
+from .utils import TZ, now_ts, make_logger, make_db, encode_pw, decode_pw, extract_csrf
 from flask import Blueprint, request, jsonify
 
 bp = Blueprint('pa', __name__)
@@ -614,7 +614,7 @@ def _renew_thread(username, password, api_token=''):
         with _status_lock:
             _status['running'] = True
         ok, pre, post, details = _do_renew(username, password)
-        ts = _now().strftime('%Y-%m-%d %H:%M:%S')
+        ts = now_ts().strftime('%Y-%m-%d %H:%M:%S')
 
         # 汇总日志
         renewed = False  # 是否成功续期（到期日有变化）
@@ -660,7 +660,7 @@ def _renew_thread(username, password, api_token=''):
     except Exception as e:
         _log(f'[错误] 续期异常: {e}')
         with _status_lock:
-            _status['last_result'] = {'success': False, 'error': str(e), 'time': _now().strftime('%Y-%m-%d %H:%M:%S')}
+            _status['last_result'] = {'success': False, 'error': str(e), 'time': now_ts().strftime('%Y-%m-%d %H:%M:%S')}
     finally:
         with _status_lock:
             _status['running'] = False
@@ -692,7 +692,7 @@ def _auto_renew_thread():
                         last_run_dt = datetime.strptime(last_run, '%Y-%m-%d %H:%M:%S')
                         last_run_dt = last_run_dt.replace(tzinfo=TZ)
                         next_run_dt = last_run_dt + timedelta(days=interval)
-                        now = _now()
+                        now = now_ts()
                         if now >= next_run_dt:
                             should_renew = True
                         else:
@@ -703,7 +703,7 @@ def _auto_renew_thread():
                     should_renew = True  # 首次运行（从未续期过）
 
                 if not should_renew:
-                    next_check = (_now() + timedelta(seconds=sleep_sec)).strftime('%Y-%m-%d %H:%M')
+                    next_check = (now_ts() + timedelta(seconds=sleep_sec)).strftime('%Y-%m-%d %H:%M')
                     _log(f'[检查] 距上次续期不足 {interval} 天，下次续期时间 {next_run_dt.strftime("%Y-%m-%d %H:%M")}，下次检查 {next_check}')
                 else:
                     # 防频繁：至少间隔1天
@@ -712,7 +712,7 @@ def _auto_renew_thread():
                         try:
                             last_run_dt = datetime.strptime(last_run, '%Y-%m-%d %H:%M:%S')
                             last_run_dt = last_run_dt.replace(tzinfo=TZ)
-                            if (_now() - last_run_dt).total_seconds() < 86400:
+                            if (now_ts() - last_run_dt).total_seconds() < 86400:
                                 blocked = True
                         except Exception:
                             pass
@@ -722,7 +722,7 @@ def _auto_renew_thread():
                     else:
                         auth_mode = 'API Token' if api_token else '账号密码'
                         _log(f'[自动] 距上次续期已达 {interval} 天，开始续期')
-                        print(f'[{_now().strftime("%Y-%m-%d %H:%M:%S")}] PA自动续期触发 ({auth_mode})' + f' (距上次续期>={interval}天)')
+                        print(f'[{now_ts().strftime("%Y-%m-%d %H:%M:%S")}] PA自动续期触发 ({auth_mode})' + f' (距上次续期>={interval}天)')
                         threading.Thread(target=_renew_thread, args=(username, password, api_token), daemon=True).start()
                     # 续期已触发，直接睡到下次周期，避免24h后的冗余检查
                     sleep_sec = max(86400, interval * 86400)
@@ -734,7 +734,7 @@ def _auto_renew_thread():
 
             time_mod.sleep(sleep_sec)
         except Exception as e:
-            ts = _now().strftime('%Y-%m-%d %H:%M:%S')
+            ts = now_ts().strftime('%Y-%m-%d %H:%M:%S')
             print(f'[{ts}] PA自动续期检查异常: {e}')
             _log(f'[错误] 自动续期检查异常: {e}')
             time_mod.sleep(86400)
@@ -767,7 +767,7 @@ def run_renewal():
                 last_run_dt = datetime.strptime(last_run, '%Y-%m-%d %H:%M:%S')
                 last_run_dt = last_run_dt.replace(tzinfo=TZ)
                 next_run_dt = last_run_dt + timedelta(days=interval)
-                if _now() >= next_run_dt:
+                if now_ts() >= next_run_dt:
                     should_renew = True
             except Exception:
                 should_renew = True
@@ -782,13 +782,13 @@ def run_renewal():
             try:
                 last_run_dt = datetime.strptime(last_run, '%Y-%m-%d %H:%M:%S')
                 last_run_dt = last_run_dt.replace(tzinfo=TZ)
-                if (_now() - last_run_dt).total_seconds() < 86400:
+                if (now_ts() - last_run_dt).total_seconds() < 86400:
                     return (True, '距上次续期不足1天，跳过')
             except Exception:
                 pass
 
         _log(f'[定时] 开始执行续期')
-        print(f'[{_now().strftime("%Y-%m-%d %H:%M:%S")}] 定时任务触发 PA 续期')
+        print(f'[{now_ts().strftime("%Y-%m-%d %H:%M:%S")}] 定时任务触发 PA 续期')
 
         # 同步执行续期（不另开线程）
         _renew_thread(username, password)

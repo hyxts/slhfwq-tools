@@ -6,7 +6,7 @@ import os, json
 from datetime import datetime
 from flask import Blueprint, request, jsonify, send_from_directory
 
-from .utils import make_logger, make_db, TZ, _now
+from .utils import make_logger, make_db, TZ, now_ts
 
 bp = Blueprint('accounting', __name__)
 
@@ -545,7 +545,7 @@ def _validate_record_data(data):
     except (ValueError, TypeError):
         return '金额格式不正确', None
     if not date_str:
-        date_str = _now().strftime('%Y-%m-%d')
+        date_str = now_ts().strftime('%Y-%m-%d')
 
     if event_id:
         try:
@@ -893,7 +893,7 @@ def transfer():
             return jsonify({'success': False, 'error': '不能转给自己'}), 400
 
         note = data.get('note', '').strip()
-        date_str = data.get('date', '') or _now().strftime('%Y-%m-%d')
+        date_str = data.get('date', '') or now_ts().strftime('%Y-%m-%d')
 
         conn = _get_db()
         fa = conn.execute('SELECT name FROM accounts WHERE id=?', (from_id,)).fetchone()

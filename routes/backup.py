@@ -3,7 +3,7 @@
 import os, re, shutil, zipfile, threading, time as time_mod
 from datetime import timedelta
 
-from .utils import _now, _size_str
+from .utils import now_ts, _size_str
 from flask import Blueprint, jsonify, request
 
 bp = Blueprint('backup', __name__)
@@ -35,7 +35,7 @@ _last_backup_time = None  # datetime，记录上次备份的精确时间
 def _save_server_backup():
     global _last_backup_time
     os.makedirs(BACKUP_DIR, exist_ok=True)
-    ts = _now().strftime('%Y%m%d_%H%M%S')
+    ts = now_ts().strftime('%Y%m%d_%H%M%S')
     zip_path = os.path.join(BACKUP_DIR, f'backup_{ts}.zip')
     with zipfile.ZipFile(zip_path, 'w', zipfile.ZIP_DEFLATED) as zf:
         for name, path in DB_PATHS:
@@ -45,7 +45,7 @@ def _save_server_backup():
     while len(backups) > MAX_SERVER_BACKUPS:
         os.remove(os.path.join(BACKUP_DIR, backups.pop(0)))
     with _LAST_BACKUP_LOCK:
-        _last_backup_time = _now()
+        _last_backup_time = now_ts()
     return zip_path
 
 
@@ -76,20 +76,20 @@ def _auto_backup_thread():
     """每天定时自动备份一次，基于上次实际备份时间 + 间隔"""
     while True:
         try:
-            now = _now()
+            now = now_ts()
             last = _get_last_backup_time()
 
             if last is None:
                 # 从未备份过，立即备份
                 zip_path = _save_server_backup()
-                ts = _now().strftime('%Y-%m-%d %H:%M:%S')
+                ts = now_ts().strftime('%Y-%m-%d %H:%M:%S')
                 print(f'[{ts}] 首次自动备份完成: {os.path.basename(zip_path)}')
                 sleep_sec = AUTO_BACKUP_INTERVAL
             else:
                 next_time = last + timedelta(seconds=AUTO_BACKUP_INTERVAL)
                 if now >= next_time:
                     zip_path = _save_server_backup()
-                    ts = _now().strftime('%Y-%m-%d %H:%M:%S')
+                    ts = now_ts().strftime('%Y-%m-%d %H:%M:%S')
                     print(f'[{ts}] 自动备份完成: {os.path.basename(zip_path)}')
                     sleep_sec = AUTO_BACKUP_INTERVAL
                 else:
@@ -101,7 +101,7 @@ def _auto_backup_thread():
             time_mod.sleep(sleep_sec)
 
         except Exception as e:
-            ts = _now().strftime('%Y-%m-%d %H:%M:%S')
+            ts = now_ts().strftime('%Y-%m-%d %H:%M:%S')
             print(f'[{ts}] 自动备份异常: {e}，60秒后重试')
             time_mod.sleep(60)
 
@@ -251,7 +251,7 @@ def _auto_clean_thread():
     global _last_cleanup
     while True:
         try:
-            now = _now()
+            now = now_ts()
             # 从 _last_cleanup 上次记录推断下次清理时间
             last_time_str = _last_cleanup.get('time', '-')
             if last_time_str and last_time_str != '-':
@@ -272,14 +272,14 @@ def _auto_clean_thread():
                     pass  # 解析失败则直接执行
 
             results, freed = _do_cleanup()
-            ts = _now().strftime('%Y-%m-%d %H:%M:%S')
+            ts = now_ts().strftime('%Y-%m-%d %H:%M:%S')
             with _last_cleanup_lock:
                 _last_cleanup = {'time': ts, 'freed': _size_str(freed), 'results': results}
             print(f'[{ts}] 自动清理完成: 释放 {_size_str(freed)}; {"; ".join(results)}')
             time_mod.sleep(AUTO_CLEAN_INTERVAL)
 
         except Exception as e:
-            ts = _now().strftime('%Y-%m-%d %H:%M:%S')
+            ts = now_ts().strftime('%Y-%m-%d %H:%M:%S')
             print(f'[{ts}] 自动清理异常: {e}，60秒后重试')
             time_mod.sleep(60)
 
@@ -299,7 +299,7 @@ def manual_cleanup():
     with _cleanup_lock:
         try:
             results, freed = _do_cleanup()
-            ts = _now().strftime('%Y-%m-%d %H:%M:%S')
+            ts = now_ts().strftime('%Y-%m-%d %H:%M:%S')
             with _last_cleanup_lock:
                 _last_cleanup = {'time': ts, 'freed': _size_str(freed), 'results': results}
             return jsonify({'success': True, 'results': results, 'freed': _size_str(freed)})
@@ -346,7 +346,7 @@ def run_cleanup():
     try:
         results, freed = _do_cleanup()
         global _last_cleanup
-        ts = _now().strftime('%Y-%m-%d %H:%M:%S')
+        ts = now_ts().strftime('%Y-%m-%d %H:%M:%S')
         with _last_cleanup_lock:
             _last_cleanup = {'time': ts, 'freed': _size_str(freed), 'results': results}
         return (True, f'清理完成: 释放 {_size_str(freed)}; {"; ".join(results)}')

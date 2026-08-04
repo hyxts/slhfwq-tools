@@ -3,7 +3,7 @@
 import os, json, sqlite3, threading
 from datetime import date, timedelta, timezone, datetime
 
-from .utils import _now, make_logger, make_db
+from .utils import now_ts, make_logger, make_db
 from flask import Blueprint, request, jsonify, send_from_directory
 
 bp = Blueprint('countdown', __name__)
@@ -30,9 +30,9 @@ _get_db = make_db(DB_FILE)
 
 def _today():
     """获取北京时间今天日期"""
-    # 优先使用 _now()（datetime.now(TZ)），如果不可靠则用 UTC 换算
+    # 优先使用 now_ts()（datetime.now(TZ)），如果不可靠则用 UTC 换算
     try:
-        d = _now().date()
+        d = now_ts().date()
         # 安全校验：如果日期与预期差距过大（如 server 时钟错误），用 UTC 修正
         utc_now = datetime.now(timezone.utc)
         expected = (utc_now + timedelta(hours=8)).date()
