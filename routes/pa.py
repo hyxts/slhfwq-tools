@@ -182,6 +182,7 @@ def get_data():
             'running': _status['running'],
             'last_result': lr,
             'api_token': '已配置' if cfg.get('api_token') else '',
+            'password_configured': bool(cfg.get('password')),
             'history': _load_history(),
             'log': ''.join(_read_log()),
         }})

@@ -287,7 +287,7 @@ main{padding:16px;max-width:900px;margin:0 auto}
         <div>
           <h3 style="font-size:14px;margin-bottom:8px">账号设置</h3>
           <div class="fg"><div class="fl">用户名</div><input id="paU" class="finp"></div>
-          <div class="fg"><div class="fl">密码</div><input type="password" id="paP" class="finp"></div>
+          <div class="fg"><div class="fl">密码 <span id="paPwStatus" style="font-size:10px"></span></div><input type="password" id="paP" class="finp"></div>
           <div class="fg"><div class="fl">API Token <span style="font-size:10px;color:#64748b">(PA自动重载用)</span></div><input id="paToken" class="finp"></div>
           <div class="fg"><div class="fl">执行周期</div>
             <div class="ig" id="paIG">
@@ -296,6 +296,7 @@ main{padding:16px;max-width:900px;margin:0 auto}
             </div>
           </div>
           <button class="btn bp" onclick="paSaveCfg()" style="width:100%">保存设置</button>
+          <button class="btn bsm" onclick="paTestRenew()" style="width:100%;margin-top:6px;background:#f59e0b;color:#fff">立即测试</button>
         </div>
         <div>
           <h3 style="font-size:14px;margin-bottom:8px">运行日志</h3>
@@ -580,6 +581,8 @@ function paUpdateUI(data){
   }
   if(data.username) document.getElementById("paU").value = data.username;
   if(data.api_token) document.getElementById("paToken").placeholder = "";
+  var pwSt = document.getElementById("paPwStatus");
+  if(data.password_configured){pwSt.textContent="[已配置]";pwSt.style.color="#28a745"}else{pwSt.textContent="[未配置]";pwSt.style.color="#dc2626"}
   if(data.log!==undefined) document.getElementById("paLB").innerHTML = paHtmlLog(data.log);
   if(data.history) { document.getElementById("paHB").innerHTML = paHtmlHistory(data.history); applyHistState(); }
 }
@@ -605,6 +608,17 @@ async function paSaveCfg(){
     if(d.success){toast("已保存","ok");document.getElementById("paP").value="";document.getElementById("paToken").value="";paLoadData()}
     else toast("保存失败","err");
   }catch(e){toast("保存失败","err")}
+}
+
+async function paTestRenew(){
+  try{
+    var r = await fetch("/api/pa/renew",{method:"POST"});
+    var d = await r.json();
+    if(d.success) toast("续期已触发，等待结果...","ok");
+    else toast(d.error||"触发失败","err");
+    setTimeout(paLoadData, 6000);
+    setTimeout(paLoadData, 15000);
+  }catch(e){toast("请求失败: "+e.message,"err")}
 }
 
 document.getElementById("paIG").onclick = function(e){
