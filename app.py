@@ -134,7 +134,7 @@ def _init_rate_db() -> bool:
             _ = conn.execute('PRAGMA journal_mode=WAL')
             _ = conn.execute('CREATE TABLE IF NOT EXISTS ratelimit (ip_window TEXT PRIMARY KEY, count INTEGER, updated REAL)')
             # 加载已有数据到内存
-            rows: list[Any] = conn.execute('SELECT ip_window, count FROM ratelimit').fetchall()
+            rows: list[Any] = conn.execute('SELECT ip_window, count FROM ratelimit').fetchall()  # pyright: ignore[reportExplicitAny]
             for ip_window, count in rows:
                 _rate_limits[ip_window] = count
             conn.commit()
@@ -218,18 +218,18 @@ def check_auth():
 
 # 路由模块导入 —— 单个模块出错不影响其他模块和部署 API
 # deploy 先注册，确保部署 API 始终可用
-def _safe_import(module_name: str, _what: str = 'bp, init_db') -> tuple[Any, Any]:
+def _safe_import(module_name: str, _what: str = 'bp, init_db') -> tuple[Any, Any]:  # pyright: ignore[reportExplicitAny]
     try:
-        mod = __import__(module_name, fromlist=['bp'])
+        mod: object = __import__(module_name, fromlist=['bp'])
         return getattr(mod, 'bp', None), getattr(mod, 'init_db', None)
     except Exception as e:
         print(f'[WARNING] 模块 {module_name} 导入失败: {e}', flush=True)
         return None, None
 
-def _safe_import_extra(module_name: str, attrs: list[str] | tuple[str, ...]) -> tuple[Any, ...]:
+def _safe_import_extra(module_name: str, attrs: list[str] | tuple[str, ...]) -> tuple[Any, ...]:  # pyright: ignore[reportExplicitAny]
     """导入模块的额外属性（如 start_auto_backup）"""
     try:
-        mod = __import__(module_name, fromlist=attrs)
+        mod: object = __import__(module_name, fromlist=attrs)
         return tuple(getattr(mod, a, None) for a in attrs)
     except Exception as e:
         print(f'[WARNING] 模块 {module_name} 导入失败({attrs}): {e}', flush=True)

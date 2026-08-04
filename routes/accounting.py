@@ -1,12 +1,12 @@
 # -*- coding: utf-8 -*-
 """债务往来追踪 Blueprint — 三向模型：付给(我给Ta) / 收到(Ta给我) / 应收(Ta应还我)
     净额 = 付给 + 应收 - 收到  (>0 Ta欠我, <0 我欠Ta)"""
+from __future__ import annotations
 
-import os, json
-from datetime import datetime
+import os, sqlite3
 from flask import Blueprint, request, jsonify, send_from_directory
 
-from .utils import make_logger, make_db, TZ, now_ts
+from .utils import make_logger, make_db, now_ts
 
 bp = Blueprint('accounting', __name__)
 
@@ -50,7 +50,7 @@ CAT_MAP = {
 }
 
 
-def _auto_settle_if_needed(conn, event_id):
+def _auto_settle_if_needed(conn: sqlite3.Connection, event_id: int | None) -> None:
     if not event_id:
         return
     ev = conn.execute('SELECT id, status FROM events WHERE id=?', (event_id,)).fetchone()
@@ -318,7 +318,7 @@ def init_db():
 
 # ==================== 往来账户 API ====================
 
-def _account_balance(conn, aid=None):
+def _account_balance(conn: sqlite3.Connection, aid: int | None = None):
     """计算账户净额: 付给 + 应收 - 收到"""
     where = 'WHERE r.account_id=?' if aid else ''
     params = (aid,) if aid else ()
@@ -348,6 +348,7 @@ def list_accounts():
 
 @bp.route('/api/accounting/accounts', methods=['POST'])
 def create_account():
+    name = ''
     try:
         data = request.get_json(silent=True) or {}
         name = data.get('name', '').strip()
@@ -368,7 +369,8 @@ def create_account():
 
 
 @bp.route('/api/accounting/accounts/<int:aid>', methods=['PUT'])
-def update_account(aid):
+def update_account(aid: int):
+    data = {}
     try:
         data = request.get_json(silent=True) or {}
         name = data.get('name', '').strip()
@@ -466,7 +468,7 @@ def create_event():
 
 
 @bp.route('/api/accounting/events/<int:eid>', methods=['PUT'])
-def update_event(eid):
+def update_event(eid: int):
     try:
         data = request.get_json(silent=True) or {}
         name = data.get('name', '').strip()
@@ -491,6 +493,7 @@ def delete_event(eid):
         if not ev:
             conn.close()
             return jsonify({'success': False, 'error': '事项不存在'}), 404
+        assert ev is not None
         conn.execute('UPDATE records SET event_id=NULL WHERE event_id=?', (eid,))
         conn.execute('DELETE FROM events WHERE id=?', (eid,))
         conn.commit()
@@ -509,6 +512,7 @@ def toggle_event_settle(eid):
         if not ev:
             conn.close()
             return jsonify({'success': False, 'error': '事项不存在'}), 404
+        assert ev is not None
         new_status = '已结清' if ev['status'] == '进行中' else '进行中'
         conn.execute('UPDATE events SET status=? WHERE id=?', (new_status, eid))
         conn.commit()
@@ -624,12 +628,14 @@ def create_record():
         err, clean = _validate_record_data(data)
         if err:
             return jsonify({'success': False, 'error': err}), 400
+        assert clean is not None
 
         conn = _get_db()
         acc = conn.execute('SELECT id, name FROM accounts WHERE id=?', (clean['account_id'],)).fetchone()
         if not acc:
             conn.close()
             return jsonify({'success': False, 'error': '对象不存在'}), 404
+        assert acc is not None
 
         if clean['event_id']:
             ev = conn.execute('SELECT id FROM events WHERE id=? AND account_id=?',
@@ -643,7 +649,7 @@ def create_record():
             (clean['account_id'], clean['event_id'], clean['type'], clean['amount'],
              clean['category'], clean['date'], clean['note'])
         )
-        _auto_settle_if_needed(conn, clean['event_id'])
+        _auto_settle_if_needed(conn, clean['event_id'])  # pyright: ignore[reportArgumentType]
         conn.commit()
         conn.close()
         _log(f'新增记录: {acc["name"]} {clean["type"]} {clean["amount"]}元 ({clean["category"]})')
@@ -653,12 +659,13 @@ def create_record():
 
 
 @bp.route('/api/accounting/records/<int:rid>', methods=['PUT'])
-def update_record(rid):
+def update_record(rid: int):
     try:
         data = request.get_json(silent=True) or {}
         err, clean = _validate_record_data(data)
         if err:
             return jsonify({'success': False, 'error': err}), 400
+        assert clean is not None
 
         conn = _get_db()
         conn.execute(
@@ -666,7 +673,7 @@ def update_record(rid):
             (clean['account_id'], clean['event_id'], clean['type'], clean['amount'],
              clean['category'], clean['date'], clean['note'], rid)
         )
-        _auto_settle_if_needed(conn, clean['event_id'])
+        _auto_settle_if_needed(conn, clean['event_id'])  # pyright: ignore[reportArgumentType]
         conn.commit()
         conn.close()
         _log(f'更新记录: ID:{rid}')
@@ -680,7 +687,7 @@ def delete_record(rid):
     try:
         conn = _get_db()
         rec = conn.execute('SELECT event_id FROM records WHERE id=?', (rid,)).fetchone()
-        event_id = rec['event_id'] if rec else None
+        event_id: int | None = rec['event_id'] if rec is not None else None
         conn.execute('DELETE FROM records WHERE id=?', (rid,))
         _auto_settle_if_needed(conn, event_id)
         conn.commit()
@@ -861,7 +868,7 @@ def add_category():
 
 
 @bp.route('/api/accounting/categories/<int:cid>', methods=['DELETE'])
-def delete_category(cid):
+def delete_category(cid: int):
     try:
         conn = _get_db()
         conn.execute('DELETE FROM categories WHERE id=?', (cid,))

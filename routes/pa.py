@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 """PA 自动续期蓝图 - SQLite + 主站统一认证 + 自动定时执行"""
+from __future__ import annotations
 import os, json, re, threading, sqlite3, time as time_mod
 from datetime import datetime, timedelta
 
@@ -747,7 +748,7 @@ def start_auto_renew():
 
 # ==================== 定时任务公开接口 ====================
 
-def run_renewal():
+def run_renewal() -> tuple[bool, str]:
     """公开接口：检查并执行续期（供 daily_task.py 定时脚本调用）
     返回 (success: bool, message: str)"""
     try:

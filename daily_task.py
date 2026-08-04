@@ -8,6 +8,7 @@
 
 用法: python daily_task.py
 """
+from __future__ import annotations
 import sys, os, shutil, subprocess
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -18,16 +19,16 @@ from routes.backup import run_backup, run_cleanup
 from routes.utils import now_ts
 
 
-def _count_files(path):
+def _count_files(path: str) -> int:  # pyright: ignore[reportUnknownParameterType]
     """统计目录下文件总数"""
     try:
         return sum(1 for _ in (os.path.join(r, f)
-                   for r, _, fs in os.walk(path) for f in fs))
+                   for r, _, fs in os.walk(path) for f in fs))  # pyright: ignore[reportUnknownVariableType]
     except Exception:
         return -1
 
 
-def size_str(b):
+def size_str(b: int) -> str:
     """字节数转可读字符串"""
     if b < 1024:
         return f'{b}B'
@@ -36,14 +37,14 @@ def size_str(b):
     return f'{b/1048576:.1f}MB'
 
 
-def run_file_cleanup():
+def run_file_cleanup() -> tuple[bool, str]:
     """每日轻量清理：删除 __pycache__ 缓存文件，控制 PA 文件数配额
-    返回 (success, message, stats_dict)"""
-    results = []
-    removed = 0
+    返回 (success, message)"""
+    results: list[str] = []
+    removed: int = 0
 
     # 1. 清理 __pycache__ 目录
-    for root, dirs, files in os.walk(BASE_DIR):
+    for root, dirs, files in os.walk(BASE_DIR):  # pyright: ignore[reportUnknownVariableType]
         if '__pycache__' in dirs:
             cache_path = os.path.join(root, '__pycache__')
             try:
@@ -55,8 +56,8 @@ def run_file_cleanup():
                 pass
 
     # 2. 清理散落的 .pyc 文件
-    pyc_count = 0
-    for root, dirs, files in os.walk(BASE_DIR):
+    pyc_count: int = 0
+    for root, dirs, files in os.walk(BASE_DIR):  # pyright: ignore[reportUnknownVariableType]
         for f in files:
             if f.endswith('.pyc'):
                 try:
@@ -69,10 +70,10 @@ def run_file_cleanup():
         results.append(f'散落pyc: {pyc_count}个')
 
     # 3. 每周日执行 git gc（打包松散对象，减少文件数）
-    today = now_ts().weekday()
+    today: int = now_ts().weekday()
     if today == 6:
         try:
-            r = subprocess.run(
+            r: subprocess.CompletedProcess[str] = subprocess.run(  # pyright: ignore[reportUnknownMemberType]
                 ['git', '-C', BASE_DIR, 'gc', '--auto'],
                 capture_output=True, text=True, timeout=60
             )
@@ -84,23 +85,23 @@ def run_file_cleanup():
             results.append(f'git gc 跳过: {e}')
 
     # 4. 统计当前状态
-    total_files = _count_files(BASE_DIR)
+    total_files: int = _count_files(BASE_DIR)
+    total_size: int
     try:
-        import glob as _glob
         total_size = sum(os.path.getsize(f)
-                         for r, _, fs in os.walk(BASE_DIR) for f in fs
+                         for r, _, fs in os.walk(BASE_DIR) for f in fs  # pyright: ignore[reportUnknownVariableType]
                          if os.path.isfile(os.path.join(r, f)))
     except Exception:
         total_size = -1
 
-    stats = {
+    stats: dict[str, object] = {
         'removed': removed,
         'total_files': total_files,
         'total_size': size_str(total_size) if total_size > 0 else 'N/A',
         'dirs_cleaned': len([r for r in results if r.startswith('routes') or r.endswith('pyc')]),
     }
 
-    msg_parts = []
+    msg_parts: list[str] = []
     if removed > 0:
         msg_parts.append(f'清理 {removed} 个文件')
     else:
@@ -112,7 +113,7 @@ def run_file_cleanup():
     return True, ' | '.join(msg_parts)
 
 
-def main():
+def main() -> None:
     ts = now_ts().strftime('%Y-%m-%d %H:%M:%S')
     print(f'[{ts}] ===== 每日任务开始 =====')
 

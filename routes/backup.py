@@ -13,6 +13,7 @@
 
 # -*- coding: utf-8 -*-
 """数据库备份 Blueprint（含每日自动备份、每周自动清理）"""
+from __future__ import annotations
 import os, re, shutil, zipfile, threading, time as time_mod
 from datetime import timedelta
 
@@ -126,11 +127,11 @@ def start_auto_backup():
 
 # ==================== 自动清理 ====================
 
-_last_cleanup = {'time': '-', 'freed': '-', 'results': []}
+_last_cleanup: dict[str, str | list[str]] = {'time': '-', 'freed': '-', 'results': []}
 _last_cleanup_lock = threading.Lock()
 
 
-def _count_files(path):  # pyright: ignore[reportMissingParameterType]
+def _count_files(path: str) -> int:
     """统计目录下文件总数"""
     try:
         return sum(1 for _ in (os.path.join(r, f)
@@ -139,28 +140,28 @@ def _count_files(path):  # pyright: ignore[reportMissingParameterType]
         return -1
 
 
-def _do_cleanup():
+def _do_cleanup() -> tuple[list[str], int]:
     """清理日志、缓存，打包 git 对象，控制 PA 文件数配额"""
-    results = []
-    total_freed = 0
-    files_before = _count_files(BASE_DIR)
+    results: list[str] = []
+    total_freed: int = 0
+    files_before: int = _count_files(BASE_DIR)
 
     # 1. 截断 PA 续期日志
     log_path = os.path.join(BASE_DIR, '服务器', 'renew.log')
     if os.path.exists(log_path):
-        size_before = os.path.getsize(log_path)
+        size_before: int = os.path.getsize(log_path)
         with open(log_path, 'r', encoding='utf-8') as f:
-            lines = f.readlines()
+            lines: list[str] = f.readlines()
         if len(lines) > MAX_LOG_LINES:
             with open(log_path, 'w', encoding='utf-8') as f:
                 f.writelines(lines[-MAX_LOG_LINES:])
-            size_after = os.path.getsize(log_path)
-            freed = size_before - size_after
+            size_after: int = os.path.getsize(log_path)
+            freed: int = size_before - size_after
             total_freed += freed
             results.append(f'PA日志: {len(lines)}行 → {MAX_LOG_LINES}行, 释放 {size_str(freed)}')
 
     # 2. 清理 __pycache__ 目录
-    for root, dirs, files in os.walk(BASE_DIR):
+    for root, dirs, _ in os.walk(BASE_DIR):
         if '__pycache__' in dirs:
             cache_path = os.path.join(root, '__pycache__')
             dirs.remove('__pycache__')  # 防止os.walk尝试进入已删除目录
@@ -211,7 +212,7 @@ def _do_cleanup():
         pass  # git 不存在或不支持时不报错
 
     # 6. 统计清理后文件数变化
-    files_after = _count_files(BASE_DIR)
+    files_after: int = _count_files(BASE_DIR)
     if files_before > 0 and files_after > 0 and files_before != files_after:
         delta = files_before - files_after
         if delta > 0:
@@ -266,7 +267,8 @@ def _auto_clean_thread():
         try:
             now = now_ts()
             # 从 _last_cleanup 上次记录推断下次清理时间
-            last_time_str = _last_cleanup.get('time', '-')
+            last_time_raw = _last_cleanup.get('time', '-')
+            last_time_str: str = str(last_time_raw) if last_time_raw != '-' else '-'
             if last_time_str and last_time_str != '-':
                 try:
                     from datetime import datetime
@@ -331,8 +333,8 @@ def list_backups():
     """列出所有备份文件"""
     if not os.path.exists(BACKUP_DIR):
         return jsonify({'success': True, 'backups': []})
-    files = sorted([f for f in os.listdir(BACKUP_DIR) if f.endswith('.zip')], reverse=True)
-    result = []
+    files: list[str] = sorted([f for f in os.listdir(BACKUP_DIR) if f.endswith('.zip')], reverse=True)
+    result: list[dict[str, object]] = []
     for f in files:
         fp = os.path.join(BACKUP_DIR, f)
         sz = os.path.getsize(fp)
@@ -342,7 +344,7 @@ def list_backups():
 
 # ==================== 定时任务公开接口 ====================
 
-def run_backup():
+def run_backup() -> tuple[bool, str]:
     """公开接口：执行备份（供 daily_task.py 定时脚本调用）
     返回 (success: bool, message: str)"""
     try:
@@ -353,7 +355,7 @@ def run_backup():
         return (False, f'备份异常: {e}')
 
 
-def run_cleanup():
+def run_cleanup() -> tuple[bool, str]:
     """公开接口：执行清理（供 daily_task.py 定时脚本调用）
     返回 (success: bool, message: str)"""
     try:
@@ -381,14 +383,14 @@ def create_backup():
 
 
 @bp.route('/api/backup/restore/<filename>')
-def restore_backup(filename):
+def restore_backup(filename: str):
     """从指定备份文件恢复所有数据库"""
     if '..' in filename or '/' in filename:
         return jsonify({'success': False, 'error': '非法文件名'}), 403
     filepath = os.path.join(BACKUP_DIR, filename)
     if not os.path.exists(filepath):
         return jsonify({'success': False, 'error': '备份文件不存在'}), 404
-    results = []
+    results: list[str] = []
     try:
         db_targets = {
             'gifts.db': os.path.join(BASE_DIR, '人情', 'gifts.db'),
@@ -405,7 +407,7 @@ def restore_backup(filename):
                     os.makedirs(os.path.dirname(target), exist_ok=True)
                     data = zf.read(fname)
                     with open(target, 'wb') as f:
-                        f.write(data)
+                        _ = f.write(data)
                     results.append(f'{fname} -> {os.path.relpath(target, BASE_DIR)} ({len(data)} bytes)')
         return jsonify({'success': True, 'backup_file': filename, 'restored': results})
     except Exception as e:
@@ -413,7 +415,7 @@ def restore_backup(filename):
 
 
 @bp.route('/api/backup/download/<filename>')
-def download_backup(filename):
+def download_backup(filename: str):
     """下载指定备份文件"""
     if '..' in filename or '/' in filename:
         return jsonify({'success': False, 'error': '非法文件名'}), 403
