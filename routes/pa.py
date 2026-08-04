@@ -402,6 +402,7 @@ def _pa_login(session, username, password):
     # 步骤2: 登录
     d('[2] 登录...')
     session.headers['Referer'] = r.url
+    d(f'  Referer: {r.url}')
     try:
         r = session.post(f'{base}/login/', data={
             'csrfmiddlewaretoken': token, 'auth-username': username,
@@ -416,19 +417,39 @@ def _pa_login(session, username, password):
         try:
             from bs4 import BeautifulSoup
             soup_err = BeautifulSoup(r.text, 'html.parser')
-            err_el = soup_err.find(class_=re.compile(r'error|alert|message', re.I))
-            err_text = err_el.get_text(strip=True) if err_el else ''
+            err_text = ''
+            # PA 的错误信息在 <ul class="errorlist"> 或 <p> 标签中，包含 "incorrect" 或 "wrong"
+            err_el = soup_err.find('ul', class_='errorlist')
+            if err_el:
+                err_text = err_el.get_text(strip=True)
             if not err_text:
-                for tag in soup_err.find_all(['div', 'p', 'span', 'li']):
+                for tag in soup_err.find_all(['p', 'div', 'span', 'li']):
                     txt = tag.get_text(strip=True)
-                    if txt and ('incorrect' in txt.lower() or 'error' in txt.lower() or 'wrong' in txt.lower()):
-                        err_text = txt; break
+                    if txt and ('incorrect' in txt.lower() or 'wrong' in txt.lower()
+                              or 'password' in txt.lower() or 'username' in txt.lower()):
+                        err_text = txt
+                        break
+            if not err_text:
+                # 尝试找 class 含 error/alert 的元素
+                err_el = soup_err.find(class_=re.compile(r'error|alert|message', re.I))
+                if err_el:
+                    err_text = err_el.get_text(strip=True)
             if err_text:
                 d(f'  [2失败] 登录失败: {err_text}')
             else:
-                d(f'  [2失败] 登录失败，停留在登录页面 (地址={r.url})')
+                # 最后兜底：直接搜索页面中的关键短语
+                page_text = soup_err.get_text()
+                for keyword in ['incorrect', 'wrong', 'Invalid', 'locked', 'disabled',
+                                'confirm your email', 'CAPTCHA', 'verification']:
+                    idx = page_text.lower().find(keyword.lower())
+                    if idx >= 0:
+                        snippet = page_text[max(0,idx-20):idx+len(keyword)+80].strip()
+                        d(f'  [2失败] 登录页面提示: ...{snippet}...')
+                        break
+                else:
+                    d(f'  [2失败] 登录失败，停留在登录页面')
         except Exception:
-            d(f'  [2失败] 登录失败，停留在登录页面 (地址={r.url})')
+            d(f'  [2失败] 登录失败，停留在登录页面')
         return (False, '登录失败，请检查账号密码', details, '')
     d('  登录成功')
     d(f'  登录后跳转地址: {r.url}')
