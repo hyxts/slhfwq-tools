@@ -1,0 +1,1408 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>记账会计 · 财务桌面</title>
+<link rel="icon" type="image/svg+xml" href="/ledger/icon-192.svg">
+<style>
+:root{
+  --primary:#2563eb;--primary-d:#1d4ed8;--primary-l:#eff6ff;--bg:#eef1f6;--card:#fff;
+  --text:#1f2937;--t2:#6b7280;--t3:#9ca3af;--line:#e5e7eb;--line2:#d9dee7;
+  --red:#e11d48;--green:#0d9488;--amber:#d97706;--dr:#2563eb;--cr:#e11d48;
+  --radius:8px;--shadow:0 1px 3px rgba(15,23,42,.08);
+}
+*{margin:0;padding:0;box-sizing:border-box}
+html,body{height:100%}
+body{font-family:"PingFang SC","Microsoft YaHei","Segoe UI",system-ui,sans-serif;background:var(--bg);color:var(--text);font-size:13px;overflow:hidden}
+button{font-family:inherit;cursor:pointer;border:none;background:none;color:inherit}
+input,select,textarea{font-family:inherit;font-size:13px;color:var(--text);outline:none}
+input:focus,select:focus,textarea:focus{border-color:var(--primary)!important;box-shadow:0 0 0 2px rgba(37,99,235,.12)}
+::-webkit-scrollbar{width:8px;height:8px}
+::-webkit-scrollbar-thumb{background:#c6ccd6;border-radius:4px}
+::-webkit-scrollbar-track{background:transparent}
+.hidden{display:none!important}
+/* ---------- 顶栏 ---------- */
+#topbar{height:52px;background:linear-gradient(90deg,#0b1e4b,#16337f 55%,#1e4fd8);color:#fff;display:flex;align-items:center;padding:0 14px;gap:10px;position:relative;z-index:50}
+.logo{display:flex;align-items:center;gap:9px;min-width:180px}
+.logo .mark{width:30px;height:30px;border-radius:7px;background:#fff;color:#1d4ed8;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:17px}
+.logo b{font-size:15px;font-weight:600;letter-spacing:.5px}
+.logo small{display:block;font-size:10px;opacity:.7;font-weight:400;margin-top:1px}
+.nav{display:flex;gap:2px;flex:1}
+.nav button{padding:7px 16px;border-radius:7px;color:#dbe7ff;font-size:13.5px;display:flex;align-items:center;gap:6px;position:relative}
+.nav button:hover{background:rgba(255,255,255,.12);color:#fff}
+.nav button.on{background:rgba(255,255,255,.2);color:#fff;font-weight:600}
+.nav button .num{position:absolute;top:-3px;right:0;min-width:15px;height:15px;border-radius:8px;background:#f43f5e;color:#fff;font-size:9.5px;display:flex;align-items:center;justify-content:center;padding:0 3px}
+.topright{display:flex;align-items:center;gap:8px;margin-left:auto}
+.monthpick{background:rgba(255,255,255,.14);border:1px solid rgba(255,255,255,.25);color:#fff;border-radius:7px;padding:5px 8px;font-size:12.5px}
+.monthpick::-webkit-calendar-picker-indicator{filter:invert(1);cursor:pointer}
+.btn{display:inline-flex;align-items:center;gap:5px;border-radius:7px;padding:6px 13px;font-size:12.5px;border:1px solid var(--line);background:#fff;color:var(--text);transition:.12s;white-space:nowrap}
+.btn:hover{border-color:var(--primary);color:var(--primary)}
+.btn.pri{background:var(--primary);border-color:var(--primary);color:#fff}
+.btn.pri:hover{background:var(--primary-d)}
+.btn.danger{color:var(--red);border-color:#fecdd3}
+.btn.danger:hover{background:#fff1f2;border-color:var(--red)}
+.btn.ghost{background:transparent;border-color:transparent}
+.btn.sm{padding:3px 9px;font-size:12px}
+.btn:disabled{opacity:.45;cursor:not-allowed}
+/* ---------- 页面框架 ---------- */
+#app{display:flex;height:calc(100vh - 52px)}
+.page{display:none;width:100%;overflow:auto;padding:16px 20px 30px}
+.page.on{display:block}
+.toolbar{display:flex;align-items:center;gap:8px;flex-wrap:wrap;background:#fff;border:1px solid var(--line);border-radius:var(--radius);padding:10px 12px;margin-bottom:12px;box-shadow:var(--shadow)}
+.toolbar .sp{flex:1}
+.field{display:flex;align-items:center;gap:6px;color:var(--t2);font-size:12.5px}
+.field input,.field select{border:1px solid var(--line2);border-radius:6px;padding:5px 8px;background:#fff}
+.panel{background:#fff;border:1px solid var(--line);border-radius:var(--radius);box-shadow:var(--shadow);margin-bottom:14px}
+.panel .phead{display:flex;align-items:center;gap:8px;padding:10px 14px;border-bottom:1px solid var(--line);font-weight:600}
+.panel .phead .sp{flex:1}
+.panel .phead .sub{font-weight:400;color:var(--t2);font-size:12px}
+.panel .pbody{padding:12px 14px}
+/* ---------- 通用表 ---------- */
+.tb{width:100%;border-collapse:collapse;background:#fff}
+.tb th{background:#f8fafc;color:#475569;font-weight:600;text-align:left;padding:8px 10px;border-bottom:1px solid var(--line2);white-space:nowrap;font-size:12px;position:sticky;top:0;z-index:2}
+.tb td{padding:7px 10px;border-bottom:1px solid #eef1f5;vertical-align:middle}
+.tb tr:hover td{background:#f8faff}
+.tb tr.void td{opacity:.5;text-decoration:line-through}
+.tb .num{text-align:right;font-variant-numeric:tabular-nums}
+.tb th.num{text-align:right}
+.dr{color:var(--dr)!important;font-weight:600}
+.cr{color:var(--cr)!important;font-weight:600}
+.gray{color:var(--t2)}
+.light{color:var(--t3)}
+.chip{display:inline-block;padding:1px 8px;border-radius:9px;font-size:11px;line-height:17px;background:#f1f5f9;color:#475569;white-space:nowrap}
+.chip.green{background:#d1fae5;color:#047857}
+.chip.red{background:#ffe4e6;color:#be123c}
+.chip.amber{background:#fef3c7;color:#b45309}
+.chip.blue{background:#dbeafe;color:#1d4ed8}
+.chip.purple{background:#ede9fe;color:#6d28d9}
+/* ---------- 工作台 ---------- */
+.statgrid{display:grid;grid-template-columns:repeat(6,1fr);gap:12px;margin-bottom:14px}
+.stat{background:#fff;border:1px solid var(--line);border-radius:10px;padding:13px 15px;box-shadow:var(--shadow)}
+.stat .lbl{color:var(--t2);font-size:12px;display:flex;align-items:center;gap:6px}
+.stat .val{font-size:21px;font-weight:700;margin-top:5px;font-variant-numeric:tabular-nums}
+.stat .val.blue{color:#1d4ed8}.stat .val.red{color:var(--red)}.stat .val.green{color:var(--green)}.stat .val.amber{color:var(--amber)}
+.homegrid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:14px}
+.hcard h3{font-size:13.5px;display:flex;align-items:center;gap:6px;margin-bottom:8px;padding:10px 14px 0}
+.hcard h3 .sp{flex:1}
+.todo{list-style:none}
+.todo li{display:flex;align-items:center;gap:8px;padding:8px 14px;border-bottom:1px solid #f1f5f9;color:#334155}
+.todo li .sp{flex:1}
+.todo li .ic{width:7px;height:7px;border-radius:50%}
+.todo li .d{font-size:12px;color:var(--t3)}
+.quick{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;padding:8px 14px 14px}
+.qb{border:1px solid var(--line);border-radius:9px;padding:10px 8px;text-align:center;background:#fff}
+.qb:hover{border-color:var(--primary);background:var(--primary-l)}
+.qb .bi{width:30px;height:30px;border-radius:8px;margin:0 auto 6px;display:flex;align-items:center;justify-content:center;font-size:16px}
+.qb .t{font-size:12px;color:#334155}
+.qb .s{font-size:10.5px;color:var(--t3);margin-top:2px}
+/* ---------- 子导航 ---------- */
+.subnav{display:flex;gap:2px;background:#fff;border:1px solid var(--line);border-radius:9px;padding:5px;width:fit-content;margin-bottom:12px;box-shadow:var(--shadow)}
+.subnav button{padding:6px 16px;border-radius:6px;color:var(--t2);font-size:12.5px}
+.subnav button.on{background:var(--primary-l);color:var(--primary);font-weight:600}
+.split{display:flex;gap:14px;align-items:flex-start}
+.split .left{width:260px;min-width:260px;background:#fff;border:1px solid var(--line);border-radius:9px;box-shadow:var(--shadow);max-height:calc(100vh - 150px);overflow:auto}
+.split .right{flex:1;min-width:0}
+/* ---------- 科目树 ---------- */
+.tree ul{list-style:none}
+.tree .node{display:flex;align-items:center;gap:4px;padding:4px 6px;border-radius:6px;cursor:pointer;font-size:12.5px;white-space:nowrap}
+.tree .node:hover{background:#f3f6fb}
+.tree .node.on{background:var(--primary-l);color:var(--primary);font-weight:600}
+.tree .node .caret{width:14px;text-align:center;color:var(--t3);flex:none}
+.tree .node .cat{flex:none;width:14px;height:14px;border-radius:4px;font-size:9px;color:#fff;display:flex;align-items:center;justify-content:center;background:#94a3b8}
+.tree .node .nm{overflow:hidden;text-overflow:ellipsis}
+.tree .node .cb{color:var(--t3);font-size:11px;margin-left:auto}
+/* ---------- 编辑器(凭证) ---------- */
+#ve{position:fixed;inset:0;background:rgba(15,23,42,.45);z-index:90;display:none;align-items:stretch;justify-content:center;padding:18px 22px}
+#ve.on{display:flex}
+#ve .sheet{width:1120px;max-width:100%;background:#fff;border-radius:12px;overflow:hidden;display:flex;flex-direction:column;box-shadow:0 18px 60px rgba(0,0,0,.25)}
+#ve .head{background:#fff;padding:10px 16px;border-bottom:1px solid var(--line);display:flex;align-items:center;gap:10px}
+#ve .head .tt{font-size:15px;font-weight:700}
+#ve .meta{display:grid;grid-template-columns:160px 1fr 130px;gap:8px;padding:12px 16px;background:#fbfcfe;border-bottom:1px solid var(--line)}
+#ve .meta .f{display:flex;flex-direction:column;gap:3px}
+#ve .meta label{font-size:11px;color:var(--t2)}
+#ve .meta input{border:1px solid var(--line2);border-radius:6px;padding:6px 8px}
+#ve .body{flex:1;overflow:auto}
+#ve .grid{width:100%;border-collapse:collapse;table-layout:fixed}
+#ve .grid th{background:#f8fafc;border-bottom:1px solid var(--line2);padding:6px 6px;font-size:11.5px;color:#475569;position:sticky;top:0;z-index:3;text-align:center;white-space:nowrap}
+#ve .grid td{padding:0;border-bottom:1px solid #eef1f5;position:relative}
+#ve .grid tr.focus td{background:#f4f8ff}
+#ve .grid input{border:none;background:transparent;width:100%;padding:7px 6px;height:34px}
+#ve .grid input.dr{color:var(--dr)}#ve .grid input.cr{color:var(--cr)}
+#ve .grid .adr input{background:#eef4ff}#ve .grid .acr input{background:#fff0f2}
+#ve .sumrow td{background:#f8fafc;font-weight:700;padding:8px 6px}
+.auxmini{display:flex;gap:5px;padding:2px 6px;flex-wrap:wrap}
+.auxmini .a{font-size:10.5px;background:var(--primary-l);color:var(--primary);border-radius:5px;padding:1px 6px;display:inline-flex;gap:3px;align-items:center}
+#ve .foot{display:flex;align-items:center;gap:10px;padding:11px 16px;background:#fff;border-top:1px solid var(--line)}
+.bal{display:flex;align-items:center;gap:12px;font-size:13px;margin-left:auto}
+.bal .v{font-size:17px;font-weight:800}
+.bal.ok .v{color:var(--green)}.bal.no .v{color:var(--red)}
+/* ---------- 报表 ---------- */
+.report table{width:100%;border-collapse:collapse}
+.report th,.report td{border:1px solid var(--line);padding:7px 12px}
+.report th{background:#f8fafc;font-weight:600}
+.report .hdr{background:#eef2ff;font-weight:700}
+.report .total td{font-weight:700;background:#f8fafc}
+.report .indent{padding-left:26px!important}
+.balancegrid{display:grid;grid-template-columns:1fr 1fr;gap:0}
+/* ---------- Modal ---------- */
+.mask{position:fixed;inset:0;background:rgba(15,23,42,.45);z-index:100;display:none;align-items:flex-start;justify-content:center;padding:46px 20px}
+.mask.on{display:flex}
+.mask .box{background:#fff;border-radius:12px;box-shadow:0 16px 50px rgba(0,0,0,.2);width:min(620px,100%);max-height:calc(100vh - 90px);display:flex;flex-direction:column;overflow:hidden}
+.mask.wide .box{width:min(820px,96%)}
+.mask .box .mhead{display:flex;align-items:center;padding:13px 18px;border-bottom:1px solid var(--line);font-weight:700;font-size:14px}
+.mask .box .mhead .sp{flex:1}
+.mask .box .mbody{padding:14px 18px;overflow:auto}
+.mask .box .mfoot{display:flex;gap:8px;justify-content:flex-end;padding:11px 18px;border-top:1px solid var(--line);background:#fafbfc}
+.acctpick{display:flex;flex-direction:column;height:100%;min-height:420px}
+.acctpick .search{display:flex;gap:8px;margin-bottom:10px}
+.acctpick .search input{flex:1;border:1px solid var(--line2);border-radius:6px;padding:7px 10px}
+.acctpick .wrap{display:flex;gap:0;flex:1;min-height:0}
+.acctpick .wrap .left{width:240px;overflow:auto;border-right:1px solid var(--line);padding-right:8px}
+.acctpick .wrap .right{flex:1;overflow:auto;padding-left:12px}
+/* ---------- Toast ---------- */
+#toast{position:fixed;top:62px;right:18px;z-index:300;display:flex;flex-direction:column;gap:8px;pointer-events:none}
+.toast{background:#fff;border:1px solid var(--line2);border-left:4px solid var(--primary);border-radius:9px;box-shadow:0 8px 24px rgba(0,0,0,.14);padding:9px 16px;min-width:220px;max-width:360px;animation:tin .2s}
+.toast.err{border-left-color:var(--red)}
+.toast.ok{border-left-color:var(--green)}
+@keyframes tin{from{transform:translateX(24px);opacity:0}to{transform:none;opacity:1}}
+/* ---------- settings forms ---------- */
+.frow{display:flex;gap:10px;align-items:center;margin-bottom:9px}
+.frow label{width:86px;color:var(--t2);flex:none;font-size:12.5px}
+.frow input,.frow select{flex:1;border:1px solid var(--line2);border-radius:6px;padding:6px 9px}
+.frow textarea{flex:1;border:1px solid var(--line2);border-radius:6px;padding:6px 9px;min-height:56px;resize:vertical}
+.cklist{display:flex;flex-wrap:wrap;gap:10px;flex:1}
+.cklist label{display:flex;gap:5px;align-items:center;font-size:12.5px;background:#f8fafc;border:1px solid var(--line);border-radius:6px;padding:4px 9px;cursor:pointer}
+.cklist input{accent-color:var(--primary)}
+.openingtb input{border:1px solid var(--line);border-radius:5px;padding:4px 8px;width:130px;text-align:right;font-variant-numeric:tabular-nums}
+/* aux */
+.dimcard{border:1px solid var(--line);border-radius:10px;margin-bottom:12px;overflow:hidden}
+.dimcard .dh{display:flex;align-items:center;gap:8px;padding:9px 14px;background:#f8fafc;border-bottom:1px solid var(--line)}
+.dimcard .dh input{font-weight:700;border:none;background:transparent;font-size:13px;flex:1}
+.dimcard .items{padding:6px 14px}
+.dimcard .item{display:flex;align-items:center;gap:8px;padding:4px 0;border-bottom:1px dashed #eef1f5}
+.dimcard .item input{border:1px solid var(--line);border-radius:5px;padding:3px 8px}
+/* 结账向导 */
+.steps{display:flex;gap:10px;margin-bottom:14px}
+.step{flex:1;border:1px solid var(--line);border-radius:10px;padding:12px;background:#fff;box-shadow:var(--shadow);display:flex;gap:10px;align-items:flex-start}
+.step .n{width:26px;height:26px;border-radius:50%;background:#e5e7eb;color:#6b7280;display:flex;align-items:center;justify-content:center;font-weight:700;flex:none}
+.step.ok .n{background:#d1fae5;color:#047857}
+.step .s1{font-weight:600;font-size:13px}
+.step .s2{color:var(--t2);font-size:11.5px;margin-top:3px}
+.tag{font-size:11px;color:#fff;border-radius:4px;padding:1px 6px;margin-left:6px}
+.tag.auto{background:#7c3aed}.tag.red{background:var(--red)}.tag.ok{background:#0d9488}.tag.gray{background:#9ca3af}
+.pagerow{display:flex;gap:12px;align-items:center;padding:8px 6px;border-bottom:1px solid #f1f5f9}
+.pagerow:last-child{border-bottom:none}
+.pagerow .m{width:64px;font-weight:700;font-size:13px}
+.pagerow .bar{flex:1;height:8px;background:#eef1f6;border-radius:4px;overflow:hidden}
+.pagerow .bar i{display:block;height:100%;background:linear-gradient(90deg,#2563eb,#38bdf8);border-radius:4px;transition:.3s}
+.pagerow .ops{display:flex;gap:6px}
+.pagerow .ops .btn{font-size:11.5px;padding:3px 9px}
+</style>
+</head>
+<body>
+<div id="topbar">
+  <div class="logo"><div class="mark">账</div><div><b>记账会计 · 财务桌面</b><small>专业版 · PythonAnywhere</small></div></div>
+  <nav class="nav" id="topnav">
+    <button class="on" data-m="home">工作台</button>
+    <button data-m="voucher">记账凭证</button>
+    <button data-m="books">账簿</button>
+    <button data-m="report">财务报表</button>
+    <button data-m="close">期末结账</button>
+    <button data-m="settings">系统设置</button>
+  </nav>
+  <div class="topright">
+    <span class="field" style="color:#cbd8f2">会计期间</span>
+    <input type="month" class="monthpick" id="curMonth">
+    <button class="btn sm" id="gToday" style="border-color:rgba(255,255,255,.4);color:#fff;background:transparent">本月</button>
+  </div>
+</div>
+<div id="app">
+
+<!-- ============ 工作台 ============ -->
+<section class="page on" id="pg-home">
+  <div class="statgrid" id="hStat"></div>
+  <div class="homegrid">
+    <div class="panel hcard">
+      <h3>快捷操作<span class="sp"></span></h3>
+      <div class="quick">
+        <button class="qb" data-q="newv"><div class="bi" style="background:#eff6ff;color:#2563eb">✎</div><div class="t">新增凭证</div><div class="s">表格式快速录入</div></button>
+        <button class="qb" data-q="books"><div class="bi" style="background:#e0f2fe;color:#0284c7">📒</div><div class="t">查账簿</div><div class="s">明细账 / 总账</div></button>
+        <button class="qb" data-q="report"><div class="bi" style="background:#f0fdf4;color:#16a34a">📊</div><div class="t">看报表</div><div class="s">资产负债表/利润表</div></button>
+        <button class="qb" data-q="carry"><div class="bi" style="background:#fef3c7;color:#b45309">🔄</div><div class="t">结转损益</div><div class="s">一键结转本月损益</div></button>
+        <button class="qb" data-q="closing"><div class="bi" style="background:#f3e8ff;color:#7c3aed">🔒</div><div class="t">期末结账</div><div class="s">锁定本期账务</div></button>
+        <button class="qb" data-q="auxm"><div class="bi" style="background:#fee2e2;color:#dc2626">🏷</div><div class="t">辅助核算</div><div class="s">往来/部门/项目</div></button>
+      </div>
+    </div>
+    <div class="panel hcard">
+      <h3>待办事项 <span class="chip" id="hTodoCnt">0</span></h3>
+      <ul class="todo" id="hTodo"></ul>
+    </div>
+    <div class="panel hcard">
+      <h3>最近凭证 <span class="chip blue" id="hRecCnt">0</span></h3>
+      <ul class="todo" id="hRecent" style="padding-bottom:6px"></ul>
+    </div>
+  </div>
+</section>
+
+<!-- ============ 记账凭证 ============ -->
+<section class="page" id="pg-voucher">
+  <div class="toolbar">
+    <span class="field">期间 <input type="month" id="vfMonth"></span>
+    <input type="text" id="vfQ" placeholder="摘要 / 字号搜索…" style="border:1px solid var(--line2);border-radius:6px;padding:5px 9px;width:170px">
+    <span class="field">状态
+      <select id="vfStatus"><option value="">全部</option><option value="open">未审核</option><option value="posted">已审核</option><option value="voided">已作废</option></select>
+    </span>
+    <span class="sp"></span>
+    <span class="gray" id="vSum"></span>
+    <button class="btn" id="btnExpCSV">导出CSV</button>
+    <button class="btn" id="btnApplyTpl">套用模板</button>
+    <button class="btn pri" id="btnNewVoucher">＋ 新增凭证</button>
+  </div>
+  <div class="panel" style="margin-bottom:0">
+    <div style="max-height:calc(100vh - 150px);overflow:auto">
+      <table class="tb" id="vTable" style="white-space:nowrap">
+        <thead><tr><th style="width:44px">日期</th><th>字号</th><th style="width:140px">摘要</th><th style="width:110px">借方金额</th><th style="width:110px">贷方金额</th><th style="width:64px">附单据</th><th style="width:64px">状态</th><th style="width:150px">操作</th></tr></thead>
+        <tbody id="vBody"></tbody>
+      </table>
+    </div>
+  </div>
+</section>
+
+<!-- ============ 账簿 ============ -->
+<section class="page" id="pg-books">
+  <div class="toolbar" id="bkBar">
+    <div class="subnav" id="bkTab" style="margin:0">
+      <button class="on" data-b="ledger">明细账</button>
+      <button data-b="summary">总账汇总</button>
+      <button data-b="trial">科目余额表</button>
+      <button data-b="aux">辅助余额表</button>
+    </div>
+    <span class="sp"></span>
+    <span class="field" id="bkPeriodWrap">期间 <input type="month" id="bkMonth"></span>
+    <span class="field" id="bkDimWrap" style="display:none">辅助维度
+      <select id="bkDim"></select>
+    </span>
+  </div>
+  <div id="bkLedger" class="split">
+    <div class="left"><div class="tree" id="bkTree"></div></div>
+    <div class="right">
+      <div class="panel">
+        <div class="phead" id="bkAcctTitle">明细账</div>
+        <div style="max-height:calc(100vh - 210px);overflow:auto"><table class="tb"><thead><tr>
+          <th>日期</th><th>凭证字号</th><th>摘要</th><th class="num">借方</th><th class="num">贷方</th><th>余额方向</th><th class="num">余额</th>
+        </tr></thead><tbody id="bkRows"></tbody></table></div>
+        <div class="pbody" id="bkFoot" style="display:flex;gap:18px;background:#fbfcfe;border-top:1px solid var(--line)"></div>
+      </div>
+    </div>
+  </div>
+  <div id="bkSummary" style="display:none">
+    <div class="panel"><div style="max-height:calc(100vh - 150px);overflow:auto">
+      <table class="tb" id="sTable"><thead><tr><th>科目编码</th><th>科目名称</th><th class="num">期初余额</th><th class="num">借方发生</th><th class="num">贷方发生</th><th class="num">期末余额</th></tr></thead><tbody id="sBody"></tbody></table>
+    </div></div>
+  </div>
+  <div id="bkTrial" style="display:none">
+    <div class="panel"><div style="max-height:calc(100vh - 150px);overflow:auto">
+      <table class="tb"><thead><tr><th>科目</th><th>方向</th><th>期初余额</th><th>本期借方</th><th>本期贷方</th><th>期末借方</th><th>期末贷方</th><th>方向</th><th>期末余额</th></tr></thead><tbody id="trialBody"></tbody></table>
+    </div>
+    <div class="pbody" id="trialFoot"></div></div>
+  </div>
+  <div id="bkAux" style="display:none">
+    <div class="panel"><div style="max-height:calc(100vh - 150px);overflow:auto">
+      <table class="tb"><thead><tr><th>辅助项</th><th>科目</th><th class="num">期初借方</th><th class="num">期初贷方</th><th class="num">本期借方</th><th class="num">本期贷方</th><th class="num">期末借方</th><th class="num">期末贷方</th></tr></thead><tbody id="auxBalBody"></tbody></table>
+    </div>
+    <div class="pbody" id="auxBalFoot"></div></div>
+  </div>
+</section>
+
+<!-- ============ 财务报表 ============ -->
+<section class="page" id="pg-report">
+  <div class="toolbar">
+    <div class="subnav" id="rpTab" style="margin:0">
+      <button class="on" data-r="bs">资产负债表</button>
+      <button data-r="is">利润表</button>
+    </div>
+    <span class="sp"></span>
+    <span class="field">截至月份 <input type="month" id="rpMonth"></span>
+  </div>
+  <div id="rpBS">
+    <div class="panel report"><div class="phead">资产负债表 <span class="sp"></span><span class="sub" id="bsMeta"></span></div><div class="pbody balancegrid" id="bsGrid"></div></div>
+  </div>
+  <div id="rpIS" style="display:none">
+    <div class="panel report"><div class="phead">利润表 <span class="sp"></span><span class="sub" id="isMeta"></span></div><div class="pbody" id="isGrid"></div></div>
+  </div>
+</section>
+
+<!-- ============ 期末结账 ============ -->
+<section class="page" id="pg-close">
+  <div class="steps" id="cSteps"></div>
+  <div class="panel">
+    <div class="phead">会计期间进度 <span class="sp"></span><span class="field">年度 <input type="number" id="cYear" style="width:86px;border:1px solid var(--line2);border-radius:6px;padding:4px 8px"></span></div>
+    <div class="pbody" id="cTable" style="padding:6px 14px"></div>
+  </div>
+</section>
+
+<!-- ============ 系统设置 ============ -->
+<section class="page" id="pg-settings">
+  <div class="toolbar" style="margin-bottom:14px">
+    <div class="subnav" id="stTab" style="margin:0">
+      <button class="on" data-s="acct">科目管理</button>
+      <button data-s="open">期初设置</button>
+      <button data-s="aux">辅助核算</button>
+      <button data-s="tpl">凭证模板</button>
+    </div>
+  </div>
+  <!-- 科目管理 -->
+  <div id="stAcct" class="split">
+    <div class="left" style="width:300px;min-width:300px">
+      <div style="padding:8px 8px 4px"><input type="text" id="acSearch" placeholder="搜索科目编码 / 名称" style="border:1px solid var(--line2);border-radius:6px;padding:5px 9px;width:100%"></div>
+      <div class="tree" id="acTree"></div>
+    </div>
+    <div class="right">
+      <div class="panel">
+        <div class="phead" id="acFormTitle">科目</div>
+        <div class="pbody">
+          <div class="frow"><label>科目编码</label><input id="acCode" placeholder="如 1002 或 112201"></div>
+          <div class="frow"><label>科目名称</label><input id="acName"></div>
+          <div class="frow"><label>科目类型</label>
+            <select id="acCat"><option value="asset">资产</option><option value="liability">负债</option><option value="equity">权益</option><option value="income">收入</option><option value="expense">费用</option></select>
+          </div>
+          <div class="frow"><label>上级科目</label><input id="acParent" readonly placeholder="点左侧节点后选“作为上级”"><span class="btn sm" id="acPickParent">选上级</span><button class="btn sm danger" id="acClearParent">清空</button></div>
+          <div class="frow"><label>期初余额</label><input id="acOpening" type="number" step="0.01" placeholder="借贷方向按科目类型"></div>
+          <div class="frow"><label>辅助核算</label><div class="cklist" id="acAuxList"></div></div>
+          <div class="frow"><label>备注</label><input id="acRemark"></div>
+          <div class="frow" style="margin-top:6px"><label></label>
+            <button class="btn pri" id="acSave">保存科目</button>
+            <button class="btn" id="acNewChild">新增下级</button>
+            <button class="btn danger" id="acDelete">删除科目</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <!-- 期初设置 -->
+  <div id="stOpen" style="display:none">
+    <div class="toolbar">
+      <span class="field">设置说明：只对已发生期初或启用辅助核算的科目填写，保存后请点“试算平衡”核对借贷是否相等。</span>
+      <span class="sp"></span>
+      <button class="btn" id="opRefresh">刷新</button>
+      <button class="btn pri" id="opSaveAll">保存全部</button>
+      <button class="btn" id="opCheck">试算平衡</button>
+    </div>
+    <div class="panel"><div style="max-height:calc(100vh - 150px);overflow:auto">
+      <table class="tb openingtb"><thead><tr><th style="width:34px"></th><th>科目</th><th>类型</th><th style="width:110px">借方期初</th><th style="width:110px">贷方期初</th><th style="width:130px">净额</th><th style="width:210px">辅助期初</th></tr></thead><tbody id="openBody"></tbody></table>
+    </div>
+    <div class="pbody" id="openFoot" style="background:#fbfcfe;border-top:1px solid var(--line)"></div></div>
+  </div>
+  <!-- 辅助核算 -->
+  <div id="stAux" style="display:none">
+    <div class="toolbar">
+      <span class="field">建立辅助维度（往来单位 / 部门 / 项目）后，到“科目管理”勾选启用；录入凭证时即可选择辅助项。</span>
+      <span class="sp"></span>
+      <input type="text" id="newDimName" placeholder="新维度名称，如：往来单位" style="border:1px solid var(--line2);border-radius:6px;padding:5px 9px;width:170px">
+      <button class="btn pri" id="btnAddDim">添加维度</button>
+    </div>
+    <div id="auxDims" class="panel pbody"></div>
+  </div>
+  <!-- 凭证模板 -->
+  <div id="stTpl" style="display:none">
+    <div class="toolbar"><span class="field">常用业务一键生成分录骨架，用于“新增凭证 → 套用模板”。</span><span class="sp"></span><button class="btn pri" id="btnNewTpl">＋ 新建模板</button></div>
+    <div class="panel"><div class="pbody" id="tplList"></div></div>
+  </div>
+</section>
+
+</div>
+
+<!-- ============ 凭证录入 Overlay ============ -->
+<div id="ve">
+  <div class="sheet">
+    <div class="head">
+      <span class="tt" id="veTitle">新增记账凭证</span>
+      <span class="chip blue">记</span>
+      <span class="light">字号自动取本月最大号+1</span>
+      <span class="sp"></span>
+      <button class="btn sm" id="veHelp" title="使用说明">?</button>
+      <button class="btn danger" id="veClose">✕ 关闭</button>
+    </div>
+    <div class="meta">
+      <div class="f"><label>凭证日期</label><input type="date" id="veDate"></div>
+      <div class="f"><label>整单摘要（也可逐行填摘要）</label><input id="veSummary" placeholder="例如：支付XX费用"></div>
+      <div class="f"><label>附件张数</label><input type="number" id="veAtt" min="0" value="0"></div>
+    </div>
+    <div class="body">
+      <table class="grid" id="veGrid">
+        <colgroup><col style="width:34px"><col style="width:120px"><col style="width:230px"><col style="width:120px"><col style="width:120px"><col style="width:110px"><col style="width:30px"></colgroup>
+        <thead><tr>
+          <th>#</th><th>科目（点选）</th><th>摘要 / 辅助核算</th><th style="background:#eef4ff;color:#2563eb">借方金额</th><th style="background:#fff0f2;color:#e11d48">贷方金额</th><th>科目余额提示</th><th></th>
+        </tr></thead>
+        <tbody id="veBody"></tbody>
+      </table>
+    </div>
+    <div class="foot">
+      <button class="btn" id="veAddRow">＋ 插入行</button>
+      <span class="field">套用模板 <select id="veTpl"><option value="">—</option></select></span>
+      <span class="bal" id="veBal"></span>
+      <button class="btn" id="veSaveNew">保存并新增</button>
+      <button class="btn pri" id="veSave">保存凭证</button>
+    </div>
+  </div>
+</div>
+
+<!-- ============ Modal 通用 ============ -->
+<div class="mask" id="mConfirm"><div class="box" style="width:min(420px,94%)">
+  <div class="mhead">请确认</div><div class="mbody" id="mConfirmText"></div>
+  <div class="mfoot"><button class="btn" data-c="no">取消</button><button class="btn pri" data-c="yes">确定</button></div>
+</div></div>
+
+<div class="mask wide" id="mAcct"><div class="box acctpick">
+  <div class="mhead">选择会计科目 <span class="light" id="acPickHint"></span><span class="sp"></span><button class="btn sm" data-x="close">✕</button></div>
+  <div class="mbody" style="display:flex;flex-direction:column;flex:1;min-height:0;padding:10px 14px">
+    <div class="search"><input id="acSearch2" placeholder="搜索：编码 / 名称 / 拼音首字母"><span class="chip gray">回车下移选中</span></div>
+    <div class="wrap">
+      <div class="left"><div class="tree" id="acPickTree"></div></div>
+      <div class="right" id="acPickInfo"></div>
+    </div>
+  </div>
+  <div class="mfoot"><span class="light" id="acPickSel"></span><span class="sp"></span><button class="btn" data-x="cancel">取消</button><button class="btn pri" data-x="ok">选用此科目</button></div>
+</div></div>
+
+<div class="mask" id="mAux"><div class="box">
+  <div class="mhead">辅助核算 <span class="sub" id="auxMSub"></span><span class="sp"></span><button class="btn sm" data-x="close">✕</button></div>
+  <div class="mbody" id="auxMBody"></div>
+  <div class="mfoot"><button class="btn" data-x="cancel">清除本行辅助</button><button class="btn pri" data-x="ok">确定</button></div>
+</div></div>
+
+<div class="mask wide" id="mTpl"><div class="box" style="min-height:520px">
+  <div class="mhead"><span id="tplMTitle">凭证模板</span><span class="sp"></span><button class="btn sm" data-x="close">✕</button></div>
+  <div class="mbody">
+    <div class="frow"><label>模板名称</label><input id="tplName" placeholder="如：采购付款（银行存款→应付账款）"></div>
+    <div style="font-size:12px;color:var(--t2);margin:4px 0 8px">行内科目固定、金额可留空由录入时填；科目点选或直接输编码。</div>
+    <table class="tb"><thead><tr><th style="width:30px">#</th><th style="width:44px">方向</th><th style="width:150px">科目</th><th>摘要</th><th style="width:34px"></th></tr></thead><tbody id="tplMBody"></tbody></table>
+    <button class="btn sm" id="tplMAdd">＋ 添加行</button>
+  </div>
+  <div class="mfoot"><button class="btn" data-x="close">取消</button><button class="btn pri" data-x="save">保存模板</button></div>
+</div></div>
+
+<div class="mask" id="mAuxOpen"><div class="box">
+  <div class="mhead">辅助核算期初 <span class="sub" id="aoSub"></span><span class="sp"></span><button class="btn sm" data-x="close">✕</button></div>
+  <div class="mbody">
+    <div class="frow"><label>维度</label><select id="aoDim"></select></div>
+    <div class="frow"><label>方向</label>
+      <select id="aoSide"><option value="1">借</option><option value="-1">贷</option></select>
+      <span class="light">每行选择辅助项后填写金额（按科目余额方向）</span>
+    </div>
+    <div id="aoRows"></div>
+    <button class="btn sm" id="aoAdd">＋ 添加辅助项</button>
+  </div>
+  <div class="mfoot"><button class="btn" data-x="close">取消</button><button class="btn pri" data-x="save">保存</button></div>
+</div></div>
+
+<div id="toast"></div>
+<script>
+/* ============ 核心 ============ */
+var $=function(s){return document.querySelector(s)}, $$=function(s){return Array.prototype.slice.call(document.querySelectorAll(s))};
+function esc(s){return String(s==null?'':s).replace(/[&<>"']/g,function(c){return{'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]})}
+function fmt(n){return (n==null||isNaN(n))?'0.00':Number(n).toLocaleString('zh-CN',{minimumFractionDigits:2,maximumFractionDigits:2})}
+function clr(n){var s=fmt(Math.abs(Number(n||0)));return Number(n)<0?'-'+s:s}
+function fdate(s){return (s||'').slice(0,10)}
+var state={month:'',page:'home',accts:[],dims:[],tmpls:[],closed:{},bkTab:'ledger',selCode:'',pick:{rows:null,cb:null},veRows:[],veSaving:false};
+function nowYM(){var d=new Date();return d.getFullYear()+'-'+('0'+(d.getMonth()+1)).slice(-2)}
+function monthDays(ym){var p=ym.split('-'),y=+p[0],m=+p[1];return new Date(y,m,0).getDate()}
+function monthFirst(ym){return ym+'-01'}
+function monthLast(ym){var p=ym.split('-');return ym+'-'+new Date(+p[0],+p[1],0).getDate()}
+function sameMonth(m1,m2){return m1.slice(0,7)===m2.slice(0,7)}
+/* ---------- 提示 / 弹层 ---------- */
+function toast(msg,type){var t=document.createElement('div');t.className='toast '+(type||'');t.textContent=msg;$('#toast').appendChild(t);setTimeout(function(){t.style.opacity='0';t.style.transition='.3s';setTimeout(function(){t.remove()},350)},2600)}
+function openMask(id){$('#'+id).classList.add('on')}
+function closeMask(id){$('#'+id).classList.remove('on')}
+var confirmCb=null;
+function ask(text,onOk){$('#mConfirmText').textContent=text;confirmCb=onOk;openMask('mConfirm')}
+/* ---------- API ---------- */
+async function api(method,url,body){
+  try{
+    var r=await fetch(url,{method:method,headers:{'Content-Type':'application/json'},body:body?JSON.stringify(body):undefined});
+    var d=await r.json().catch(function(){return{}});
+    if(!d||d.success===false){
+      var msg=(d&&d.error)||('请求失败 HTTP '+r.status);
+      if(/未登录|请先登录|登录已失效/.test(msg)){toast('登录已失效，正在跳转…');setTimeout(function(){location.href='/login'},600)}
+      else toast(msg,'err');
+      throw new Error(msg);
+    }
+    return d;
+  }catch(e){throw e}
+}
+async function loadCaches(){
+  var [a,d,t]=await Promise.all([
+    api('GET','/api/ledger/accounts'),
+    api('GET','/api/ledger/aux/dims'),
+    api('GET','/api/ledger/templates')
+  ]);
+  state.accts=a.data; state.dims=d.data; state.tmpls=t.data;
+}
+function acctBy(code){return state.accts.find(function(x){return x.code===code})}
+function childCount(){var m={};state.accts.forEach(function(a){if(a.parent_code)m[a.parent_code]=(m[a.parent_code]||0)+1});return m}
+function isLeaf(code){return !childCount()[code]}
+/* ---------- 顶部导航 ---------- */
+function switchPage(name,arg){
+  state.page=name;
+  $$('#topnav button').forEach(function(b){b.classList.toggle('on',b.dataset.m===name)});
+  $$('.page').forEach(function(p){p.classList.toggle('on',p.id==='pg-'+name)});
+  if(name==='home')renderHome();
+  else if(name==='voucher')refreshVouchers();
+  else if(name==='books')renderBooks();
+  else if(name==='report')renderReport();
+  else if(name==='close')renderClosing();
+  else if(name==='settings')renderSettings();
+}
+/* ---------- 凭证列表共用 ---------- */
+function statusChip(st,red,auto){var s=st||'open',m={open:['未审核','amber'],posted:['已审核','green'],voided:['已作废','gray']}[s]||[s,'gray'];
+  return '<span class="chip '+m[1]+'">'+m[0]+(red?' · 红字':'')+'</span>'+(auto?'<span class="chip purple">自动</span>':'')}
+function openEditor(vid,pre){
+  loadCaches().then(function(){_openEditor(vid,pre)})
+}
+/* ---------- CSV ---------- */
+function exportCSV(name,heads,rows){
+  var lines=[heads.map(function(h){return'"'+h.replace(/"/g,'""')+'"'}).join(',')];
+  rows.forEach(function(r){lines.push(r.map(function(c){c=c==null?'':String(c);return'"'+c.replace(/"/g,'""')+'"'}).join(','))});
+  var blob=new Blob(['\ufeff'+lines.join('\n')],{type:'text/csv;charset=utf-8'});
+  var a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=name;a.click();
+}
+/* ---------- 科目树渲染 ---------- */
+function acctMeta(acct){
+  var catLabel={asset:'资',liability:'负',equity:'权',income:'收',expense:'费'}[acct.category]||acct.category;
+  return catLabel;
+}
+function buildTreeHtml(list,search,activeCode){
+  var cc={};list.forEach(function(a){if(a.parent_code)cc[a.parent_code]=1});
+  var q=(search||'').trim();
+  var roots=list.filter(function(a){return !a.parent_code});
+  var html='';
+  function walk(a,dep){
+    var kids=list.filter(function(x){return x.parent_code===a.code});
+    if(q){kids=[]}
+    html+='<div class="node'+(activeCode===a.code?' on':'')+'" data-code="'+a.code+'" style="padding-left:'+(dep*16+6)+'px">'
+      +(kids.length?'<span class="caret">▾</span>':'<span class="caret"></span>')
+      +'<span class="cat" style="background:'+{asset:'#0d9488',liability:'#1d4ed8',equity:'#7c3aed',income:'#059669',expense:'#dc2626'}[a.category]+'">'+acctMeta(a)+'</span>'
+      +'<span class="nm">'+esc(a.code)+' '+esc(a.name)+'</span><span class="cb">'+(isLeaf(a.code)?'':'·')+'</span></div>';
+    kids.forEach(function(k){walk(k,dep+1)});
+  }
+  roots.forEach(function(r){walk(r,0)});
+  return html;
+}
+/* ---------- 顶栏事件 ---------- */
+function fmtSide(v){return (v&&v.side&&v.side!=='平')?('('+v.side+') '+fmt(v.amount)):fmt(0)}
+function isDrNormal(cat){return cat==='asset'||cat==='expense'}
+function naturalLabel(cat){return isDrNormal(cat)?'借':'贷'}
+$('#topnav').addEventListener('click',function(e){var b=e.target.closest('button');if(b)switchPage(b.dataset.m)});
+$('#curMonth').addEventListener('change',function(){state.month=this.value;refreshCurrent()});
+$('#gToday').addEventListener('click',function(){var v=nowYM();state.month=v;$('#curMonth').value=v;refreshCurrent()});
+function refreshCurrent(){
+  if(state.page==='home')renderHome();
+  else if(state.page==='voucher')refreshVouchers();
+  else if(state.page==='books')renderBooks();
+  else if(state.page==='report')renderReport();
+  else if(state.page==='close')renderClosing();
+}
+function onMonthWrap(){
+  var v=$('#curMonth').value||nowYM();return v;
+}
+state.month=onMonthWrap();
+/* ============ 工作台 ============ */
+async function renderHome(){
+  var ym=state.month;
+  try{
+    var [tr,bs,inc,ps]=await Promise.all([
+      api('GET','/api/ledger/trial?month='+ym),
+      api('GET','/api/ledger/balance?month='+ym),
+      api('GET','/api/ledger/income?month='+ym),
+      api('GET','/api/ledger/periods')
+    ]);
+    var rows=tr.rows||[];
+    var agg=function(cat){var dr=0,cr=0;rows.forEach(function(r){if(r.category===cat){dr+=Number(r.end_dr||0);cr+=Number(r.end_cr||0)}});return dr-cr};
+    var liab=function(){var dr=0,cr=0;rows.forEach(function(r){if(r.category==='liability'||r.category==='equity'){dr+=Number(r.end_dr||0);cr+=Number(r.end_cr||0)}});return cr-dr};
+    var cards=[
+      {l:'资产总计（月末）',v:Math.max(agg('asset'),0),c:'blue'},
+      {l:'负债合计（月末）',v:liab()-0,c:'red'},
+      {l:'本期收入',v:((inc.income&&inc.income.total)||0),c:'green'},
+      {l:'本期费用',v:((inc.expense&&inc.expense.total)||0),c:'red'},
+      {l:'本期利润',v:((inc.profit)||0),c:'amber'}
+    ];
+    var html=cards.map(function(x,i){
+      return '<div class="stat"><div class="lbl">'+x.l+'</div><div class="val '+x.c+'">'+(i<2?fmt(Math.abs(x.v)):clr(x.v))+'</div></div>'
+    }).join('');
+    /* 试算不平衡提示卡 */
+    if(tr.balanced===false)$('#hStat').innerHTML='<div class="panel" style="grid-column:1/-1;border-color:#fca5a5;background:#fff5f5;padding:8px 14px;color:#b91c1c">本月账务借贷不平衡：借 '+fmt(tr.totals.cur_dr)+' / 贷 '+fmt(tr.totals.cur_cr)+'，请检查凭证后结账。</div>'+html;
+    else $('#hStat').innerHTML=html;
+    var months=ps.data||[];
+    var closed=months.filter(function(m){return m.closed}).length;
+    var thisP=months.find(function(m){return m.month===ym.slice(0,7)})||{};
+    var todo=[];
+    if(thisP.open>0)todo.push({t:'本月有 '+thisP.open+' 张凭证未审核',d:'一键审核或逐张处理',ic:'#f59e0b',go:'voucher'});
+    if(thisP.income||thisP.expense){if(!thisP.carry_vid)todo.push({t:'本月尚未结转损益',d:'结账前需将收入费用转本年利润',ic:'#d97706',go:'close'})}
+    if(!thisP.closed&&months.length)todo.push({t:'本月尚未结账',d:'结账后期间凭证将锁定',ic:'#7c3aed',go:'close'});
+    if(!todo.length)todo.push({t:'当前期间账务状态良好',d:'可继续录入凭证或查看报表',ic:'#10b981'});
+    var todos=todo.map(function(x){return '<li><span class="ic" style="background:'+x.ic+'"></span><span>'+x.t+'</span><span class="sp"></span><span class="d">'+x.d+'</span>'+(x.go?'<button class="btn sm" data-tgo="'+x.go+'">处理</button>':'')+'</li>'}).join('');
+    $('#hTodoCnt').textContent=months.length?closed+'/'+months.length:0;
+    $('#hTodo').innerHTML=todos;
+    $('#hRecCnt').textContent='最近 6';
+    var vresp=await api('GET','/api/ledger/vouchers?month='+ym);
+    var rec=(vresp.data||[]).slice(-6).reverse();
+    $('#hRecent').innerHTML=rec.length?rec.map(function(v){
+      return '<li style="flex-wrap:wrap"><span class="chip '+(v.status==='posted'?'green':(v.status==='voided'?'gray':'amber'))+'">'+(v.status==='posted'?'已审':(v.status==='voided'?'作废':'未审'))+'</span><span style="font-weight:600">'+esc(v.voucher_no)+'</span><span>'+fdate(v.vdate)+'</span><span class="light">'+esc(v.summary||'')+'</span><span class="sp"></span><span class="gray num">'+fmt(v.total)+'</span></li>'
+    }).join(''):'<li class="light" style="justify-content:center">本月暂无凭证，点击左上角"新增凭证"开始记账</li>';
+    $('#hStat').onclick=function(e){var b=e.target.closest('[data-tgo]');if(b)switchPage(b.dataset.tgo)};
+  }catch(e){}
+}
+/* 工作台快捷入口 */
+$$('.qb').forEach(function(b){
+  b.addEventListener('click',function(){
+    var q=b.dataset.q;
+    if(q==='newv')openEditor(0);
+    else if(q==='books'){state.bkTab='ledger';switchPage('books')}
+    else if(q==='report')switchPage('report');
+    else if(q==='carry'){switchPage('close');setTimeout(doCarryCurrent,80)}
+    else if(q==='closing')switchPage('close');
+    else if(q==='auxm'){switchPage('settings');showSt('aux')}
+  });
+});
+/* ============ 记账凭证列表 ============ */
+function vfMonth(){return $('#vfMonth').value||state.month}
+async function refreshVouchers(){
+  var m=vfMonth();
+  try{
+    var r=await api('GET','/api/ledger/vouchers?month='+m);
+    var list=r.data||[];
+    var q=($('#vfQ').value||'').trim().toLowerCase();
+    var st=$('#vfStatus').value;
+    var rows=list.filter(function(v){ if(st&&v.status!==st)return false; if(q&&(String(v.voucher_no).toLowerCase().indexOf(q)<0&&String(v.summary||'').toLowerCase().indexOf(q)<0))return false; return true});
+    var dr=0,cr=0,op=0,po=0,vo=0;rows.forEach(function(v){dr+=v.total;cr+=v.total;if(v.status==='open')op++;else if(v.status==='posted')po++;else vo++});
+    $('#vSum').textContent='共 '+rows.length+' 张 · 未审 '+op+' · 已审 '+po+' · 作废 '+vo+'';
+    $('#vBody').innerHTML=rows.length?rows.map(function(v){
+      var vo=v.status==='voided';
+      return '<tr class="'+(vo?'void':'')+'" data-vid="'+v.id+'">'
+        +'<td>'+fdate(v.vdate)+'</td><td style="font-weight:600">'+esc(v.voucher_no)+(v.red?'<span class="tag red">红字</span>':'')+(v.auto?'<span class="tag auto">自动</span>':'')+'</td>'
+        +'<td class="gray" style="overflow:hidden;text-overflow:ellipsis;max-width:150px">'+esc(v.summary||'')+'</td>'
+        +'<td class="num dr">'+fmt(v.total)+'</td><td class="num cr">'+fmt(v.total)+'</td>'
+        +'<td class="num gray">'+(v.attachments||0)+'</td>'
+        +'<td>'+statusChip(v.status,v.red,v.auto)+'</td>'
+        +'<td class="ops"><div style="display:flex;gap:4px;flex-wrap:wrap">'
+        +'<button class="btn sm" data-a="open">查看</button>'
+        +'<button class="btn sm" data-a="edit">修改</button>'
+        +(v.status==='open'?'<button class="btn sm pri" data-a="audit">审核</button>':'')
+        +(v.status==='posted'?'<button class="btn sm" data-a="unaudit">反审核</button><button class="btn sm" data-a="reverse">红冲</button>':'')
+        +(v.status==='voided'?'<button class="btn sm" data-a="unvoid">恢复</button>':'<button class="btn sm danger" data-a="void">作废</button>')
+        +'<button class="btn sm" data-a="copy">复制</button>'
+        +'<button class="btn sm danger" data-a="del">删除</button>'
+        +'</div></td></tr>';
+    }).join(''):'<tr><td colspan="8" style="text-align:center;padding:34px" class="light">该期间暂无凭证</td></tr>';
+    bindVoucherOps();
+  }catch(e){}
+}
+function bindVoucherOps(){
+  $('#vBody').onclick=function(e){
+    var b=e.target.closest('[data-a]');if(!b)return;
+    var tr=e.target.closest('tr'),vid=+tr.dataset.vid,act=b.dataset.a;
+    var go=function(){
+      if(act==='open'){voucherDetail(vid)}
+      else if(act==='edit'){openEditor(vid)}
+      else if(act==='copy'){openEditor(0,vid)}
+      else if(act==='audit'){api('POST','/api/ledger/vouchers/'+vid+'/audit',{action:'audit'}).then(function(){toast('已审核','ok');refreshVouchers();loadCloseCaches()}).catch(function(){})}
+      else if(act==='unaudit'){ask('确认反审核该凭证？反审核后可修改。',function(){api('POST','/api/ledger/vouchers/'+vid+'/audit',{action:'unaudit'}).then(function(){toast('已反审核');refreshVouchers()}).catch(function(){})})}
+      else if(act==='void'){ask('确认作废该凭证？作废后不再计入账簿报表，可随时恢复。',function(){api('POST','/api/ledger/vouchers/'+vid+'/audit',{action:'void'}).then(function(){toast('已作废');refreshVouchers();refreshCurrent()}).catch(function(){})})}
+      else if(act==='unvoid'){api('POST','/api/ledger/vouchers/'+vid+'/audit',{action:'unvoid'}).then(function(){toast('已恢复');refreshVouchers()}).catch(function(){})}
+      else if(act==='reverse'){ask('红字冲销将生成一张与原凭证借贷互换的红字凭证（自动审核）。继续？',function(){api('POST','/api/ledger/vouchers/'+vid+'/reverse').then(function(d){toast('已生成红冲凭证 '+d.voucher_no,'ok');refreshVouchers()}).catch(function(){})})}
+      else if(act==='del'){ask('确认删除该凭证？删除不可恢复。',function(){api('DELETE','/api/ledger/vouchers/'+vid).then(function(){toast('已删除');refreshVouchers();refreshCurrent()}).catch(function(){})})}
+    };go();
+  };
+  if(!$('#vDetail'))return;
+}
+async function voucherDetail(vid){
+  try{
+    var r=await api('GET','/api/ledger/vouchers/'+vid);
+    var v=r.data,ens=r.entries||[];
+    var lines=ens.map(function(e,i){
+      var aux=(e.aux||[]).map(function(a){return '<span class="chip purple">'+esc(a.dim_name)+'：'+esc(a.item_name)+'</span>'}).join(' ');
+      return '<tr><td>'+(i+1)+'</td><td>'+esc(e.account_code)+'</td><td>'+esc((acctBy(e.account_code)||{}).name||'')+'</td><td class="gray">'+esc(e.summary||v.summary||'')+'</td><td class="num dr">'+(e.debit?fmt(e.debit):'')+'</td><td class="num cr">'+(e.credit?fmt(e.credit):'')+'</td><td>'+aux+'</td></tr>'
+    }).join('');
+    var html='<div class="panel" style="margin:0 16px 14px"><div class="phead">查看凭证 '+esc(v.voucher_no)+' <span class="chip blue">'+fdate(v.vdate)+'</span> '+statusChip(v.status,v.red,v.auto)+'<span class="sp"></span><span class="light">附单据 '+(v.attachments||0)+' 张</span></div><div style="overflow:auto"><table class="tb"><thead><tr><th>行</th><th>科目编码</th><th>科目名称</th><th>摘要</th><th class="num">借方</th><th class="num">贷方</th><th>辅助核算</th></tr></thead><tbody>'+lines+'</tbody></table></div><div class="pbody" style="text-align:right;font-weight:700;background:#fbfcfe">合计　借 '+fmt(v.total)+' 元　贷 '+fmt(v.total)+' 元</div></div>';
+    var wrap=document.createElement('div');wrap.style.cssText='background:#fff;border:1px solid var(--line);border-radius:9px;margin-top:12px';
+    $('#pg-voucher').appendChild(wrap);wrap.innerHTML='<div class="phead" style="background:#f8fafc;padding:8px 14px;display:flex;align-items:center"><b>凭证预览</b><span class="sp"></span><button class="btn sm" data-vd="hide">收起</button></div><div>'+html+'</div>';
+    wrap.querySelector('[data-vd=hide]').onclick=function(){wrap.remove()};
+  }catch(e){}
+}
+/* ============ 凭证编辑器 ============ */
+function _openEditor(vid,copyFrom){
+  $('#ve').classList.add('on');$('#veBody').innerHTML='';state.veSaving=false;
+  $('#veAtt').value=0;$('#veSummary').value='';
+  var now=new Date(),ym=(state.month||nowYM());
+  var d=new Date();$('#veDate').value=state.month?ym+'-'+String(Math.min(d.getDate(),monthDays(ym))).padStart(2,'0'):d.toISOString().slice(0,10);
+  if(vid){
+    api('GET','/api/ledger/vouchers/'+vid).then(function(r){
+      $('#veTitle').textContent='修改凭证 '+r.data.voucher_no;
+      state.veVoucherId=vid;state.veMode='edit';
+      $('#veDate').value=r.data.vdate;$('#veSummary').value=r.data.summary||'';$('#veAtt').value=r.data.attachments||0;
+      state.veRows=(r.entries||[]).map(function(e){return {code:e.account_code,name:e.account_name,summary:e.summary,dr:e.debit,cr:e.credit,aux:(e.aux||[]).map(function(a){return {dim_id:a.dim_id,dim_name:a.dim_name,item_id:a.item_id,item_name:a.item_name}})}});
+      renderVE();
+    }).catch(function(){veCloseSheet()});
+  }else{
+    state.veMode='new';state.veVoucherId=0;
+    $('#veTitle').textContent='新增记账凭证';
+    state.veRows=[];
+    if(copyFrom){
+      api('GET','/api/ledger/vouchers/'+copyFrom).then(function(r){
+        $('#veDate').value=r.data.vdate;$('#veSummary').value=r.data.summary||'';$('#veAtt').value=r.data.attachments||0;
+        state.veRows=(r.entries||[]).map(function(e){return {code:e.account_code,name:e.account_name,summary:e.summary,dr:0,cr:0,aux:(e.aux||[]).map(function(a){return {dim_id:a.dim_id,dim_name:a.dim_name,item_id:a.item_id,item_name:a.item_name}})}});
+        renderVE();
+      }).catch(function(){addVERow();addVERow();renderVE()});
+    }else{addVERow();addVERow();renderVE()}
+  }
+}
+function renderVE(){
+  var rows=state.veRows;
+  var cc=childCount();
+  $('#veBody').innerHTML=rows.map(function(r,i){
+    var aux=(r.aux||[]).map(function(a){return '<span class="a" title="点此修改">'+esc(a.dim_name)+':'+esc(a.item_name)+' ✎</span>'}).join('');
+    return '<tr data-i="'+i+'">'
+    +'<td style="text-align:center;color:#9ca3af">'+(i+1)+'</td>'
+    +'<td><input class="c" value="'+esc(r.code)+'" placeholder="科目编码" title="直接输编码或点选"><div style="font-size:11px;color:#2563eb;padding:0 6px 4px">'+esc(r.name||'')+'</div></td>'
+    +'<td><div style="display:flex"><input class="sum" value="'+esc(r.summary||'')+'" placeholder="摘要…"><button class="btn sm auxbtn" title="设置辅助核算">🏷</button></div><div class="auxmini">'+aux+'</div></td>'
+    +'<td class="adr"><input class="dr" type="text" inputmode="decimal" value="'+(r.dr?r.dr:'')+'" placeholder="借"></td>'
+    +'<td class="acr"><input class="cr" type="text" inputmode="decimal" value="'+(r.cr?r.cr:'')+'" placeholder="贷"></td>'
+    +'<td class="gray" style="font-size:11px;padding:4px 6px" title="选择科目后显示类型/方向">'+(r.name?('<span class="chip">'+({asset:'资产',liability:'负债',equity:'权益',income:'收入',expense:'费用'}[acctBy(r.code).category])+'</span><span class="light"> '+(isDrNormal((acctBy(r.code)||{}).category)?'借':'贷')+'方向</span>'):'<span class="light">点科目列选科目</span>')+'</td>'
+    +'<td style="text-align:center"><button class="btn sm danger" data-del="'+i+'">×</button></td></tr>';
+  }).join('');
+  $('#veTpl').innerHTML='<option value="">— 套用模板 —</option>'+(state.tmpls||[]).map(function(t){return '<option value="'+t.id+'">'+esc(t.name)+'</option>'}).join('');
+  updateVE();
+}
+function updateVE(){
+  var dr=0,cr=0;state.veRows.forEach(function(r){dr+=Number(r.dr||0);cr+=Number(r.cr||0)});
+  dr=Math.round(dr*100)/100;cr=Math.round(cr*100)/100;
+  var ok=Math.abs(dr-cr)<0.009&&(dr>0||cr>0);
+  $('#veBal').innerHTML='<span>借合计 <b class="dr" style="font-size:16px">'+fmt(dr)+'</b></span><span>贷合计 <b class="cr" style="font-size:16px">'+fmt(cr)+'</b></span><span class="chip '+(Math.abs(dr-cr)<0.009?'green':'red')+'">'+(Math.abs(dr-cr)<0.009?'借贷平衡':'差额 '+fmt(Math.abs(dr-cr)))+'</span>';
+}
+$('#veBody').addEventListener('input',function(e){
+  var t=e.target,tr=e.target.closest('tr');if(!tr)return;
+  var i=+tr.dataset.i,row=state.veRows[i];if(!row)return;
+  if(t.classList.contains('dr')){row.dr=t.value===''?0:parseFloat(t.value)||0}
+  else if(t.classList.contains('cr')){row.cr=t.value===''?0:parseFloat(t.value)||0}
+  else if(t.classList.contains('sum')){row.summary=t.value}
+  else if(t.classList.contains('c')){
+    row.code=t.value.trim();var a=acctBy(row.code);row.name=a?a.name:'';
+    t.parentNode.querySelectorAll('div')[0]&&(t.parentNode.querySelector('div').textContent=a?a.name:'');
+    updateHint(i);
+  }
+  updateVE();
+});
+function updateHint(i){/*重新渲染该行提示*/}
+$('#veBody').addEventListener('click',function(e){
+  var b=e.target.closest('.auxbtn'),del=e.target.closest('[data-del]'),codeinp=e.target.closest('input.c');
+  if(b){editRowAux(+e.target.closest('tr').dataset.i);return}
+  if(del){state.veRows.splice(+del.dataset.del,1);if(!state.veRows.length)addVERow();renderVE();return}
+  if(codeinp){
+    var i=+codeinp.closest('tr').dataset.i;
+    if(e.detail===2||!codeinp.value.trim()){openAcctPick(function(code){setRowCode(i,code)})}
+  }
+});
+$('#veBody').addEventListener('keydown',function(e){
+  if(e.key==='Enter'&&e.target.tagName==='INPUT'&&!e.target.closest('input.dr')&&!e.target.closest('input.cr')){
+    var i=+e.target.closest('tr').dataset.i;
+    if(i===state.veRows.length-1){addVERow();renderVE()}
+    setTimeout(function(){var nx=$('#veBody tr[data-i="'+i+'"] .cr');nx&&nx.focus()},20);
+  }
+  if(e.key==='Tab'){var cur=e.target,cell=cur.closest('td');if(cell){var tds=Array.prototype.slice.call($$('#veBody tr[data-i]')),all=[];tds.forEach(function(tr){Array.prototype.forEach.call(tr.cells,function(td){var inp=td.querySelector('input');if(inp)all.push(inp)})});var idx=all.indexOf(cur);var go=e.shiftKey?all[idx-1]:all[idx+1];if(go){e.preventDefault();go.focus();go.select()}}}
+});
+function setRowCode(i,code){
+  var a=acctBy(code);if(!a)return;
+  state.veRows[i].code=code;state.veRows[i].name=a.name;
+  var tr=$('#veBody tr[data-i="'+i+'"]');
+  if(tr){tr.querySelector('input.c').value=code;tr.querySelector('.c~div').textContent=a.name}
+  updateVE();
+}
+$('#veAddRow').addEventListener('click',function(){addVERow();renderVE();updateVE()});
+function addVERow(){state.veRows.push({code:'',name:'',summary:'',dr:'',cr:'',aux:[]})}
+$('#veSave').addEventListener('click',function(){saveVE(false)});
+$('#veSaveNew').addEventListener('click',function(){saveVE(true)});
+function veCloseSheet(){state.veRows=[];$('#ve').classList.remove('on')}
+$('#veClose').addEventListener('click',function(){veCloseSheet();refreshVouchers()});
+$('#veHelp').addEventListener('click',function(){toast('快捷键：Tab 下一格；Enter 新增一行；双击科目格选科目；Alt+A 打开辅助核算');});
+async function saveVE(again){
+  if(state.veSaving)return;state.veSaving=true;
+  var entries=[],blanks=[];
+  state.veRows.forEach(function(r,i){
+    if(!r.code&&!r.summary&&!r.dr&&!r.cr&&!r.aux.length)return;
+    if(!r.code){blanks.push(i+1);return}
+    entries.push({summary:r.summary||'',account_code:r.code,debit:Number(r.dr)||0,credit:Number(r.cr)||0,aux:(r.aux||[]).map(function(a){return {dim_id:a.dim_id,item_id:a.item_id}})});
+  });
+  if(blanks.length){toast('第 '+blanks.join('、')+' 行缺少科目，请补全','err');state.veSaving=false;return}
+  if(entries.length<2){toast('凭证至少需要两行分录','err');state.veSaving=false;return}
+  var body={vdate:$('#veDate').value,summary:$('#veSummary').value.trim(),attachments:+$('#veAtt').value||0,entries:entries};
+  try{
+    var r=state.veMode==='edit'?await api('PUT','/api/ledger/vouchers/'+state.veVoucherId,body):await api('POST','/api/ledger/vouchers',body);
+    toast('已保存'+(r.voucher_no?' '+r.voucher_no:''),'ok');state.veSaving=false;
+    if(again){state.veRows=[];addVERow();addVERow();renderVE();updateVE()}
+    else{veCloseSheet();refreshVouchers();refreshCurrent()}
+  }catch(e){state.veSaving=false}
+}
+/* ---------- 科目选择 ---------- */
+function openAcctPick(cb,hint){
+  state.pick.cb=cb;state.pick.selCode='';
+  $('#acPickHint').textContent=hint||'选择科目填入分录';
+  renderPickTree('');
+  openMask('mAcct');
+}
+function renderPickTree(q){
+  $('#acPickTree').innerHTML=buildTreeHtml(state.accts,q);
+  $('#acPickInfo').innerHTML='<div class="light" style="padding:14px">在左侧选择科目</div>';
+  $('#acPickSel').textContent='';
+}
+$('#acSearch2').addEventListener('input',function(){renderPickTree(this.value)});
+$('#acPickTree').addEventListener('click',function(e){
+  var nd=e.target.closest('.node');if(!nd)return;
+  var code=nd.dataset.code,a=acctBy(code);
+  if(!a)return;
+  var dims=(a.aux_dims||'').split(',').filter(Boolean);
+  var dimNames=state.dims.filter(function(d){return dims.indexOf(String(d.id))>=0}).map(function(d){return d.name});
+  var aux=state.dims.map(function(d){
+    var on=dims.indexOf(String(d.id))>=0;
+    return '<span class="chip '+(on?'blue':'')+'">'+esc(d.name)+'</span>'});
+  $('#acPickInfo').innerHTML='<div style="padding:4px 2px"><h3 style="margin-bottom:6px">'+esc(a.code)+'　'+esc(a.name)+'</h3>'
+    +'<p class="light" style="line-height:2">类型：'+({asset:'资产',liability:'负债',equity:'权益',income:'收入',expense:'费用'}[a.category])+'<br>方向：'+(isDrNormal(a.category)?'借方余额':'贷方余额')+'<br>余额方向：'+(isDrNormal(a.category)?'借':'贷')+'<br>辅助核算：'+(dimNames.length?dimNames.join('、'):'未启用')+'</p>'
+    +'<div style="margin-top:8px">'+aux.join(' ')+'</div>'
+    +'<div class="light" style="margin-top:8px">双击快速选用；编码可直接输入。</div></div>';
+  $('#acPickSel').textContent='已选：'+a.code+' '+a.name;
+  state.pick.selCode=code;
+});
+$('#acPickTree').addEventListener('dblclick',function(e){
+  var nd=e.target.closest('.node');if(!nd)return;pickDone();
+});
+function pickDone(){
+  if(!state.pick.selCode)return;
+  var cb=state.pick.cb;state.pick.cb=null;closeMask('mAcct');
+  if(cb)cb(state.pick.selCode);
+}
+$$('#mAcct [data-x]').forEach(function(b){
+  b.addEventListener('click',function(){
+    var x=b.dataset.x;
+    if(x==='ok')pickDone();
+    else closeMask('mAcct');
+  });
+});
+/* ---------- 分录辅助核算 ---------- */
+function editRowAux(i){
+  var row=state.veRows[i];
+  if(!row){return}
+  if(!state.dims.length){toast('尚未建立辅助核算维度，请先到 系统设置→辅助核算 添加','err');return}
+  var map={};row.aux.forEach(function(a){map[a.dim_id]=a});
+  $('#auxMSub').textContent='第 '+(i+1)+' 行 · '+(row.code||'')+' '+(row.name||'');
+  $('#auxMBody').innerHTML=state.dims.map(function(d){
+    var items=d.items.filter(function(it){return it.active});
+    var cur=map[d.id];
+    var opts=items.map(function(it){return '<option value="'+it.id+'"'+(cur&&cur.item_id===it.id?' selected':'')+'>'+esc(it.name)+'</option>'}).join('');
+    return '<div style="margin-bottom:10px"><div style="font-weight:600;margin-bottom:4px">'+esc(d.name)+'</div><select data-dim="'+d.id+'" style="width:100%;border:1px solid var(--line2);border-radius:6px;padding:6px 9px"><option value="">（不选）</option>'+opts+'</select></div>';
+  }).join('');
+  openMask('mAux');
+  state.auxEditIndex=i;
+}
+$$('#mAux [data-x]').forEach(function(b){
+  b.addEventListener('click',function(){
+    var x=b.dataset.x,i=state.auxEditIndex;
+    if(x==='ok'){
+      var aux=[];
+      $$('#mAux [data-dim]').forEach(function(sel){
+        var v=+sel.value;if(!v)return;
+        var dim=state.dims.find(function(d){return d.id==+sel.dataset.dim});
+        var it=(dim.items||[]).find(function(it){return it.id===v});
+        aux.push({dim_id:dim.id,dim_name:dim.name,item_id:it.id,item_name:it.name});
+      });
+      state.veRows[i].aux=aux;renderVE();
+    }else if(x==='cancel'){
+      state.veRows[i].aux=[];renderVE();
+    }
+    closeMask('mAux');
+  });
+});
+/* ============ 账簿 ============ */
+function bkMonth(){return $('#bkMonth').value||state.month}
+function sideOf(net){var n=Math.round(net*100)/100;return n===0?{side:'平',amt:0}:n>0?{side:'借',amt:n}:{side:'贷',amt:-n}}
+function escRow(r){var dr=Number(r.op_dr||0)-Number(r.op_cr||0);return {op_dr:dr>0?dr:0,op_cr:dr<0?-dr:0,cur_dr:Number(r.cur_dr||0),cur_cr:Number(r.cur_cr||0),end_dr:Number(r.end_dr||0),end_cr:Number(r.end_cr||0)}}
+function aggTotals(rows){
+  /* 父科目聚合子级后得到 总账口径 */
+  var parents={};state.accts.forEach(function(a){if(a.parent_code)parents[a.code]=a.parent_code});
+  var base={};state.accts.forEach(function(a){base[a.code]={op_dr:0,op_cr:0,cur_dr:0,cur_cr:0,end_dr:0,end_cr:0}});
+  rows.forEach(function(r){
+    var v=escRow(r),code=r.code;
+    if(!base[code])return;
+    var chain=[code],c=code;
+    while(parents[c]){c=parents[c];chain.push(c)}
+    chain.forEach(function(k){base[k].op_dr+=v.op_dr;base[k].op_cr+=v.op_cr;base[k].cur_dr+=v.cur_dr;base[k].cur_cr+=v.cur_cr;base[k].end_dr+=v.end_dr;base[k].end_cr+=v.end_cr});
+  });
+  state.accts.forEach(function(a){Object.keys(base[a.code]).forEach(function(k){base[a.code][k]=Math.round(base[a.code][k]*100)/100})});
+  return base;
+}
+async function renderBooks(){
+  var tab=state.bkTab,m=bkMonth();
+  ['bkLedger','bkSummary','bkTrial','bkAux'].forEach(function(id){$('#'+id).style.display=id===('bk'+{ledger:'Ledger',summary:'Summary',trial:'Trial',aux:'Aux'}[tab])?'':'none'});
+  $$('#bkTab button').forEach(function(b){b.classList.toggle('on',b.dataset.b===tab)});
+  $('#bkDimWrap').style.display=tab==='aux'?'':'none';
+  if(tab==='aux'){
+    $('#bkDim').innerHTML=state.dims.map(function(d){return '<option value="'+d.id+'">'+esc(d.name)+'</option>'}).join('');
+    renderAuxBal(m);
+  }else if(tab==='summary'){
+    renderSummary(m);
+  }else if(tab==='trial'){
+    renderTrialTable(m);
+  }else{renderLedgerTree(m)}
+}
+function renderLedgerTree(m){
+  $('#bkTree').innerHTML=buildTreeHtml(state.accts,'',state.bkCode);
+  if(!state.bkCode){state.bkCode=state.accts.length?state.accts[0].code:''}
+  if(state.bkCode)loadLedgerDetail();
+}
+async function loadLedgerDetail(){
+  var code=state.bkCode,m=bkMonth();
+  try{
+    var r=await api('GET','/api/ledger/ledger?code='+code+'&from='+monthFirst(m)+'&to='+monthLast(m));
+    $('#bkAcctTitle').innerHTML='明细账 · '+esc(r.account.code+' '+r.account.name)+' <span class="chip blue">'+esc(r.account.direction)+'方余额科目</span>';
+    var a=r.account,rows=r.items||[];
+    var cur=_q(r.opening),tot=_q(r.totals);
+    var end=sideOf(cur.side==='借'?cur.amt:(cur.side==='贷'?-cur.amt:0)+(tot.debit-tot.credit));
+    $('#bkRows').innerHTML=rows.map(function(it,i){
+      return '<tr><td>'+fdate(it.date)+'</td><td>'+esc(it.voucher_no)+'</td><td class="gray">'+esc(it.summary||'')+'</td>'
+      +'<td class="num dr">'+(it.debit?fmt(it.debit):'')+'</td><td class="num cr">'+(it.credit?fmt(it.credit):'')+'</td>'
+      +'<td>'+it.bal_side+'</td><td class="num">'+fmt(it.balance)+'</td></tr>';
+    }).join('')||'<tr><td colspan="7" class="light" style="text-align:center;padding:28px">该区间无发生额</td></tr>';
+    $('#bkFoot').innerHTML='<span>期初余额：<b>'+(cur.side==='平'?'—':cur.side+' '+fmt(cur.amt))+'</b></span><span>本期借方合计：<b class="dr">'+fmt(tot.debit)+'</b></span><span>本期贷方合计：<b class="cr">'+fmt(tot.credit)+'</b></span><span style="margin-left:auto">期末余额：<b>'+(end.side==='平'?'—':end.side+' '+fmt(end.amt))+'</b></span>';
+    if(!$('#bkTree').dataset.bound){
+      $('#bkTree').dataset.bound=1;
+      $('#bkTree').addEventListener('click',function(e){
+        var nd=e.target.closest('.node');if(!nd)return;
+        state.bkCode=nd.dataset.code;
+        $$('#bkTree .node').forEach(function(n){n.classList.toggle('on',n.dataset.code===state.bkCode)});
+        loadLedgerDetail();
+      });
+    }
+  }catch(e){}
+}
+function _q(x){return {side:x&&x.side||'平',amt:Number((x&&x.amount)||0)}}
+async function renderSummary(m){
+  try{
+    var t=await api('GET','/api/ledger/trial?month='+m);
+    var agg=aggTotals(t.rows||[]);
+    var html='';var last='';
+    state.accts.forEach(function(a){
+      if(a.parent_code)return;
+      var v=agg[a.code],op=sideOf(v.op_dr-v.op_cr),en=sideOf(v.end_dr-v.end_cr);
+      if(v.cur_dr+v.cur_cr+v.end_dr+v.end_cr+v.op_dr+v.op_cr===0)return;
+      html+='<tr><td style="font-weight:700">'+esc(a.code)+'</td><td style="font-weight:600">'+esc(a.name)+'</td><td class="num gray">'+(op.side==='平'?'—':op.side+' '+fmt(op.amt))+'</td><td class="num dr">'+fmt(v.cur_dr)+'</td><td class="num cr">'+fmt(v.cur_cr)+'</td><td class="num" style="font-weight:700">'+(en.side==='平'?'—':en.side+' '+fmt(en.amt))+'</td></tr>';
+    });
+    $('#sBody').innerHTML=html||'<tr><td colspan="6" class="light" style="text-align:center;padding:26px">本期无发生额</td></tr>';
+  }catch(e){}
+}
+async function renderTrialTable(m){
+  try{
+    var t=await api('GET','/api/ledger/trial?month='+m);
+    var rows=t.rows||[];
+    $('#trialBody').innerHTML=rows.map(function(r){
+      var op=sideOf(Number(r.op_dr||0)-Number(r.op_cr||0)),en=sideOf(Number(r.end_dr||0)-Number(r.end_cr||0));
+      return '<tr><td>'+esc(r.code)+' '+esc(r.name)+'<span class="light"> ['+r.category_label+']</span></td>'
+      +'<td>'+(op.side==='平'?'—':op.side)+'</td><td class="num gray">'+(op.side==='平'?'':fmt(op.amt))+'</td>'
+      +'<td class="num dr">'+(Number(r.cur_dr)||'')+'</td><td class="num cr">'+(Number(r.cur_cr)||'')+'</td>'
+      +'<td class="num">'+(Number(r.end_dr)?fmt(r.end_dr):'')+'</td><td class="num">'+(Number(r.end_cr)?fmt(r.end_cr):'')+'</td>'
+      +'<td>'+(en.side==='平'?'—':en.side)+'</td><td class="num" style="font-weight:600">'+(en.side==='平'?'—':fmt(en.amt))+'</td></tr>';
+    }).join('');
+    var tl=t.totals||{};
+    $('#trialFoot').innerHTML='<div style="display:flex;gap:22px;align-items:center"><span>期初合计 <b>'+fmt(tl.op_dr)+' / '+fmt(tl.op_cr)+'</b></span><span>本期借 <b class="dr">'+fmt(tl.cur_dr)+'</b>　本期贷 <b class="cr">'+fmt(tl.cur_cr)+'</b></span><span>期末借 <b>'+fmt(tl.end_dr)+'</b>　期末贷 <b>'+fmt(tl.end_cr)+'</b></span><span class="chip '+(t.balanced?'green':'red')+'">'+(t.balanced?'试算平衡 ✓':'不平衡 ✗')+'</span></div>';
+  }catch(e){}
+}
+async function renderAuxBal(m){
+  var dim=$('#bkDim').value;if(!dim)return;
+  try{
+    var t=await api('GET','/api/ledger/aux/balance?dim_id='+dim+'&month='+m);
+    var rows=t.rows||[],tl=t.totals||{};
+    $('#auxBalBody').innerHTML=rows.map(function(r){
+      return '<tr><td style="font-weight:600">'+esc(r.item_name)+'</td><td>'+esc(r.account_code)+' '+esc(r.account_name)+'</td>'
+      +'<td class="num">'+(Number(r.op_dr)?fmt(r.op_dr):'')+'</td><td class="num">'+(Number(r.op_cr)?fmt(r.op_cr):'')+'</td>'
+      +'<td class="num dr">'+(Number(r.cur_dr)?fmt(r.cur_dr):'')+'</td><td class="num cr">'+(Number(r.cur_cr)?fmt(r.cur_cr):'')+'</td>'
+      +'<td class="num" style="font-weight:600">'+(Number(r.end_dr)?fmt(r.end_dr):'')+'</td><td class="num" style="font-weight:600">'+(Number(r.end_cr)?fmt(r.end_cr):'')+'</td></tr>';
+    }).join('')||'<tr><td colspan="8" class="light" style="text-align:center;padding:26px">该维度本月无发生/期初</td></tr>';
+    $('#auxBalFoot').innerHTML='<b>合计：</b>期初借 '+fmt(tl.op_dr)+' / 贷 '+fmt(tl.op_cr)+'；本期借 '+fmt(tl.cur_dr)+' / 贷 '+fmt(tl.cur_cr)+'；期末借 '+fmt(tl.end_dr)+' / 贷 '+fmt(tl.end_cr)+'';
+  }catch(e){}
+}
+/* ============ 报表 ============ */
+function rpMonth(){return $('#rpMonth').value||state.month}
+async function renderReport(){
+  var tab=state.rpTab||'bs',m=rpMonth();
+  $('#rpBS').style.display=tab==='bs'?'':'none';$('#rpIS').style.display=tab==='is'?'':'none';
+  $$('#rpTab button').forEach(function(b){b.classList.toggle('on',b.dataset.r===tab)});
+  if(tab==='bs')renderBS();else renderIS();
+}
+function renderBSBody(id,title,rows,total){
+  var c=rows||[];
+  return '<table style="width:100%"><tr class="hdr"><th>'+title+'</th><th class="num" style="width:130px">期末余额</th></tr>'
+    +c.map(function(x){return '<tr><td style="padding-left:'+(22+(x.indent||0))+'px">'+(x.leaf?'':'◆ ')+esc(x.name)+(x.leaf?'':' <span class="light">['+esc(x.code)+']</span>')+'</td><td class="num'+(x.neg?' cr':'')+'">'+fmt(x.amount)+'</td></tr>'}).join('')
+    +'<tr class="total"><td>'+title+'合计</td><td class="num">'+fmt(total)+'</td></tr></table>';
+}
+async function renderBS(){
+  var m=rpMonth();
+  try{
+    var r=await api('GET','/api/ledger/balance?month='+m);
+    $('#bsMeta').textContent='单位：元 · 会计期间截至 '+m;
+    var warn=r.balanced?'':'<div style="padding:10px;color:#b91c1c;background:#fff5f5;border:1px solid #fca5a5;border-radius:8px;margin-bottom:10px">报表不平：资产 ≠ 负债+权益（差额 '+fmt(r.diff)+'），请检查未结转损益或期初设置。</div>';
+    $('#bsGrid').innerHTML=warn+'<div style="padding-right:10px">'+renderBSBody('', '资产', r.asset&&r.asset.rows, r.asset&&r.asset.total)+'</div><div style="padding-left:10px">'+renderBSBody('', '负债', r.liability&&r.liability.rows, r.liability&&r.liability.total)+renderBSBody('', '所有者权益', r.equity&&r.equity.rows, r.equity&&r.equity.total)+'</div>';
+  }catch(e){}
+}
+async function renderIS(){
+  var m=rpMonth();
+  try{
+    var r=await api('GET','/api/ledger/income?month='+m);
+    $('#isMeta').textContent='单位：元 · 期间 '+m;
+    var ic=(r.income&&r.income.rows)||[],ec=(r.expense&&r.expense.rows)||[];
+    var html='<table style="width:100%"><tr class="hdr"><th>项目</th><th class="num" style="width:150px">本期金额</th></tr>'
+      +'<tr class="total"><td>一、营业收入</td><td class="num">'+fmt(r.income.total)+'</td></tr>'
+      +ic.map(function(x){return '<tr><td class="indent">　'+esc(x.name)+'</td><td class="num">'+fmt(x.amount)+'</td></tr>'}).join('')
+      +'<tr class="total"><td>二、营业成本及费用</td><td class="num">'+fmt(r.expense.total)+'</td></tr>'
+      +ec.map(function(x){return '<tr><td class="indent">　'+esc(x.name)+'</td><td class="num">'+fmt(x.amount)+'</td></tr>'}).join('')
+      +'<tr style="background:#eef2ff"><td>三、本期利润（收入-费用）</td><td class="num" style="font-weight:700">'+(r.profit<0?'':'')+fmt(Math.abs(r.profit))+(r.profit<0?'（亏损）':'')+'</td></tr>'
+      +'</table>';
+    $('#isGrid').innerHTML=html;
+  }catch(e){}
+}
+/* ============ 期末结账 ============ */
+async function renderClosing(){
+  var y=$('#cYear').value||String(new Date().getFullYear());
+  var m=state.month.slice(0,7);
+  try{
+    var [ps,tr]=await Promise.all([
+      api('GET','/api/ledger/periods?year='+y),
+      api('GET','/api/ledger/trial?month='+m)
+    ]);
+    var months=ps.data||[];
+    /* 步骤卡 */
+    var cur=months.find(function(x){return x.month===m})||{month:m,total:0,closed:false};
+    var carryOK=!!cur.carry_vid,closeOK=!!cur.closed;
+    var stepH=function(st,ok,sub){return '<div class="step'+(ok?' ok':'')+'"><div class="n">'+(ok?'✓':st)+'</div><div><div class="s1">'+(ok?'已完成':'待处理')+'</div><div class="s2">'+sub+'</div></div></div>'};
+    $('#cSteps').innerHTML=stepH(1,false,'试算平衡'+(tr.balanced?' 已平衡 ✓':' 不平衡！先修正凭证'))+stepH(2,carryOK,'损益结转'+(cur.income||cur.expense?' 本期有收入/费用需结转':' 无损益发生'))+stepH(3,closeOK,'期间结账'+(closeOK?' 已锁定':' 结账后本期不可再改'));
+    /* 月份进度列表 */
+    var ttl={total:0,posted:0,open:0,voided:0};months.forEach(function(x){Object.keys(ttl).forEach(function(k){if(k!=='total')ttl[k]+=(x[k]||0)});ttl.total+=x.total||0});
+    var lastClosed=months.filter(function(x){return x.closed}).pop();
+    $('#cTable').innerHTML=months.map(function(x){
+      var pct=x.total?Math.round((x.posted||0)/x.total*100):0;
+      var ops=[];
+      if(!x.closed&&x.month===m){ops.push('<button class="btn sm '+(carryOK?'':'pri')+'" data-cm="'+x.month+'" data-ca="carry">'+(x.carry_vid?'重新结转':'结转损益')+'</button>');ops.push('<button class="btn sm pri" data-cm="'+x.month+'" data-ca="close">结账</button>')}
+      if(x.closed&&lastClosed&&x.month===lastClosed.month)ops.push('<button class="btn sm" data-cm="'+x.month+'" data-ca="unclose">反结账</button>');
+      if(x.carry_vid&&!x.closed)ops.push('<button class="btn sm danger" data-cm="'+x.month+'" data-ca="uncarry">删除结转</button>');
+      return '<div class="pagerow"><div class="m">'+x.month.replace('-', ' 年 ')+' 月</div>'
+        +(x.closed?'<span class="chip green">已结账</span>':(x.month===m?'<span class="chip amber">当期</span>':'<span class="chip gray">未结账</span>'))
+        +(x.carry_vid?'<span class="chip purple">已结转损益</span>':'')
+        +'<span class="light">凭证 '+x.total+' · 未审 '+(x.open||0)+'</span>'
+        +'<div class="bar"><i style="width:'+(x.total?pct:0)+'%"></i></div>'
+        +'<span class="light" style="width:46px">'+pct+'%已审</span>'
+        +'<div class="ops">'+ops.join('')+'</div></div>';
+    }).join('');
+    bindCloseOps(m,carryOK);
+    refreshNavBadge(months);
+  }catch(e){}
+}
+function refreshNavBadge(months){
+  var pending=months.filter(function(x){return !x.closed&&x.total}).length;
+  var badge=$('#topnav button[data-m=close] .num');if(badge){badge.textContent=pending;badge.style.display=pending?'':'none'}
+}
+function bindCloseOps(m,carryOK){
+  $('#cTable').onclick=function(e){
+    var b=e.target.closest('[data-ca]');if(!b)return;
+    var cm=b.dataset.cm,ca=b.dataset.ca;
+    if(ca==='carry'){
+      api('POST','/api/ledger/carry-profit',{month:cm}).then(function(d){toast(d.existing?'本期已存在结转凭证':'已生成结转损益凭证 '+d.voucher_no,'ok');renderClosing()}).catch(function(){});
+    }else if(ca==='uncarry'){
+      ask('删除 '+cm+' 的自动结转凭证？可稍后重新结转。',function(){api('DELETE','/api/ledger/carry-profit?month='+cm).then(function(){toast('已删除结转凭证');renderClosing()}).catch(function(){})});
+    }else if(ca==='close'){
+      api('POST','/api/ledger/closing/'+cm).then(function(){toast(cm+' 已结账，凭证锁定','ok');renderClosing();refreshCurrent()}).catch(function(){});
+    }else if(ca==='unclose'){
+      ask('确认反结账 '+cm+'？反结账后该期间凭证可修改。',function(){api('DELETE','/api/ledger/closing/'+cm).then(function(){toast('已反结账');renderClosing()}).catch(function(){})});
+    }
+  };
+}
+function doCarryCurrent(){
+  api('POST','/api/ledger/carry-profit',{month:state.month.slice(0,7)}).then(function(d){toast('已生成结转凭证 '+d.voucher_no,'ok');renderClosing()}).catch(function(){});
+}
+/* ============ 系统设置 ============ */
+var settingTab='acct',editAcctId=0,editAcctParent='';
+function showSt(tab){settingTab=tab;['acct','open','aux','tpl'].forEach(function(k){$('#st'+k.charAt(0).toUpperCase()+k.slice(1)).style.display=k===tab?'':'none'});
+  $$('#stTab button').forEach(function(b){b.classList.toggle('on',b.dataset.s===tab)});
+  if(tab==='acct')renderAcctTree('');
+  else if(tab==='open')renderOpenings();
+  else if(tab==='aux')renderAuxMgr();
+  else if(tab==='tpl')renderTplList();
+}
+async function renderSettings(){showSt(settingTab)}
+/* ---- 科目管理 ---- */
+function renderAcctTree(q){$('#acTree').innerHTML=buildTreeHtml(state.accts,q,editAcctId&&String(state.accts.find(function(a){return a.id===editAcctId}).code));}
+$('#acSearch').addEventListener('input',function(){renderAcctTree(this.value)});
+$('#acTree').addEventListener('click',function(e){
+  var nd=e.target.closest('.node');if(!nd)return;
+  fillAcctForm(acctBy(nd.dataset.code));
+});
+function fillAcctForm(a){
+  if(!a)return;editAcctId=a.id;editAcctParent=a.parent_code||'';
+  $('#acCode').value=a.code;$('#acName').value=a.name;$('#acCat').value=a.category;
+  $('#acParent').value=a.parent_code?'(上级) '+a.parent_code+(acctBy(a.parent_code)?' '+acctBy(a.parent_code).name:''):'';
+  $('#acOpening').value=a.opening||'';$('#acRemark').value=a.remark||'';
+  $('#acFormTitle').textContent='科目 · '+a.code+' '+a.name;
+  var sel=String(a.aux_dims||'').split(',').filter(Boolean);
+  $('#acAuxList').innerHTML=state.dims.map(function(d){return '<label><input type="checkbox" value="'+d.id+'"'+(sel.indexOf(String(d.id))>=0?' checked':'')+'>'+esc(d.name)+'</label>'}).join('')||'<span class="light">先到“辅助核算”页新建维度</span>';
+}
+function resetAcctForm(){
+  editAcctId=0;
+  $('#acCode').value='';$('#acName').value='';$('#acCat').value='asset';$('#acParent').value='';$('#acOpening').value='';$('#acRemark').value='';
+  $('#acFormTitle').textContent='新增科目';
+  $('#acAuxList').innerHTML=state.dims.map(function(d){return '<label><input type="checkbox" value="'+d.id+'">'+esc(d.name)+'</label>'}).join('')||'<span class="light">先到“辅助核算”页新建维度</span>';
+}
+$('#acPickParent').addEventListener('click',function(){openAcctPick(function(code){var a=acctBy(code);$('#acParent').value=code+' '+a.name;editAcctParent=code},'设为上级科目（请避免选择自身或自身下级）')});
+$('#acClearParent').addEventListener('click',function(){$('#acParent').value='';editAcctParent=''});
+$('#acNewChild').addEventListener('click',function(){resetAcctForm();$('#acParent').value=editAcctParent===''?'':editAcctParent+' '+(acctBy(editAcctParent)?acctBy(editAcctParent).name:'');$('#acCode').focus()});
+$('#acSave').addEventListener('click',async function(){
+  var body={code:$('#acCode').value.trim(),name:$('#acName').value.trim(),category:$('#acCat').value,parent_code:editAcctParent,opening:parseFloat($('#acOpening').value)||0,remark:$('#acRemark').value.trim(),
+    aux_dims:$$('#acAuxList input:checked').map(function(i){return i.value})};
+  if(!body.code){toast('请输入科目编码','err');return}
+  if(!body.name){toast('请输入科目名称','err');return}
+  try{
+    if(editAcctId){await api('PUT','/api/ledger/accounts/'+editAcctId,body);toast('已保存科目','ok')}
+    else{await api('POST','/api/ledger/accounts',body);toast('已新增科目','ok');resetAcctForm()}
+    await loadCaches();renderAcctTree('');refreshCurrent();
+  }catch(e){}
+});
+$('#acDelete').addEventListener('click',function(){if(!editAcctId){toast('请先在左侧选择科目','err');return}
+  var a=state.accts.find(function(x){return x.id===editAcctId});
+  ask('确认删除科目 '+a.code+' '+a.name+'？已有发生额或子科目的科目不可删除。',function(){api('DELETE','/api/ledger/accounts/'+editAcctId).then(function(){toast('已删除');editAcctId=0;loadCaches().then(function(){renderAcctTree('')})}).catch(function(){})});
+});
+/* ---- 期初设置 ---- */
+async function renderOpenings(){
+  try{
+    var rows=state.accts;
+    var cc=childCount();
+    var body=rows.map(function(a){
+      var isE=cc[a.code];var op=Number(a.opening)||0;
+      var dr=0,cr=0;
+      if(isDrNormal(a.category)){dr=op>0?op:0;cr=op<0?-op:0}else{dr=op<0?-op:0;cr=op>0?op:0}
+      var dims=(a.aux_dims||'').split(',').filter(Boolean);
+      return '<tr data-code="'+a.code+'"><td>'+(''.repeat(isE?0:0))+esc(a.code)+'</td>'
+        +'<td style="padding-left:'+(a.parent_code?26:6)+'px">'+(a.parent_code?'└ ':'')+esc(a.name)+'<span class="light"> '+(isE?'':'·汇总')+'</span></td>'
+        +'<td class="gray">'+({asset:'资产',liability:'负债',equity:'权益',income:'收入',expense:'费用'}[a.category])+'</td>'
+        +'<td><input class="odr" data-k="'+a.code+'" type="number" step="0.01" value="'+dr+'"></td>'
+        +'<td><input class="ocr" data-k="'+a.code+'" type="number" step="0.01" value="'+cr+'"></td>'
+        +'<td class="num"><span data-k="'+a.code+'" class="onet">'+fmt(op)+'</span></td>'
+        +'<td>'+(dims.length?'<button class="btn sm" data-auxop="'+a.code+'">辅助期初('+dims.length+')</button>':'<span class="light">—</span>')+'</td></tr>';
+    }).join('');
+    $('#openBody').innerHTML=body;
+    if(!$('#openBody').dataset.b){
+      $('#openBody').dataset.b=1;
+      $('#openBody').addEventListener('input',function(e){
+        var t=e.target;if(!t.classList.contains('odr')&&!t.classList.contains('ocr'))return;
+        var k=t.dataset.k,a=acctBy(k),dr=parseFloat($('#openBody input.odr[data-k="'+k+'"]').value)||0,cr=parseFloat($('#openBody input.ocr[data-k="'+k+'"]').value)||0;
+        var signed=isDrNormal(a.category)?(dr-cr):(cr-dr);
+        var sp=$('#openBody .onet[data-k="'+k+'"]');sp&&(sp.textContent=fmt(signed));
+      });
+      $('#openBody').addEventListener('click',function(e){
+        var b=e.target.closest('[data-auxop]');if(b)openAuxOpenings(b.dataset.auxop);
+      });
+    }
+    refreshOpenFoot();
+  }catch(e){}
+}
+async function refreshOpenFoot(){
+  var op=0,cr=0;state.accts.forEach(function(a){var v=Number(a.opening)||0;isDrNormal(a.category)?(v>=0?op+=v:cr-=v):(v>=0?cr+=v:op-=v)});
+  $('#openFoot').innerHTML='<div style="display:flex;gap:20px"><span>借方期初合计：<b class="dr">'+fmt(op)+'</b></span><span>贷方期初合计：<b class="cr">'+fmt(cr)+'</b></span><span class="chip '+(Math.abs(op-cr)<0.009?'green':'red')+'">'+(Math.abs(op-cr)<0.009?'期初试算平衡':'差额 '+fmt(Math.abs(op-cr)))+'</span><span class="light" style="margin-left:auto">带辅助核算科目可逐项录入期初</span></div>';
+}
+$('#opCheck').addEventListener('click',function(){refreshOpenFoot();toast('已重算期初试算','ok')});
+$('#opSaveAll').addEventListener('click',async function(){
+  var changed=[];
+  state.accts.forEach(function(a){
+    var dr=parseFloat($('#openBody input.odr[data-k="'+a.code+'"]').value)||0;
+    var cr=parseFloat($('#openBody input.ocr[data-k="'+a.code+'"]').value)||0;
+    var signed=isDrNormal(a.category)?Math.round((dr-cr)*100)/100:Math.round((cr-dr)*100)/100;
+    if(Math.abs(signed-Number(a.opening||0))>0.001)changed.push({a:a,v:signed});
+  });
+  if(!changed.length){toast('期初未发生变化','ok');return}
+  try{
+    for(var i=0;i<changed.length;i++){var c=changed[i];await api('PUT','/api/ledger/accounts/'+c.a.id,{code:c.a.code,name:c.a.name,category:c.a.category,parent_code:c.a.parent_code,opening:c.v,remark:c.a.remark,aux_dims:(c.a.aux_dims||'').split(',').filter(Boolean)})}
+    await loadCaches();toast('期初已保存','ok');renderOpenings();refreshCurrent();
+  }catch(e){}
+});
+/* 辅助期初弹层 */
+var aoAcct='',aoDim='';
+async function openAuxOpenings(code){
+  var a=acctBy(code);if(!a)return;aoAcct=code;
+  var dims=state.dims.filter(function(d){return String(a.aux_dims||'').indexOf(String(d.id))>=0});
+  if(!dims.length){toast('该科目未启用辅助核算','err');return}
+  $('#aoDim').innerHTML=dims.map(function(d){return '<option value="'+d.id+'">'+esc(d.name)+'</option>'}).join('');
+  aoDim=dims[0].id;
+  $('#aoSub').textContent=code+' '+a.name;
+  $('#aoSide').value=isDrNormal(a.category)?'1':'-1';
+  renderAuxOpenRows();
+  openMask('mAuxOpen');
+}
+$('#aoDim').addEventListener('change',function(){aoDim=this.value;renderAuxOpenRows()});
+$('#aoSide').addEventListener('change',function(){});
+async function renderAuxOpenRows(){
+  var dim=state.dims.find(function(d){return d.id==+aoDim});
+  var items=(dim&&dim.items?dim.items:[]).filter(function(it){return it.active});
+  var saved={};
+  try{var r=await api('GET','/api/ledger/aux/openings?account_code='+aoAcct+'&dim_id='+aoDim);(r.data||[]).forEach(function(x){saved[x.item_id]=x.amount})}catch(e){}
+  var html=items.map(function(it){
+    var amt=Number(saved[it.id])||0;
+    return '<div class="frow" style="margin-bottom:6px"><label style="width:200px">'+esc(it.name)+'</label><input data-i="'+it.id+'" type="number" step="0.01" value="'+Math.abs(amt)+'" style="width:150px"></div>';
+  }).join('');
+  $('#aoRows').innerHTML=html||'<div class="light">该维度暂无辅助项，请先到 辅助核算 页添加</div>';
+  $('#aoRows').dataset.empty='';
+  if(!$('#aoRows').dataset.b){$('#aoRows').dataset.b=1;$('#aoAdd').addEventListener('click',function(){toast('如需更多项目请到 系统设置→辅助核算 添加','err')})}
+}
+$$('#mAuxOpen [data-x]').forEach(function(b){
+  b.addEventListener('click',function(){
+    var x=b.dataset.x;
+    if(x==='save'){
+      var rows=[];
+      $$('#aoRows input[data-i]').forEach(function(inp){var v=parseFloat(inp.value)||0;if(!v)return;var side=+$('#aoSide').value;rows.push({item_id:+inp.dataset.i,amount:side>0?Math.abs(v):-Math.abs(v)})});
+      api('PUT','/api/ledger/aux/openings',{account_code:aoAcct,rows:rows}).then(function(){toast('辅助期初已保存','ok');renderOpenings();refreshCurrent()}).catch(function(){});
+    }
+    closeMask('mAuxOpen');
+  });
+});
+/* ---- 辅助核算管理 ---- */
+function renderAuxMgr(){
+  $('#auxDims').innerHTML=state.dims.length?state.dims.map(function(d){
+    return '<div class="dimcard"><div class="dh"><input value="'+esc(d.name)+'" data-dn="'+d.id+'" title="重命名后回车"><span class="chip blue">'+d.items.length+' 项</span><span class="sp"></span><button class="btn sm danger" data-dd="'+d.id+'">删除维度</button></div><div class="items">'
+      +d.items.map(function(it){return '<div class="item"><input value="'+esc(it.name)+'" data-in="'+it.id+'" title="重命名后回车" style="flex:1"><label style="display:flex;gap:5px;align-items:center"><input type="checkbox" data-ia="'+it.id+'"'+(it.active?' checked':'')+'><span class="light">启用</span></label><button class="btn sm danger" data-di="'+it.id+'">删除</button></div>'}).join('')
+      +'<div style="display:flex;gap:6px;margin-top:8px"><input placeholder="新辅助项名称…" data-ai="'+d.id+'" style="border:1px solid var(--line);border-radius:6px;padding:4px 9px;flex:1"><button class="btn sm pri" data-aiadd="'+d.id+'">添加</button></div>'
+      +'</div></div>';
+  }).join(''):'<div class="light" style="text-align:center;padding:26px">还没有辅助核算维度。<br>示例：往来单位（客户/供应商）、部门、项目。</div>';
+  bindAuxMgr();
+}
+function bindAuxMgr(){
+  $('#auxDims').onchange=function(e){
+    var t=e.target;
+    if(t.dataset.dn){var v=t.value.trim();if(v)api('PUT','/api/ledger/aux/dims/'+t.dataset.dn,{name:v}).then(loadCaches).catch(function(){})}
+    else if(t.dataset.in){var v2=t.value.trim();if(v2)api('PUT','/api/ledger/aux/items/'+t.dataset.in,{name:v2}).then(loadCaches).catch(function(){})}
+  };
+  $('#auxDims').onclick=function(e){
+    var b=e.target.closest('[data-aiadd]');if(b){var inp=document.querySelector('[data-ai="'+b.dataset.aiadd+'"]');var v=inp.value.trim();if(v)api('POST','/api/ledger/aux/items',{dim_id:b.dataset.aiadd,name:v}).then(function(){loadCaches().then(renderAuxMgr)}).catch(function(){})}
+    var dd=e.target.closest('[data-dd]');if(dd){ask('确认删除该维度？其下必须无辅助项且无科目绑定。',function(){api('DELETE','/api/ledger/aux/dims/'+dd.dataset.dd).then(function(){loadCaches().then(renderAuxMgr)}).catch(function(){})})}
+    var di=e.target.closest('[data-di]');if(di){ask('删除该辅助项？已被凭证引用时只能停用。',function(){api('DELETE','/api/ledger/aux/items/'+di.dataset.di).then(function(){loadCaches().then(renderAuxMgr)}).catch(function(){})})}
+  };
+  $('#auxDims').onchange=null; /* handled by oninput below for checkbox active */
+  $('#auxDims').addEventListener('change',function(e){
+    var cb=e.target;
+    if(cb.dataset.ia){api('PUT','/api/ledger/aux/items/'+cb.dataset.ia,{name:'',active:cb.checked}).catch(function(){})}
+  });
+}
+$('#btnAddDim').addEventListener('click',function(){var v=$('#newDimName').value.trim();if(!v){toast('请输入维度名称','err');return}
+  api('POST','/api/ledger/aux/dims',{name:v}).then(function(){toast('维度已添加');$('#newDimName').value='';loadCaches().then(renderAuxMgr)}).catch(function(){})});
+/* ---- 凭证模板 ---- */
+function renderTplList(){
+  $('#tplList').innerHTML=state.tmpls.length?state.tmpls.map(function(t){
+    var lines=t.content||[];
+    return '<div class="dimcard"><div class="dh"><b>'+esc(t.name)+'</b><span class="chip gray">'+lines.length+' 行</span><span class="sp"></span><button class="btn sm" data-te="'+t.id+'">编辑</button><button class="btn sm danger" data-td="'+t.id+'">删除</button></div><div class="items">'
+      +lines.map(function(l,i){return '<div class="item"><span class="gray" style="width:22px">'+(i+1)+'</span><span class="chip '+(l.debit?'blue':'red')+'">'+(l.debit?'借':'贷')+'</span><span>'+esc(l.account_code)+' '+esc((acctBy(l.account_code)||{}).name||'')+'</span><span class="light">'+esc(l.summary||'')+'</span></div>'}).join('')
+      +'</div></div>';
+  }).join(''):'<div class="light" style="text-align:center;padding:26px">暂无模板，点右上角"新建模板"开始（例如 收入、费用报销、往来收款）</div>';
+  bindTpl();
+}
+var tplEdit=null,tplEditRows=[];
+function bindTpl(){
+  $('#tplList').onclick=function(e){
+    var b=e.target.closest('[data-te]');if(b)openTplEdit(+b.dataset.te);
+    var d=e.target.closest('[data-td]');if(d){ask('删除该模板？',function(){api('DELETE','/api/ledger/templates/'+d.dataset.td).then(function(){loadCaches().then(renderTplList)}).catch(function(){})})}
+  };
+}
+function openTplEdit(id){
+  var t=id?state.tmpls.find(function(x){return x.id===id}):null;
+  tplEdit=t?t.id:0;$('#tplMTitle').textContent=t?'编辑模板 · '+t.name:'新建凭证模板';
+  $('#tplName').value=t?t.name:'';
+  tplEditRows=(t?t.content:[]).map(function(l){return {dir:l.debit?'dr':'cr',code:l.account_code,name:(acctBy(l.account_code)||{}).name||'',summary:l.summary}});
+  if(!tplEditRows.length)tplEditRows=[{dir:'dr',code:'',name:'',summary:''}];
+  renderTplMRows();
+  openMask('mTpl');
+}
+function renderTplMRows(){
+  $('#tplMBody').innerHTML=tplEditRows.map(function(r,i){
+    return '<tr data-i="'+i+'"><td>'+(i+1)+'</td><td><select data-td="'+i+'" style="border:1px solid var(--line);border-radius:5px;padding:4px"><option value="dr"'+(r.dir==='dr'?' selected':'')+'>借</option><option value="cr"'+(r.dir==='cr'?' selected':'')+'>贷</option></select></td>'
+    +'<td><input data-c="'+i+'" value="'+esc(r.code)+'" placeholder="科目编码" style="border:1px solid var(--line);border-radius:5px;padding:4px 8px;width:150px"><button class="btn sm" data-p="'+i+'">选</button><span class="gray" style="font-size:11px"> '+esc(r.name)+'</span></td>'
+    +'<td><input data-s="'+i+'" value="'+esc(r.summary)+'" placeholder="该行摘要（可为空）" style="border:1px solid var(--line);border-radius:5px;padding:4px 8px;width:100%"></td>'
+    +'<td><button class="btn sm danger" data-rd="'+i+'">×</button></td></tr>';
+  }).join('');
+}
+$('#tplMBody').addEventListener('click',function(e){
+  var b=e.target.closest('[data-rd]');if(b){tplEditRows.splice(+b.dataset.rd,1);renderTplMRows()}
+  var p=e.target.closest('[data-p]');if(p){openAcctPick(function(code){var a=acctBy(code);tplEditRows[+p.dataset.p].code=code;tplEditRows[+p.dataset.p].name=a? a.name:'';renderTplMRows()},'选择模板科目')}
+});
+$('#tplMBody').addEventListener('input',function(e){
+  var t=e.target;
+  if(t.dataset.c){tplEditRows[+t.dataset.c].code=t.value.trim();var a=acctBy(t.value.trim());if(a){tplEditRows[+t.dataset.c].name=a.name;t.closest('td').querySelector('span').textContent=' '+a.name}}
+  else if(t.dataset.s)tplEditRows[+t.dataset.s].summary=t.value;
+});
+$('#tplMBody').addEventListener('change',function(e){var s=e.target;if(s.dataset.td){tplEditRows[+s.dataset.td].dir=s.value}});
+$('#tplMAdd').addEventListener('click',function(){tplEditRows.push({dir:'dr',code:'',name:'',summary:''});renderTplMRows()});
+$('#mTpl [data-x=save]').addEventListener('click',async function(){
+  var content=[];
+  for(var i=0;i<tplEditRows.length;i++){
+    var r=tplEditRows[i];
+    if(!r.code)continue;
+    content.push({account_code:r.code,summary:r.summary,debit:r.dir==='dr'?0:0,credit:r.dir==='cr'?0:0});
+  }
+  var name=$('#tplName').value.trim();
+  if(!name){toast('请输入模板名称','err');return}
+  if(!content.length){toast('模板至少一行有效科目','err');return}
+  try{
+    if(tplEdit){await api('PUT','/api/ledger/templates/'+tplEdit,{name:name,content:content})}
+    else{await api('POST','/api/ledger/templates',{name:name,content:content})}
+    await loadCaches();closeMask('mTpl');renderTplList();toast('模板已保存','ok');
+  }catch(e){}
+});
+function applyTemplate(tid){
+  var t=state.tmpls.find(function(x){return x.id===tid});if(!t)return;
+  state.veRows=(t.content||[]).map(function(l){return {code:l.account_code,name:(acctBy(l.account_code)||{}).name||'',summary:l.summary,dr:l.debit?l.debit:'',cr:l.credit?l.credit:'',aux:[]}});
+  if(!state.veRows.length){addVERow();addVERow()}
+  renderVE();updateVE();
+}
+$('#veTpl').addEventListener('change',function(){if(this.value)applyTemplate(+this.value)});
+$('#btnNewTpl').addEventListener('click',function(){openTplEdit(0)});
+/* ============ 启动 ============ */
+function bindCommon(){
+  $$('.qb').forEach(function(b){b.addEventListener('click',function(){var q=b.dataset.q;if(q==='newv')openEditor(0);else if(q==='books'){state.bkTab='ledger';switchPage('books')}else if(q==='report')switchPage('report');else if(q==='carry'){switchPage('close');setTimeout(doCarryCurrent,60)}else if(q==='closing')switchPage('close');else if(q==='auxm'){settingTab='aux';switchPage('settings')}})});
+  $('#vfMonth').addEventListener('change',function(){refreshVouchers()});
+  $('#vfQ').addEventListener('input',function(){refreshVouchers()});
+  $('#vfStatus').addEventListener('change',function(){refreshVouchers()});
+  $('#btnNewVoucher').addEventListener('click',function(){openEditor(0)});
+  $('#btnApplyTpl').addEventListener('click',function(){openEditor(0);setTimeout(function(){if(!state.tmpls.length){toast('请先到 系统设置→凭证模板 创建模板','err')}else{$('#veTpl').value=state.tmpls[0].id;applyTemplate(state.tmpls[0].id);toast('已套用模板「'+state.tmpls[0].name+'」')}},300)});
+  $('#btnExpCSV').addEventListener('click',function(){
+    var m=vfMonth();api('GET','/api/ledger/vouchers?month='+m).then(function(r){
+      var list=r.data||[];var rows=[];
+      list.forEach(function(v){rows.push([fdate(v.vdate),v.voucher_no,v.summary||'',v.total,v.total,v.attachments||0,v.status])});
+      exportCSV('凭证_'+m+'.csv',['日期','字号','摘要','借方金额','贷方金额','附单据','状态'],rows);
+    }).catch(function(){});
+  });
+  $('#bkTab').addEventListener('click',function(e){var b=e.target.closest('button');if(b){state.bkTab=b.dataset.b;renderBooks()}});
+  $('#bkMonth').addEventListener('change',renderBooks);
+  $('#bkDim').addEventListener('change',function(){renderAuxBal(bkMonth())});
+  $('#rpTab').addEventListener('click',function(e){var b=e.target.closest('button');if(b){state.rpTab=b.dataset.r;renderReport()}});
+  $('#rpMonth').addEventListener('change',renderReport);
+  $('#cYear').addEventListener('change',renderClosing);
+  $('#stTab').addEventListener('click',function(e){var b=e.target.closest('button');if(b)showSt(b.dataset.s)});
+  $('#curMonth').addEventListener('change',function(){state.month=this.value;refreshCurrent()});
+  /* 点击遮罩关闭 */
+  $$('.mask').forEach(function(mk){
+    mk.addEventListener('click',function(e){if(e.target!==mk)return;if(mk.id==='mConfirm'||mk.id==='mAuxOpen'||mk.id==='mTpl')return;mk.classList.remove('on')});
+  });
+  $$('#mConfirm [data-c]').forEach(function(b){b.addEventListener('click',function(){closeMask('mConfirm');if(b.dataset.c==='yes'&&confirmCb){var cb=confirmCb;confirmCb=null;cb()}})});
+}
+loadCaches().then(function(){
+  var m=nowYM();state.month=m;
+  $('#curMonth').value=m;$('#vfMonth').value=m;$('#bkMonth').value=m;$('#rpMonth').value=m;
+  resetAcctForm();
+  bindCommon();
+  switchPage('home');
+  refreshNavBadge([]);
+}).catch(function(e){toast('数据加载失败：'+e.message,'err')});
+
+</script>
+</body>
+</html>
