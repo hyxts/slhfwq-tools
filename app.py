@@ -244,6 +244,7 @@ MODULES = [
     ('routes.pa', 'pa'),
     ('routes.countdown', 'countdown'),
     ('routes.accounting', 'accounting'),
+    ('routes.ledger', 'ledger'),
     ('routes.nav', 'nav'),
 ]
 
@@ -255,9 +256,9 @@ if deploy_bp:
     app.register_blueprint(deploy_bp)
 
 renqing_bp = gpa_bp = hsgrades_bp = None
-backup_bp = pa_bp = countdown_bp = accounting_bp = nav_bp = None
+backup_bp = pa_bp = countdown_bp = accounting_bp = ledger_bp = nav_bp = None
 init_renqing_db = init_gpa_db = init_hsgrades_db = None
-init_pa_db = init_countdown_db = init_accounting_db = None
+init_pa_db = init_countdown_db = init_accounting_db = init_ledger_db = None
 start_auto_backup = start_auto_clean = start_auto_renew = None
 
 for mod_name, key in MODULES:
@@ -282,6 +283,8 @@ for mod_name, key in MODULES:
         countdown_bp, init_countdown_db = bp_obj, init_fn
     elif key == 'accounting':
         accounting_bp, init_accounting_db = bp_obj, init_fn
+    elif key == 'ledger':
+        ledger_bp, init_ledger_db = bp_obj, init_fn
     elif key == 'nav':
         nav_bp = bp_obj
     if bp_obj:
@@ -291,6 +294,7 @@ _LOADED_MODULES = [name for name, bp in [
     ('renqing', renqing_bp), ('gpa', gpa_bp), ('hsgrades', hsgrades_bp),
     ('deploy', deploy_bp), ('backup', backup_bp), ('pa', pa_bp),
     ('countdown', countdown_bp), ('accounting', accounting_bp),
+    ('ledger', ledger_bp),
     ('nav', nav_bp),
 ] if bp]
 
@@ -446,6 +450,7 @@ _SAFE_INITS = [
     ('pa', init_pa_db),
     ('countdown', init_countdown_db),
     ('accounting', init_accounting_db),
+    ('ledger', init_ledger_db),
 ]
 for _name, _fn in _SAFE_INITS:
     if _fn:
@@ -532,5 +537,6 @@ if __name__ == '__main__':
     print('GPA系统: http://127.0.0.1:5000/gpa')
     print('高中成绩系统: http://127.0.0.1:5000/hsgrades')
     print('个人记账系统: http://127.0.0.1:5000/accounting')
+    print('专业记账会计平台: http://127.0.0.1:5000/ledger')
     print('提示: 使用 127.0.0.1 访问比 localhost 更快（约40倍）')
     app.run(host='0.0.0.0', port=5000, debug=False)

@@ -259,7 +259,7 @@ def _build_server_status():
     from .utils import KNOWN_MODULE_DIRS
     other_dirs = {}
     STORAGE_DIRS_SET = KNOWN_MODULE_DIRS
-    KNOWN_DB_DIRS = ['人情', '绩点', '成绩', '倒计时', '服务器', '记账']
+    KNOWN_DB_DIRS = ['人情', '绩点', '成绩', '倒计时', '服务器', '记账', '会计']
 
     try:
         for entry in os.scandir(BASE_DIR):
@@ -536,7 +536,7 @@ def restore_db():
         if not db_name or not content_b64:
             return jsonify({'success': False, 'error': '缺少 db_name 或 content'}), 400
         # 安全检查：只允许恢复已知的数据库文件
-        allowed_prefixes = ['倒计时/', '绩点/', '成绩/', '服务器/', '人情/', '部署/', '记账/']
+        allowed_prefixes = ['倒计时/', '绩点/', '成绩/', '服务器/', '人情/', '部署/', '记账/', '会计/']
         if not any(db_name.startswith(p) for p in allowed_prefixes):
             return jsonify({'success': False, 'error': f'不允许的路径: {db_name}'}), 403
         if '..' in db_name or db_name.startswith('/'):

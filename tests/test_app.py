@@ -192,6 +192,56 @@ class TestCountdownAPI(unittest.TestCase):
         self.assertIn('success', data)
 
 
+class TestLedgerAPI(unittest.TestCase):
+    """专业记账会计 API 测试（需要登录会话）"""
+
+    client: FlaskClient = None
+
+    @classmethod
+    @override
+    def setUpClass(cls) -> None:
+        cls.client = app.test_client()
+        app.config['TESTING'] = True
+        with cls.client.session_transaction() as sess:  # type: ignore[attr-defined]
+            sess['auth'] = True
+
+    def test_page_accessible(self) -> None:
+        r = self.client.get('/ledger')
+        self.assertEqual(r.status_code, 200)
+        self.assertIn('记账会计', r.get_data(as_text=True))
+
+    def test_manifest(self) -> None:
+        r = self.client.get('/ledger/manifest.json')
+        self.assertEqual(r.status_code, 200)
+
+    def test_list_accounts(self) -> None:
+        r = self.client.get('/api/ledger/accounts')
+        self.assertEqual(r.status_code, 200)
+        data: dict = r.get_json()
+        self.assertIn('success', data)
+        # 空库/已种子库都应返回数据数组
+        self.assertIsInstance(data.get('data'), list)
+
+    def test_dashboard(self) -> None:
+        r = self.client.get('/api/ledger/dashboard')
+        self.assertEqual(r.status_code, 200)
+        data: dict = r.get_json()
+        self.assertEqual(data.get('success'), True)
+        self.assertIn('monthly', data)
+
+    def test_trial(self) -> None:
+        r = self.client.get('/api/ledger/trial?month=2026-08')
+        self.assertEqual(r.status_code, 200)
+        data: dict = r.get_json()
+        self.assertIn('rows', data)
+
+    def test_contacts(self) -> None:
+        r = self.client.get('/api/ledger/contacts')
+        self.assertEqual(r.status_code, 200)
+        data: dict = r.get_json()
+        self.assertEqual(data.get('success'), True)
+
+
 class TestRateLimiting(unittest.TestCase):
     """速率限制测试"""
 

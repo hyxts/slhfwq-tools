@@ -1,0 +1,14 @@
+{
+  "name": "记账会计",
+  "short_name": "记账会计",
+  "description": "专业复式记账工作台：凭证·账簿·报表·往来",
+  "start_url": "/ledger",
+  "scope": "/ledger",
+  "display": "standalone",
+  "background_color": "#f8fafc",
+  "theme_color": "#0d9488",
+  "icons": [
+    { "src": "/ledger/icon-192.svg", "sizes": "192x192", "type": "image/svg+xml" },
+    { "src": "/ledger/icon-512.svg", "sizes": "512x512", "type": "image/svg+xml" }
+  ]
+}

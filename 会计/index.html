@@ -1,0 +1,740 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>记账会计 · 专业复式记账</title>
+<link rel="icon" type="image/svg+xml" href="/ledger/icon-192.svg">
+<meta name="theme-color" content="#0d9488">
+<link rel="manifest" href="/ledger/manifest.json">
+<style>
+:root{--primary:#0d9488;--primary-soft:#ccfbf1;--bg:#f0f2f5;--card:#ffffff;--text:#1e293b;--t2:#64748b;--t3:#94a3b8;--border:#e2e8f0;--shadow:0 1px 3px rgba(0,0,0,.05);--danger:#dc2626;--pos:#059669;--neg:#dc2626;--warn:#d97706}
+*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif;background:var(--bg);color:var(--text);font-size:15px;line-height:1.55;
+  padding-top:env(safe-area-inset-top);padding-left:env(safe-area-inset-left);padding-right:env(safe-area-inset-right);padding-bottom:calc(76px + env(safe-area-inset-bottom))}
+body::before{content:'';position:fixed;top:0;left:0;right:0;height:env(safe-area-inset-top);background:#ffffff;z-index:100;pointer-events:none}
+h1,h2,h3{font-weight:700}
+button,input,select,textarea{font-family:inherit;font-size:16px}
+header{background:#fff;border-bottom:1px solid var(--border);padding:10px 16px;position:sticky;top:0;z-index:99;display:flex;align-items:center;justify-content:space-between;gap:8px}
+.hd-left{display:flex;align-items:center;gap:2px;min-width:0}
+.hd-left a{color:#64748b;text-decoration:none;font-size:22px;font-weight:400;line-height:1;display:inline-flex;align-items:center;justify-content:center;min-width:44px;min-height:44px;border-radius:8px}
+.hd-t{min-width:0}
+.hd-t h1{font-size:17px;line-height:1.2;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.hd-t p{font-size:11px;color:var(--t3);margin-top:1px}
+.hd-right button{background:var(--primary);color:#fff;border:none;border-radius:10px;padding:8px 14px;font-size:14px;font-weight:600;min-height:40px;white-space:nowrap}
+.wrap{max-width:1100px;margin:0 auto;padding:14px 12px}
+.card{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:14px;box-shadow:var(--shadow)}
+.card+.card{margin-top:12px}
+.sec-title{font-size:13px;font-weight:700;color:var(--t2);letter-spacing:.5px;margin-bottom:10px;display:flex;align-items:center;justify-content:space-between;gap:8px}
+.sec-title .tool{font-size:12px;font-weight:400}
+.grid-stats{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:12px}
+.stat{padding:12px;border-radius:12px;background:var(--card);border:1px solid var(--border);box-shadow:var(--shadow)}
+.stat .k{font-size:11px;color:var(--t3);margin-bottom:4px}
+.stat .v{font-size:20px;font-weight:800;letter-spacing:-.3px;word-break:break-all}
+.stat .v.pos{color:var(--pos)}.stat .v.neg{color:var(--neg)}.stat .v.warn{color:var(--warn)}
+@media(max-width:768px){.grid-stats{grid-template-columns:repeat(2,1fr)}}
+.grid-2{display:grid;grid-template-columns:1fr;gap:12px}
+@media(min-width:769px){.grid-2{grid-template-columns:1fr 1fr}}
+.bar-row{display:flex;align-items:center;gap:8px;margin-bottom:8px}
+.bar-l{width:64px;font-size:11px;color:var(--t2);text-align:right;flex:none}
+.bar-track{flex:1;background:#f1f5f9;border-radius:6px;height:16px;overflow:hidden}
+.bar-fill{height:100%;border-radius:6px;background:var(--primary);min-width:2px}
+.bar-v{width:80px;font-size:11px;color:var(--t3);flex:none;text-align:right}
+.rowline{display:flex;justify-content:space-between;align-items:center;padding:9px 0;border-bottom:1px solid #f1f5f9;gap:8px}
+.rowline:last-child{border-bottom:none}
+.rowline .l{display:flex;align-items:center;gap:8px;min-width:0}
+.rowline .nm{font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.rowline .sub{font-size:11px;color:var(--t3);margin-top:1px}
+.rowline .rv{font-weight:700;font-size:15px;flex:none}
+.rowline .rv.pos{color:var(--pos)}.rowline .rv.neg{color:var(--neg)}
+.tbl-wrap{overflow-x:auto;-webkit-overflow-scrolling:touch;border:1px solid var(--border);border-radius:10px;background:#fff}
+table{width:100%;border-collapse:collapse;font-size:13px;min-width:560px;white-space:nowrap}
+th{background:#f8fafc;color:var(--t2);font-weight:600;padding:9px 8px;text-align:right;border-bottom:1px solid var(--border);position:sticky;top:0}
+th.l,td.l{text-align:left}
+td{padding:9px 8px;border-bottom:1px solid #f1f5f9;text-align:right;word-break:break-all}
+tr:last-child td{border-bottom:none}
+tr.tot td{font-weight:800;background:#f8fafc}
+.money{font-variant-numeric:tabular-nums}
+.pos{color:var(--pos)}.neg{color:var(--neg)}.muted{color:var(--t3)}
+.badge{display:inline-block;font-size:11px;font-weight:600;border-radius:6px;padding:2px 8px;line-height:1.5}
+.badge.ok{background:#ecfdf5;color:var(--pos)}.badge.bad{background:#fef2f2;color:var(--neg)}
+.badge.cat{background:#eef2ff;color:#4f46e5}
+input,select,textarea{border:1px solid #d1d5db;border-radius:10px;padding:9px 10px;background:#fff;color:var(--text);outline:none;width:100%;min-height:44px}
+textarea{min-height:70px;resize:vertical}
+input:focus,select:focus,textarea:focus{border-color:var(--primary)}
+label.f{display:block;font-size:12px;color:var(--t2);margin:0 0 4px}
+.form-row{margin-bottom:12px}
+.btn{border:none;border-radius:10px;padding:10px 16px;font-size:14px;font-weight:600;min-height:44px;cursor:pointer}
+.btn:active{opacity:.85}
+.btn-p{background:var(--primary);color:#fff}
+.btn-o{background:#fff;color:var(--text);border:1px solid #d1d5db}
+.btn-d{background:#fff;color:var(--danger);border:1px solid #fecaca}
+.btn-m{background:#fff;color:var(--primary);border:1px solid var(--primary)}
+.btn:disabled{opacity:.5}
+.btn-row{display:flex;gap:10px;flex-wrap:wrap;margin-top:12px}
+.btn-row .grow{flex:1}
+.tag-cat{display:inline-block;font-size:10px;border-radius:5px;padding:1px 6px;margin-right:6px;background:#f1f5f9;color:var(--t2);vertical-align:1px}
+.seg{display:inline-flex;background:#eef2f6;border-radius:10px;padding:3px;gap:2px;flex-wrap:wrap}
+.seg button{border:none;background:transparent;border-radius:8px;padding:7px 12px;font-size:13px;font-weight:600;color:var(--t2);min-height:36px}
+.seg button.on{background:#fff;color:var(--primary);box-shadow:var(--shadow)}
+.filter-bar{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:12px}
+.filter-bar .fi{flex:1;min-width:120px}
+.filter-bar .fi.sm{flex:none;width:auto}
+.empty{padding:34px 12px;text-align:center;color:var(--t3);font-size:13px}
+.list-item{display:flex;justify-content:space-between;align-items:center;gap:10px;background:#fff;border:1px solid var(--border);border-radius:12px;padding:12px;box-shadow:var(--shadow)}
+.list-item+.list-item{margin-top:10px}
+.li-main{min-width:0;flex:1}
+.li-top{display:flex;align-items:center;gap:8px}
+.li-date{font-size:11px;color:var(--t3);flex:none}
+.li-no{font-size:12px;font-weight:700;color:var(--primary);flex:none}
+.li-sum{font-size:13px;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.li-sub{font-size:11px;color:var(--t3);margin-top:2px}
+.li-amt{font-size:16px;font-weight:800;text-align:right;flex:none}
+.ops{display:flex;gap:6px;flex:none}
+.ops button{border:1px solid var(--border);background:#fff;border-radius:8px;padding:6px 10px;font-size:12px;color:var(--t2);min-height:34px;font-weight:600}
+.ops button.danger{color:var(--danger);border-color:#fecaca}
+.acct-tree{font-size:14px}
+.tree-g{background:#fff;border:1px solid var(--border);border-radius:12px;margin-bottom:10px;overflow:hidden;box-shadow:var(--shadow)}
+.tree-h{background:#f8fafc;padding:9px 12px;font-size:13px;font-weight:700;display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid var(--border)}
+.tree-r{display:flex;align-items:center;gap:6px;padding:10px 12px;border-bottom:1px solid #f1f5f9}
+.tree-r:last-child{border-bottom:none}
+.tree-r.indent{padding-left:30px}
+.tr-code{font-size:12px;color:var(--t3);width:74px;flex:none;font-variant-numeric:tabular-nums}
+.tr-name{flex:1;font-weight:600;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.tr-open{font-size:12px;color:var(--t2);margin-right:6px;flex:none}
+.tr-ops{display:flex;gap:4px;flex:none}
+.tr-ops button{font-size:11px;color:var(--primary);border:none;background:none;padding:4px 6px;min-height:30px;font-weight:600}
+.tr-ops button.danger{color:var(--danger)}
+/* 凭证录入 */
+.ve-head{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px}
+.ve-sum{grid-column:1/-1}
+.vrow{display:grid;grid-template-columns:1fr 1fr;gap:6px;padding:8px;background:#f8fafc;border:1px solid var(--border);border-radius:10px;margin-bottom:8px}
+.vrow .c-acc,.vrow .c-sum{grid-column:1/-1}
+.vrow .rm{grid-column:1/-1;display:flex;justify-content:flex-end;border-top:1px dashed var(--border);margin-top:2px;padding-top:2px}
+@media(min-width:769px){
+  .vrow{grid-template-columns:2.2fr 1.7fr 1fr 1fr auto}
+  .vrow .c-acc,.vrow .c-sum{grid-column:auto}
+}
+.vrow select{min-height:42px;font-size:14px;padding:7px 8px}
+.vrow input{min-height:42px;font-size:14px;padding:7px 8px}
+.vrow .rm{display:flex;align-items:center;justify-content:center}
+.vrow .rm button{border:none;background:transparent;color:var(--t3);font-size:20px;min-width:40px;min-height:40px}
+.ve-tot{display:flex;justify-content:space-between;gap:8px;background:#ecfdf5;border:1px solid #a7f3d0;border-radius:10px;padding:9px 12px;font-size:13px;margin-top:6px}
+.ve-tot .dt{color:var(--danger);font-weight:800}
+.diff-ok{color:var(--pos)}.diff-bad{color:var(--danger);font-weight:800}
+.ctn-label{font-size:11px;color:var(--t3);margin-bottom:2px}
+.amt-in{position:relative}
+.amt-in:before{content:''}
+/* tabbar */
+.tabbar{position:fixed;bottom:0;left:0;right:0;z-index:95;background:#fff;border-top:1px solid var(--border);display:grid;grid-template-columns:repeat(6,1fr);padding:6px 4px calc(6px + env(safe-area-inset-bottom))}
+.tab{background:none;border:none;font-size:14px;font-weight:700;color:var(--t3);min-height:44px;border-radius:10px;display:flex;align-items:center;justify-content:center}
+.tab.on{color:var(--primary);background:var(--primary-soft)}
+@media(min-width:769px){.tabbar{position:sticky;top:60px;bottom:auto;max-width:640px;margin:0 auto;border:1px solid var(--border);border-radius:12px;padding:4px;grid-template-columns:repeat(6,1fr)}}
+/* modal */
+.mask{position:fixed;inset:0;background:rgba(15,23,42,.5);z-index:200;display:none;align-items:flex-end;justify-content:center}
+.mask.open{display:flex}
+.sheet{background:#fff;width:100%;max-height:92vh;border-radius:18px 18px 0 0;display:flex;flex-direction:column;animation:up .22s ease}
+@keyframes up{from{transform:translateY(30px);opacity:.4}to{transform:none;opacity:1}}
+@media(min-width:769px){.mask{align-items:center}.sheet{border-radius:16px;max-width:880px;max-height:86vh}}
+.sh-h{padding:12px 16px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;gap:8px}
+.sh-h .t{font-size:16px;font-weight:700}
+.sh-x{border:none;background:none;font-size:20px;color:var(--t2);min-width:44px;min-height:44px;border-radius:8px}
+.sh-b{flex:1;overflow-y:auto;padding:14px 16px;-webkit-overflow-scrolling:touch}
+.sh-f{padding:12px 16px;border-top:1px solid var(--border);display:flex;gap:10px}
+.sh-f .grow{flex:1}
+.hint{font-size:12px;color:var(--t3);background:#f8fafc;border-radius:8px;padding:8px 10px;margin-bottom:10px}
+.toast{position:fixed;left:50%;top:60px;transform:translateX(-50%);background:rgba(15,23,42,.92);color:#fff;font-size:13px;padding:10px 18px;border-radius:999px;z-index:400;max-width:82vw;display:none;text-align:center}
+.word-break,td,th{overflow-wrap:break-word}
+.title-note{font-size:11px;color:var(--t3);font-weight:400}
+.sum-row{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px}
+.sum-item{background:#fff;border:1px solid var(--border);border-radius:10px;padding:10px 12px;font-size:13px}
+.sum-item .si-k{font-size:11px;color:var(--t3)}
+.sum-item .si-v{font-size:17px;font-weight:800;margin-top:2px;word-break:break-all}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="hd-left">
+    <a href="/nav" title="返回导航"
+       style="color:#64748b;text-decoration:none;font-size:22px;font-weight:400;line-height:1;display:inline-flex;align-items:center;justify-content:center;min-width:44px;min-height:44px;border-radius:8px"
+       onclick="if(document.referrer.includes('/nav')){history.back();return false}">←</a>
+    <div class="hd-t">
+      <h1>记账会计</h1>
+      <p>专业复式记账 · 凭证 · 账簿 · 报表</p>
+    </div>
+  </div>
+  <div class="hd-right"><button id="hdNewBtn" onclick="newVoucher()" disabled>记凭证</button></div>
+</header>
+
+<div class="wrap">
+  <div id="view"><div class="empty">加载中…</div></div>
+</div>
+
+<nav class="tabbar" id="tabbar">
+  <button class="tab" data-tab="dash">概览</button>
+  <button class="tab" data-tab="vouchers">凭证</button>
+  <button class="tab" data-tab="ledger">账簿</button>
+  <button class="tab" data-tab="reports">报表</button>
+  <button class="tab" data-tab="accounts">科目</button>
+  <button class="tab" data-tab="contacts">往来</button>
+</nav>
+
+<!-- 通用弹层 -->
+<div class="mask" id="mask"><div class="sheet" id="sheet"></div></div>
+<div class="toast" id="toast"></div>
+
+<script>
+'use strict';
+/* ================== 通用工具 ================== */
+var $=function(s){return document.querySelector(s)};
+var $$=function(s){return Array.prototype.slice.call(document.querySelectorAll(s))};
+function esc(s){var d=document.createElement('div');d.textContent=(s==null?'':String(s));return d.innerHTML}
+function num(v){var n=parseFloat(v);return isFinite(n)?n:0}
+function fmt(v){var n=Math.abs(num(v));var s=n.toLocaleString('zh-CN',{minimumFractionDigits:2,maximumFractionDigits:2});return (num(v)<0?'-':'')+s}
+function todayStr(){var d=new Date();return d.getFullYear()+'-'+('0'+(d.getMonth()+1)).slice(-2)+'-'+('0'+d.getDate()).slice(-2)}
+function thisMonth(){var d=new Date();return d.getFullYear()+'-'+('0'+(d.getMonth()+1)).slice(-2)}
+function toast(msg){var t=$('#toast');t.textContent=msg;t.style.display='block';clearTimeout(t._tm);t._tm=setTimeout(function(){t.style.display='none'},2200)}
+async function api(url,opt){
+  opt=opt||{};
+  var res=await fetch(url,{headers:{'Content-Type':'application/json'},...opt});
+  var data=null;
+  try{data=await res.json()}catch(e){data={success:false,error:'服务器无响应'}}
+  if(!res.ok||data.success===false){throw new Error(data.error||('请求失败 '+res.status))}
+  return data;
+}
+function openSheet(html){
+  $('#sheet').innerHTML=html;var m=$('#mask');m.classList.add('open');
+  document.body.style.overflow='hidden';
+}
+function closeSheet(){$('#mask').classList.remove('open');document.body.style.overflow=''}
+function confirmBox(title,msg,onOk){
+  openSheet('<div class="sh-h"><div class="t">'+esc(title)+'</div><button class="sh-x" onclick="closeSheet()">×</button></div>'+
+    '<div class="sh-b"><div style="color:#475569">'+esc(msg)+'</div></div>'+
+    '<div class="sh-f"><button class="btn btn-o grow" onclick="closeSheet()">取消</button>'+
+    '<button class="btn btn-d grow" id="cfOk">确认删除</button></div>');
+  $('#cfOk').onclick=function(){closeSheet();onOk()};
+}
+var modalTxt='';
+/* ================== 状态 ================== */
+var state={tab:'dash',vMonth:thisMonth(),rMonth:thisMonth(),ldgCode:'',ldgFrom:'',ldgTo:'',
+  repMode:'trial',incFrom:'',incTo:''};
+var CATS=[['asset','资产'],['liability','负债'],['equity','权益'],['income','收入'],['expense','费用']];
+var accts=[],acctMap={};
+var catLabel={asset:'资产',liability:'负债',equity:'权益',income:'收入',expense:'费用'};
+var CAT_COLOR={asset:'#f0f9ff',liability:'#fefce8',equity:'#f5f3ff',income:'#ecfdf5',expense:'#fef2f2'};
+async function loadAccts(){
+  var r=await api('/api/ledger/accounts');accts=r.data;acctMap={};
+  accts.forEach(function(a){acctMap[a.code]=a});
+  return accts;
+}
+function acctName(code){var a=acctMap[code];return a?a.name:code}
+function acctSelectHtml(sel,opts){
+  opts=opts||{};
+  var h='';
+  if(opts.placeholder!==false)h+='<option value="">'+(opts.placeholder||'选择科目')+'</option>';
+  CATS.forEach(function(c){
+    var list=accts.filter(function(a){return a.category===c[0]&&a.active!==0});
+    if(!list.length)return;
+    h+='<optgroup label="'+c[1]+'">';
+    list.forEach(function(a){h+='<option value="'+a.code+'"'+(String(sel)===a.code?' selected':'')+'>'+esc(a.name)+' ('+a.code+')</option>'});
+    h+='</optgroup>';
+  });
+  return h;
+}
+function switchTab(t){
+  state.tab=t;
+  $$('#tabbar .tab').forEach(function(b){b.classList.toggle('on',b.dataset.tab===t)});
+  $('#view').innerHTML='<div class="empty">加载中…</div>';
+  if(t==='dash')renderDash();else if(t==='vouchers')renderVouchers();
+  else if(t==='ledger')renderLedger();else if(t==='reports')renderReports();
+  else if(t==='accounts')renderAccounts();else if(t==='contacts')renderContacts();
+}
+/* ================== 概览 ================== */
+function renderDash(){
+  var v=$('#view');
+  var m=state.dashM||thisMonth();
+  v.innerHTML='<div class="filter-bar">'+
+    '<div class="fi"><input type="month" id="dashM" value="'+m+'"></div>'+
+    '<button class="btn btn-o" onclick="switchTab(\'vouchers\')">查凭证</button></div>'+
+    '<div class="empty">加载中…</div>';
+  $('#dashM').onchange=function(){state.dashM=this.value;renderDash()};
+  api('/api/ledger/dashboard?month='+encodeURIComponent(m)).then(function(d){
+    var mm=d.monthly;
+    var netCls=mm.net>=0?'pos':'neg';
+    v.innerHTML=
+    '<div class="grid-stats">'+
+      '<div class="stat"><div class="k">本月收入</div><div class="v pos">'+fmt(mm.income)+'</div></div>'+
+      '<div class="stat"><div class="k">本月支出</div><div class="v neg">'+fmt(mm.expense)+'</div></div>'+
+      '<div class="stat"><div class="k">本月结余</div><div class="v '+netCls+'">'+fmt(mm.net)+'</div></div>'+
+      '<div class="stat"><div class="k">资金结存</div><div class="v">'+fmt(d.cash.total)+'</div></div>'+
+      '<div class="stat"><div class="k">应收净额</div><div class="v '+(d.ar_net>=0?'':'neg')+'">'+fmt(d.ar_net)+'</div></div>'+
+      '<div class="stat"><div class="k">应付净额</div><div class="v '+(d.ap_net>=0?'':'neg')+'">'+fmt(d.ap_net)+'</div></div>'+
+    '</div>';
+    var html='<div class="grid-2">';
+    html+='<div class="card"><div class="sec-title">收支构成<span class="title-note">'+esc(d.month)+'</span></div>';
+    if(mm.income_rows.length){
+      mm.income_rows.forEach(function(r){html+='<div class="rowline"><div class="l"><span class="badge cat">'+esc(r.code)+'</span><div><div class="nm">'+esc(r.name)+'</div></div></div><div class="rv pos">+'+fmt(r.amount)+'</div></div>'});
+    }else{html+='<div class="empty">本月暂无收入</div>'}
+    if(mm.expense_rows.length){
+      mm.expense_rows.forEach(function(r){html+='<div class="rowline"><div class="l"><span class="badge cat">'+esc(r.code)+'</span><div><div class="nm">'+esc(r.name)+'</div></div></div><div class="rv neg">-'+fmt(r.amount)+'</div></div>'});
+    }else{html+='<div class="empty">本月暂无支出</div>'}
+    html+='</div>';
+    html+='<div class="card"><div class="sec-title">近 6 月趋势</div>';
+    var mx=Math.max.apply(null,d.trend.map(function(x){return Math.max(x.income,x.expense)}))||1;
+    d.trend.forEach(function(t){
+      html+='<div class="bar-row"><div class="bar-l">'+t.month.slice(5)+'</div>'+
+        '<div class="bar-track"><div class="bar-fill" style="width:'+Math.max(2,t.income/mx*100)+'%;background:#10b981"></div></div>'+
+        '<div class="bar-v pos">'+fmt(t.income)+'</div></div>'+
+        '<div class="bar-row"><div class="bar-l"></div>'+
+        '<div class="bar-track"><div class="bar-fill" style="width:'+Math.max(2,t.expense/mx*100)+'%;background:#ef4444"></div></div>'+
+        '<div class="bar-v neg">'+fmt(t.expense)+'</div></div>';
+    });
+    html+='</div></div>';
+    html+='<div class="card" style="margin-top:12px"><div class="sec-title">资金账户结存</div>';
+    if(d.cash.rows.length){
+      html+='<div class="tbl-wrap"><table><thead><tr><th class="l">账户</th><th>编码</th><th>余额</th></tr></thead><tbody>';
+      d.cash.rows.forEach(function(r){html+='<tr><td class="l">'+esc(r.name)+'</td><td class="muted">'+esc(r.code)+'</td><td class="money '+(r.amount<0?'neg':'pos')+'">'+fmt(r.amount)+'</td></tr>'});
+      html+='</tbody></table></div>';
+    }else{html+='<div class="empty">尚未在 1001/1002/1012 下登记资金</div>'}
+    html+='</div>';
+    html+='<div class="card" style="margin-top:12px"><div class="sec-title">最近凭证</div>';
+    if(d.recent.length){
+      d.recent.forEach(function(r){
+        html+='<div class="rowline" onclick="openVoucher('+r.id+')" style="cursor:pointer"><div class="l"><div><div class="nm">'+esc(r.summary||'无摘要')+'</div><div class="sub">'+esc(r.voucher_no)+' · '+esc(r.vdate)+'</div></div></div><div class="rv">查看</div></div>';
+      });
+    }else{html+='<div class="empty">暂无凭证</div>'}
+    html+='</div>';
+    html+='<div class="card" style="margin-top:12px"><div class="sec-title">科目概况</div>'+
+      '<div class="sum-row"><div class="sum-item"><div class="si-k">科目总数</div><div class="si-v">'+d.stats.accounts+'</div></div>'+
+      '<div class="sum-item"><div class="si-k">已启用科目</div><div class="si-v">'+d.stats.used_accounts+'</div></div>'+
+      '<div class="sum-item"><div class="si-k">凭证数</div><div class="si-v">'+d.stats.vouchers+'</div></div></div></div>';
+    v.innerHTML=html;
+  }).catch(function(e){v.innerHTML='<div class="card"><div class="empty">'+esc(e.message)+'</div></div>'});
+}
+/* ================== 凭证列表 ================== */
+function renderVouchers(){
+  var v=$('#view');var m=state.vMonth;
+  v.innerHTML='<div class="filter-bar"><div class="fi"><input type="month" id="vM" value="'+m+'"></div>'+
+    '<button class="btn btn-p" onclick="newVoucher()">新增凭证</button></div>'+
+    '<div id="vList"><div class="empty">加载中…</div></div>';
+  $('#vM').onchange=function(){state.vMonth=this.value;renderVouchers()};
+  api('/api/ledger/vouchers?month='+encodeURIComponent(m)).then(function(d){
+    var l=$('#vList');
+    if(!d.data.length){l.innerHTML='<div class="card"><div class="empty">本月暂无凭证，点击右上角「记凭证」或下方按钮新增</div></div>';return}
+    var h='';
+    d.data.forEach(function(r){
+      h+='<div class="list-item"><div class="li-main">'+
+        '<div class="li-top"><span class="li-no">'+esc(r.voucher_no)+'</span><span class="li-date">'+esc(r.vdate)+'</span></div>'+
+        '<div class="li-sum">'+esc(r.summary||'（无摘要）')+'</div></div>'+
+        '<div class="li-amt">'+fmt(r.total)+'</div>'+
+        '<div class="ops"><button onclick="openVoucher('+r.id+')">查看</button><button class="danger" onclick="delVoucher('+r.id+',\''+esc(r.voucher_no)+'\')">删除</button></div></div>';
+    });
+    l.innerHTML=h;
+  }).catch(function(e){$('#vList').innerHTML='<div class="card"><div class="empty">'+esc(e.message)+'</div></div>'});
+}
+function newVoucher(){openVoucher(null)}
+function openVoucher(id){
+  var h='<div class="sh-h"><div class="t" id="veTitle">'+(id?'查看 / 编辑凭证':'新增凭证')+'</div><button class="sh-x" onclick="closeSheet()">×</button></div>';
+  h+='<div class="sh-b">'+
+    '<div class="ve-head">'+
+      '<div><label class="f">日期</label><input type="date" id="veDate" value="'+todayStr()+'"></div>'+
+      '<div><label class="f">凭证字号</label><input type="text" id="veNo" placeholder="保存后自动编号" readonly style="background:#f8fafc"></div>'+
+    '</div>'+
+    '<div class="form-row ve-sum"><label class="f">摘要（整单）</label><input type="text" id="veSum" placeholder="如：销售商品收款"></div>'+
+    '<div id="veRows"></div>'+
+    '<button class="btn btn-o" style="width:100%" id="veAdd" type="button">+ 增加分录</button>'+
+    '<div class="ve-tot"><span>借方合计 <b class="money" id="totDr">0.00</b></span>'+
+    '<span>贷方合计 <b class="money" id="totCr">0.00</b></span>'+
+    '<span id="diffTxt" class="diff-ok">平衡</span></div>'+
+    '<div class="hint" style="margin-top:10px">每行只填一方金额：收到资金记「资产 借方」；收入/权益记「贷方」；费用支出记「费用 借方」。保存前系统校验借贷相等。</div>'+
+  '</div>';
+  h+='<div class="sh-f"><button class="btn btn-o" onclick="closeSheet()">取消</button>'+
+    '<button class="btn btn-p grow" id="veSave">保存凭证</button></div>';
+  openSheet(h);
+  addVoucherRow({account_code:'',summary:'',debit:'',credit:''});
+  addVoucherRow({account_code:'',summary:'',debit:'',credit:''});
+  $('#veAdd').onclick=function(){addVoucherRow({account_code:'',summary:'',debit:'',credit:''})};
+  bindRowCalc();
+  $('#veSave').onclick=function(){saveVoucher(id)};
+  if(id){
+    api('/api/ledger/vouchers/'+id).then(function(d){
+      $('#veTitle').textContent='凭证 '+d.data.voucher_no;
+      $('#veDate').value=d.data.vdate;$('#veSum').value=d.data.summary||'';$('#veNo').value=d.data.voucher_no;
+      $('#veRows').innerHTML='';
+      d.entries.forEach(function(e){addVoucherRow({account_code:e.account_code,summary:e.summary,debit:e.debit||'',credit:e.credit||''})});
+      calcTot();
+    }).catch(function(e){toast(e.message);closeSheet()});
+  }else{$('#veNo').value='（自动编号）';calcTot()}
+}
+function addVoucherRow(r){
+  var box=document.createElement('div');box.className='vrow';
+  box.innerHTML='<div class="c-acc"><select class="acc">'+acctSelectHtml(r.account_code)+'</select></div>'+
+    '<div class="c-sum" style="grid-column:1/-1"><input class="sum" placeholder="分录摘要（可空）" value="'+esc(r.summary||'')+'" style="font-size:14px"></div>'+
+    '<div class="c-dr"><input type="number" class="dr" placeholder="借方金额" min="0" step="0.01" inputmode="decimal" value="'+(r.debit||'')+'" style="font-size:15px;text-align:right"></div>'+
+    '<div class="c-cr"><input type="number" class="cr" placeholder="贷方金额" min="0" step="0.01" inputmode="decimal" value="'+(r.credit||'')+'" style="font-size:15px;text-align:right"></div>'+
+    '<div class="rm"><button type="button" title="删除行">×</button></div>';
+  box.querySelector('.acc').onchange=bindRowCalc;
+  box.querySelectorAll('input').forEach(function(i){i.oninput=bindRowCalc});
+  box.querySelector('.rm button').onclick=function(){
+    if($$('#veRows .vrow').length<=2){toast('至少保留两行分录');return}
+    box.remove();calcTot();
+  };
+  $('#veRows').appendChild(box);
+}
+function bindRowCalc(){calcTot()}
+function rowData(){
+  var rows=[];
+  $$('#veRows .vrow').forEach(function(r){
+    rows.push({account_code:r.querySelector('.acc').value,
+      summary:r.querySelector('.sum').value.trim(),
+      debit:num(r.querySelector('.dr').value),credit:num(r.querySelector('.cr').value)});
+  });
+  return rows;
+}
+function calcTot(){
+  var dr=0,cr=0;
+  $$('#veRows .vrow').forEach(function(r){dr+=num(r.querySelector('.dr').value);cr+=num(r.querySelector('.cr').value)});
+  var d=Math.abs(dr-cr);
+  $('#totDr').textContent=fmt(dr);$('#totCr').textContent=fmt(cr);
+  var el=$('#diffTxt');
+  if(d<0.005){el.textContent='平衡';el.className='diff-ok'}
+  else{el.textContent='差额 '+fmt(dr-cr);el.className='diff-bad'}
+}
+function saveVoucher(id){
+  var vdate=$('#veDate').value;
+  var summary=$('#veSum').value.trim();
+  var entries=rowData().filter(function(e){return e.account_code&&(e.debit||e.credit)});
+  if(!vdate){toast('请选择日期');return}
+  if(entries.length<2){toast('请至少填写两行分录');return}
+  if(entries.some(function(e){return e.debit>0&&e.credit>0})){toast('每行只能填借或贷一方');return}
+  var body={vdate:vdate,summary:summary,entries:entries};
+  var url='/api/ledger/vouchers'+(id?'/'+id:'');
+  var method=id?'PUT':'POST';
+  api(url,{method:method,body:JSON.stringify(body)}).then(function(){
+    toast(id?'已保存':'已新增凭证');closeSheet();renderVouchers();
+  }).catch(function(e){toast(e.message)});
+}
+function delVoucher(id,no){
+  confirmBox('删除凭证','确认删除凭证 '+no+' ？删除后不可恢复。',function(){
+    api('/api/ledger/vouchers/'+id,{method:'DELETE'}).then(function(){toast('已删除');renderVouchers()}).catch(function(e){toast(e.message)});
+  });
+}
+/* ================== 账簿 ================== */
+function renderLedger(){
+  var v=$('#view');
+  v.innerHTML='<div class="card">'+
+    '<div class="sec-title">明细账查询</div>'+
+    '<div class="filter-bar">'+
+      '<div class="fi"><select id="ldgAcc"></select></div>'+
+      '<div class="fi"><input type="date" id="ldgFrom" value="'+state.ldgFrom+'"></div>'+
+      '<div class="fi"><input type="date" id="ldgTo" value="'+state.ldgTo+'"></div>'+
+      '<button class="btn btn-p" id="ldgGo">查询</button></div>'+
+    '<div class="hint">科目默认显示全部期间；选择日期可缩小范围。期初余额=科目期初+区间前发生额。</div>'+
+    '<div id="ldgRes"><div class="empty">请选择科目查询</div></div></div>';
+  $('#ldgAcc').innerHTML=acctSelectHtml(state.ldgCode);
+  $('#ldgAcc').onchange=function(){state.ldgCode=this.value};
+  $('#ldgFrom').onchange=function(){state.ldgFrom=this.value};
+  $('#ldgTo').onchange=function(){state.ldgTo=this.value};
+  $('#ldgGo').onclick=function(){
+    if(!state.ldgCode){toast('请选择科目');return}
+    var from=$('#ldgFrom').value,to=$('#ldgTo').value;
+    api('/api/ledger/ledger?account_code='+encodeURIComponent(state.ldgCode)+
+      (from?'&from='+from:'')+(to?'&to='+to:'')).then(renderLdgRes).catch(function(e){$('#ldgRes').innerHTML='<div class="empty">'+esc(e.message)+'</div>'});
+  };
+}
+function renderLdgRes(d){
+  var a=d.account;
+  var bal=a.direction==='借'?'<span class="pos">借</span>':'<span class="neg">贷</span>';
+  var h='<div class="tbl-wrap"><table><thead><tr>'+
+    '<th class="l">日期</th><th class="l">凭证号</th><th class="l">摘要</th><th>借方</th><th>贷方</th><th class="l">方向</th><th>余额</th>'+
+    '</tr></thead><tbody>';
+  h+='<tr style="background:#f8fafc"><td class="l" colspan="2"><b>期初余额</b></td><td class="l">'+esc(a.name)+'（'+esc(a.code)+'）</td><td></td><td></td><td class="l">'+esc(d.opening.side)+'</td><td class="money">'+fmt(d.opening.amount)+'</td></tr>';
+  if(d.items.length){
+    d.items.forEach(function(r){
+      var sgn=r.bal_side==='借'?'<span class="pos">借</span>':(r.bal_side==='贷'?'<span class="neg">贷</span>':'平');
+      h+='<tr><td class="l">'+esc(r.date)+'</td><td class="l">'+esc(r.voucher_no)+'</td><td class="l">'+esc(r.summary||'-')+'</td>'+
+        '<td class="money">'+(r.debit?fmt(r.debit):'')+'</td><td class="money">'+(r.credit?fmt(r.credit):'')+'</td>'+
+        '<td class="l">'+sgn+'</td><td class="money">'+fmt(r.balance)+'</td></tr>';
+    });
+  }else{h+='<tr><td class="l" colspan="7"><div class="empty">区间内无发生额</div></td></tr>'}
+  h+='<tr class="tot"><td class="l" colspan="4">本期合计</td><td class="money">'+fmt(d.totals.debit)+'</td><td class="money">'+fmt(d.totals.credit)+'</td><td></td></tr>';
+  h+='</tbody></table></div>';
+  $('#ldgRes').innerHTML=h;
+}
+/* ================== 报表 ================== */
+function renderReports(){
+  var v=$('#view');var m=state.rMonth;
+  var seg='<div class="seg">'+
+    '<button id="segTrial" class="'+(state.repMode==='trial'?'on':'')+'" onclick="setRepMode(\'trial\')">试算平衡</button>'+
+    '<button id="segBS" class="'+(state.repMode==='bs'?'on':'')+'" onclick="setRepMode(\'bs\')">资产负债表</button>'+
+    '<button id="segPL" class="'+(state.repMode==='pl'?'on':'')+'" onclick="setRepMode(\'pl\')">利润表</button></div>';
+  v.innerHTML='<div class="card"><div class="sec-title">财务报表</div>'+seg+
+    '<div style="height:10px"></div>'+
+    '<div class="filter-bar" id="repFilter"><div class="fi"><input type="month" id="repM" value="'+m+'"></div>'+
+    '<div class="fi sm" id="customF" style="display:none"><input type="month" id="plCustom" value="'+m+'"></div>'+
+    '<button class="btn btn-p" id="repGo">生成</button></div>'+
+    '<div id="repRes"><div class="empty">选择报表类型生成</div></div></div>';
+  $('#repM').onchange=function(){state.rMonth=this.value;renderReports()};
+  if(state.repMode==='pl'){
+    $('#customF').style.display='block';
+    $('#plCustom').onchange=function(){state.rMonth=this.value};
+  }
+  $('#repGo').onclick=function(){fetchReport()};
+}
+function setRepMode(mode){state.repMode=mode;renderReports()}
+function fetchReport(){
+  var m=state.rMonth;$('#repRes').innerHTML='<div class="empty">生成中…</div>';
+  if(state.repMode==='trial'){
+    api('/api/ledger/trial?month='+encodeURIComponent(m)).then(function(d){
+      var h='<div class="tbl-wrap"><table><thead><tr><th class="l">编码</th><th class="l">科目</th><th class="l">类别</th>'+
+        '<th>期初借</th><th>期初贷</th><th>本期借</th><th>本期贷</th><th>期末借</th><th>期末贷</th></tr></thead><tbody>';
+      d.rows.forEach(function(r){
+        h+='<tr><td class="l">'+esc(r.code)+'</td><td class="l">'+esc(r.name)+'</td><td class="l"><span class="tag-cat">'+esc(r.category_label)+'</span></td>'+
+          '<td class="money">'+(r.op_dr?fmt(r.op_dr):'')+'</td><td class="money">'+(r.op_cr?fmt(r.op_cr):'')+'</td>'+
+          '<td class="money">'+(r.cur_dr?fmt(r.cur_dr):'')+'</td><td class="money">'+(r.cur_cr?fmt(r.cur_cr):'')+'</td>'+
+          '<td class="money">'+(r.end_dr?fmt(r.end_dr):'')+'</td><td class="money">'+(r.end_cr?fmt(r.end_cr):'')+'</td></tr>';
+      });
+      var t=d.totals;
+      h+='<tr class="tot"><td class="l" colspan="3">合计</td><td>'+fmt(t.op_dr)+'</td><td>'+fmt(t.op_cr)+'</td>'+
+        '<td>'+fmt(t.cur_dr)+'</td><td>'+fmt(t.cur_cr)+'</td><td>'+fmt(t.end_dr)+'</td><td>'+fmt(t.end_cr)+'</td></tr>';
+      h+='</tbody></table></div>';
+      h+='<div style="margin-top:10px" class="'+(d.balanced?'':'')+'">'+
+        (d.balanced?'<span class="badge ok">试算平衡 ✓</span>':'<span class="badge bad">试算不平衡！</span>')+
+        '<span class="muted" style="font-size:12px;margin-left:8px">期初借'+fmt(t.op_dr)+' = 期初贷'+fmt(t.op_cr)+'</span></div>';
+      $('#repRes').innerHTML=h;
+    }).catch(function(e){$('#repRes').innerHTML='<div class="card"><div class="empty">'+esc(e.message)+'</div></div>'});
+  }else if(state.repMode==='bs'){
+    api('/api/ledger/balance?month='+encodeURIComponent(m)).then(function(d){
+      var h='<div class="sec-title">资产负债表 <span class="title-note">截止 '+esc(d.as_of)+'</span></div>';
+      h+='<div class="tbl-wrap"><table><thead><tr><th class="l">资产</th><th>金额</th><th class="l">负债与权益</th><th>金额</th></tr></thead><tbody>';
+      var n=Math.max(d.asset.rows.length,d.liability.rows.length+d.equity.rows.length);
+      var L=function(i){return d.asset.rows[i]||null},R=function(i){
+        var r=[];
+        r=r.concat(d.liability.rows.map(function(x){return {kind:'负',row:x}}));
+        r=r.concat(d.equity.rows.map(function(x){return {kind:'权',row:x}}));
+        return r[i]||null;
+      };
+      var rows=Math.max(d.asset.rows.length,d.liability.rows.length+d.equity.rows.length);
+      for(var i=0;i<rows;i++){
+        var l=L(i),r=R(i);
+        h+='<tr><td class="l">'+(l?esc(l.name):'')+'</td><td class="money '+(l&&l.amount<0?'neg':'')+'">'+(l?fmt(l.amount):'')+'</td>'+
+          '<td class="l">'+(r?esc(r.row.name):'')+'</td><td class="money '+(r&&r.row.amount<0?'neg':'')+'">'+(r?fmt(r.row.amount):'')+'</td></tr>';
+      }
+      h+='<tr class="tot"><td class="l">资产总计</td><td>'+fmt(d.asset.total)+'</td>'+
+        '<td class="l">负债合计 + 权益合计</td><td>'+fmt(d.liability.total+d.equity.total)+'</td></tr>';
+      h+='</tbody></table></div>';
+      h+='<div style="margin-top:10px">'+(d.balanced?'<span class="badge ok">借贷平衡 ✓</span>':'<span class="badge bad">不平衡（差 '+fmt(d.diff)+'）</span>')+
+        '<span class="muted" style="font-size:12px;margin-left:8px">负债 '+fmt(d.liability.total)+' · 权益 '+fmt(d.equity.total)+'</span></div>';
+      $('#repRes').innerHTML=h;
+    }).catch(function(e){$('#repRes').innerHTML='<div class="card"><div class="empty">'+esc(e.message)+'</div></div>'});
+  }else{
+    api('/api/ledger/income?month='+encodeURIComponent(m)).then(function(d){
+      var h='<div class="sec-title">利润表 <span class="title-note">'+esc(d.from)+' ~ '+esc(d.to)+'</span></div>';
+      h+='<div class="tbl-wrap"><table><thead><tr><th class="l">项目</th><th>编码</th><th>金额</th></tr></thead><tbody>';
+      if(d.income.rows.length){d.income.rows.forEach(function(r){h+='<tr><td class="l">'+esc(r.name)+'</td><td class="muted">'+esc(r.code)+'</td><td class="money pos">'+fmt(r.amount)+'</td></tr>'})}
+      else{h+='<tr><td class="l" colspan="3"><div class="empty">本期无收入</div></td></tr>'}
+      h+='<tr class="tot"><td class="l" colspan="2">收入合计</td><td class="money pos">'+fmt(d.income.total)+'</td></tr>';
+      if(d.expense.rows.length){d.expense.rows.forEach(function(r){h+='<tr><td class="l">'+esc(r.name)+'</td><td class="muted">'+esc(r.code)+'</td><td class="money neg">'+fmt(r.amount)+'</td></tr>'})}
+      h+='<tr class="tot"><td class="l" colspan="2">费用合计</td><td class="money neg">'+fmt(d.expense.total)+'</td></tr>';
+      h+='<tr class="tot" style="background:#ecfdf5"><td class="l" colspan="2">本期利润</td><td class="money '+(d.profit>=0?'pos':'neg')+'">'+fmt(d.profit)+'</td></tr>';
+      h+='</tbody></table></div>';
+      $('#repRes').innerHTML=h;
+    }).catch(function(e){$('#repRes').innerHTML='<div class="card"><div class="empty">'+esc(e.message)+'</div></div>'});
+  }
+}
+/* ================== 科目 ================== */
+function renderAccounts(){
+  var v=$('#view');
+  v.innerHTML='<div class="filter-bar"><div class="fi"><input id="accQ" placeholder="搜索编码 / 名称"></div>'+
+    '<button class="btn btn-p" onclick="openAcctForm(null,\'\')">新增科目</button></div>'+
+    '<div id="accList"><div class="empty">加载中…</div></div>';
+  $('#accQ').oninput=function(){buildAccTree(this.value.trim())};
+  loadAccts().then(function(){buildAccTree('')}).catch(function(e){$('#accList').innerHTML='<div class="card"><div class="empty">'+esc(e.message)+'</div></div>'});
+}
+function buildAccTree(kw){
+  var l=$('#accList');var h='';
+  CATS.forEach(function(c){
+    var list=accts.filter(function(a){return a.category===c[0]});
+    var tops=list.filter(function(a){return !a.parent_code});
+    if(!tops.length)return;
+    h+='<div class="tree-g"><div class="tree-h"><span style="color:'+acctColor(c[0])+'">'+c[1]+' 类</span><span style="font-size:12px;color:#94a3b8">'+(list.length>0?'科目 '+list.length:'')+'</span></div>';
+    tops.forEach(function(a){h+=acctRowHtml(a,list,0,kw)});
+    h+='</div>';
+  });
+  if(!topsExist())h+='<div class="card"><div class="empty">暂无科目，点击「新增科目」建立</div></div>';
+  l.innerHTML=h;
+  function topsExist(){var ok=false;CATS.forEach(function(c){if(accts.some(function(a){return a.category===c[0]&&!a.parent_code}))ok=true});return ok}
+}
+function acctColor(cat){return {asset:'#0284c7',liability:'#d97706',equity:'#6d28d9',income:'#059669',expense:'#dc2626'}[cat]||'#475569'}
+function acctRowHtml(a,all,depth,kw){
+  var kids=all.filter(function(x){return x.parent_code===a.code});
+  if(kw && a.code.indexOf(kw)<0 && a.name.toLowerCase().indexOf(kw.toLowerCase())<0 && !kids.length)return'';
+  var show=(!kw)||a.code.indexOf(kw)>=0||a.name.toLowerCase().indexOf(kw.toLowerCase())>=0;
+  var h='';
+  if(show||kids.length){
+    h+='<div class="tree-r'+(depth>0?' indent':'')+'">'+
+      '<span class="tr-code">'+esc(a.code)+'</span><span class="tr-name">'+esc(a.name)+'</span>'+
+      '<span class="tr-open">期初 '+fmt(a.opening||0)+'</span>'+
+      '<span class="tr-ops">'+
+      '<button onclick="openAcctChild(\''+esc(a.code)+'\')">子科目</button>'+
+      '<button onclick="openAcctForm('+a.id+',\''+esc(a.code)+'\')">编辑</button>'+
+      '<button class="danger" onclick="delAcct('+a.id+',\''+esc(a.name)+'\')">删除</button></span></div>';
+  }
+  kids.forEach(function(k){h+=acctRowHtml(k,all,depth+1,kw)});
+  return h;
+}
+function openAcctChild(parentCode){
+  var p=acctMap[parentCode];
+  if(!p){toast('科目缺失');return}
+  openAcctForm(null,parentCode);
+}
+function ancestorsOf(code){
+  var out=[];var cur=code;
+  while(cur){var p=acctMap[cur]?acctMap[cur].parent_code:'';if(!p)break;out.push(p);cur=p;if(out.length>20)break}
+  return out;
+}
+function suggestChildCode(parentCode){
+  var seq=1,code;
+  while(true){code=parentCode+('0'+seq).slice(-2);if(!acctMap[code])break;seq++}
+  return code;
+}
+function openAcctForm(id,parentCode){
+  var a=id?acctMap[id]:null;
+  var isEdit=!!id;
+  var isNewChild=(!isEdit)&&!!parentCode;
+  if(!isEdit&&!a&&parentCode){a={code:suggestChildCode(parentCode),name:''}}
+  var parent=isEdit?(a.parent_code||''):(parentCode||'');
+  var cat=(a&&a.category)||(acctMap[parent]?acctMap[parent].category:'asset');
+  var h='<div class="sh-h"><div class="t">'+(isEdit?'编辑科目':'新增科目')+'</div><button class="sh-x" onclick="closeSheet()">×</button></div>';
+  h+='<div class="sh-b">'+
+    '<div class="ve-head">'+
+      '<div><label class="f">科目编码</label><input id="acCode" value="'+esc(a?a.code:'')+'"'+(a&&a.code&&(a.code.length>0)?'':'')+'></div>'+
+      '<div><label class="f">科目名称</label><input id="acName" value="'+esc(a?a.name:'')+'" placeholder="如：张三（往来）"></div>'+
+    '</div>'+
+    '<div class="ve-head">'+
+      '<div><label class="f">类别</label><select id="acCat">'+CATS.map(function(c){return '<option value="'+c[0]+'"'+(cat===c[0]?' selected':'')+'>'+c[1]+'</option>'}).join('')+'</select></div>'+
+      '<div><label class="f">上级科目</label><select id="acPar">'+parentOptions(a?a.code:'',parent,cat)+'</select></div>'+
+    '</div>'+
+    '<div class="form-row"><label class="f">期初余额（按余额方向：资产/费用填借方为正，负债/权益/收入填贷方为正）</label><input id="acOpen" type="number" step="0.01" inputmode="decimal" value="'+(a?num(a.opening):0)+'"></div>'+
+    '<div class="form-row"><label class="f">备注</label><input id="acRemark" value="'+esc(a?a.remark:'')+'" placeholder="选填"></div>'+
+    '<div class="hint">「应收账款/应付账款」下的子科目即往来对象，可在往来页快速登记。编码原则：资产 1 开头、负债 2、权益 3、收入 5、费用 6。</div>'+
+  '</div>';
+  h+='<div class="sh-f"><button class="btn btn-o" onclick="closeSheet()">取消</button><button class="btn btn-p grow" id="acSave">保存</button></div>';
+  openSheet(h);
+  var catSel=$('#acCat'),parSel=$('#acPar');
+  function syncCat(){
+    if(!parSel.value){catSel.value=cat;return}
+    var p=acctMap[parSel.value];
+    if(p){var opts=[].concat($$('#acPar option'));var valid=opts.some(function(o){return o.value===p.code});
+      if(valid){catSel.value=p.category}}
+  }
+  catSel.onchange=function(){
+    // 类别变化时重载上级列表（仅同类别可作上级）
+    var c=catSel.value;
+    var curVal=parSel.value;
+    if(curVal&&acctMap[curVal]&&acctMap[curVal].category!==c)curVal='';
+    parSel.innerHTML=parentOptions(a?a.code:'',curVal,c);
+    parSel.onchange=syncCat;
+  };
+  parSel.onchange=syncCat;
+  $('#acSave').onclick=function(){
+    var body={code:$('#acCode').value.trim(),name:$('#acName').value.trim(),
+      category:catSel.value,parent_code:parSel.value,
+      opening:num($('#acOpen').value),remark:$('#acRemark').value.trim()};
+    var url='/api/ledger/accounts'+(id?'/'+id:'');
+    var method=id?'PUT':'POST';
+    api(url,{method:method,body:JSON.stringify(body)}).then(function(){
+      toast(isEdit?'科目已更新':'科目已新增');
+      loadAccts().then(function(){closeSheet();var q=$('#accQ');buildAccTree(q?q.value.trim():'')}).catch(function(){});
+    }).catch(function(e){toast(e.message)});
+  };
+  if(isNewChild)$('#acName').focus();else $('#acCode').focus();
+}
+function parentOptions(exceptCode,selected,cat){
+  var h='<option value="">（无，顶级科目）</option>';
+  accts.forEach(function(a){
+    if(exceptCode&&a.code===exceptCode)return;
+    if(exceptCode&&ancestorsOf(a.code).indexOf(exceptCode)>=0)return; // 防循环
+    if(a.code===selected&&cat&&a.category!==cat)return; // 防止删除当前选中项
+    if(a.category===cat||a.code===selected){
+      h+='<option value="'+a.code+'"'+(selected===a.code?' selected':'')+'>'+esc(a.name)+' ('+a.code+')</option>';
+    }
+  });
+  return h;
+}
+function delAcct(id,name){
+  confirmBox('删除科目','确认删除科目「'+name+'」？若该科目已被凭证引用将无法删除。',function(){
+    api('/api/ledger/accounts/'+id,{method:'DELETE'}).then(function(){
+      toast('已删除');loadAccts().then(function(){buildAccTree($('#accQ')?$('#accQ').value.trim():'')}).catch(function(){});
+    }).catch(function(e){toast(e.message)});
+  });
+}
+/* ================== 往来 ================== */
+function renderContacts(){
+  var v=$('#view');
+  v.innerHTML='<div class="filter-bar"><div class="fi"></div>'+
+    '<button class="btn btn-p" onclick="quickContact()">登记往来对象</button></div>'+
+    '<div id="ctRes"><div class="empty">加载中…</div></div>';
+  api('/api/ledger/contacts').then(function(d){
+    var h='';
+    d.sides.forEach(function(s){
+      h+='<div class="card" style="margin-bottom:12px"><div class="sec-title">'+(s.label==='应收'?'客户（应收）':'供应商（应付）')+
+        '<span class="title-note">合计 '+fmt(s.total)+'</span></div>';
+      if(!s.accounts.length){h+='<div class="empty">暂无往来对象，可点右上角登记</div>'}
+      s.accounts.forEach(function(a){
+        var cls=a.balance>=0?'pos':'neg';
+        h+='<div class="rowline"><div class="l"><div><div class="nm">'+esc(a.name)+' <span class="muted" style="font-weight:400;font-size:11px">'+esc(a.code)+'</span></div>'+
+          '<div class="sub">'+esc(a.side)+(a.last_date?' · 最近业务 '+esc(a.last_date):'')+'</div></div></div>'+
+          '<div class="rv '+cls+'">'+fmt(a.balance)+'</div></div>';
+        var bk=a.buckets;
+        h+='<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:6px;padding:2px 0 10px">'+
+          ['0-30','31-60','61-90','90+'].map(function(k){return '<div style="background:#f8fafc;border-radius:8px;padding:6px 8px;font-size:11px;color:#64748b;text-align:center"><div>'+k+'天</div><div style="font-weight:700;color:'+(k==='90+'&&bk[k]>0?'#dc2626':'#0f172a')+'">'+fmt(bk[k])+'</div></div>'}).join('')+'</div>';
+      });
+      h+='</div>';
+    });
+    $('#ctRes').innerHTML=h;
+  }).catch(function(e){$('#ctRes').innerHTML='<div class="card"><div class="empty">'+esc(e.message)+'</div></div>'});
+}
+function quickContact(){
+  var h='<div class="sh-h"><div class="t">登记往来对象</div><button class="sh-x" onclick="closeSheet()">×</button></div>';
+  h+='<div class="sh-b">'+
+    '<div class="hint">往来对象会自动建立为「应收账款」（客户）或「应付账款」（供应商）的下级科目，可同步在科目管理中修改期初。</div>'+
+    '<div class="ve-head">'+
+      '<div><label class="f">类型</label><select id="qcType"><option value="AR">客户（应收）</option><option value="AP">供应商（应付）</option></select></div>'+
+      '<div><label class="f">对象名称</label><input id="qcName" placeholder="如：某某公司"></div>'+
+    '</div>'+
+  '</div>';
+  h+='<div class="sh-f"><button class="btn btn-o" onclick="closeSheet()">取消</button><button class="btn btn-p grow" id="qcSave">保存</button></div>';
+  openSheet(h);
+  $('#qcSave').onclick=function(){
+    var type=$('#qcType').value;
+    var name=$('#qcName').value.trim();
+    if(!name){toast('请填写对象名称');return}
+    var root=type==='AR'?'1122':'2202';
+    var rootAcct=acctMap[root];
+    if(!rootAcct){toast('缺少应收/应付根科目');return}
+    var kids=accts.filter(function(a){return a.parent_code===root});
+    var seq=1,code='';
+    while(true){code=root+('00'+seq).slice(-2);if(!acctMap[code])break;seq++}
+    api('/api/ledger/accounts',{method:'POST',body:JSON.stringify({code:code,name:name,category:rootAcct.category,parent_code:root,opening:0,remark:'往来对象'})})
+      .then(function(){toast('往来对象已登记');closeSheet();loadAccts().then(renderContacts).catch(function(){})})
+      .catch(function(e){toast(e.message)});
+  };
+}
+/* ================== 事件 ================== */
+document.addEventListener('click',function(e){
+  var t=e.target.closest('.tab');if(t){switchTab(t.dataset.tab)}
+  var m=$('#mask');
+  if(e.target===m&&m.classList.contains('open'))closeSheet();
+});
+/* ================== 初始化 ================== */
+loadAccts().then(function(){
+  $('#hdNewBtn').disabled=false; // 科目就绪后才开放记凭证
+  switchTab('dash');
+}).catch(function(e){
+  $('#view').innerHTML='<div class="card"><div class="empty">初始化失败：'+esc(e.message)+'<br>请刷新重试</div></div>';
+});
+</script>
+</body>
+</html>
