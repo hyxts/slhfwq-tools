@@ -132,6 +132,11 @@ input:focus,select:focus,textarea:focus{border-color:var(--primary)!important;bo
 #ve .grid .adr input{background:#eef4ff}#ve .grid .acr input{background:#fff0f2}
 #ve .grid td.acctcell{cursor:pointer}
 #ve .grid td.acctcell:hover{background:#f2f7ff}
+#ve .grid td.acctcell>div{display:flex;align-items:center}
+#ve .grid td.acctcell input.c{flex:1;min-width:0}
+#ve .grid td.acctcell .pickbtn{flex:0 0 auto;padding:0 7px;height:34px;border-radius:0 6px 6px 0}
+#ve .datatip{margin:0 16px 8px;padding:8px 10px;border-radius:8px;background:#fef2f2;color:#b91c1c;font-size:12px;border:1px solid #fecaca}
+#ve .datatip a{color:#1d4ed8;margin-left:6px}
 #ve .sumrow td{background:#f8fafc;font-weight:700;padding:8px 6px}
 .auxmini{display:flex;gap:5px;padding:2px 6px;flex-wrap:wrap}
 .auxmini .a{font-size:10.5px;background:var(--primary-l);color:var(--primary);border-radius:5px;padding:1px 6px;display:inline-flex;gap:3px;align-items:center}
@@ -560,7 +565,18 @@ function switchPage(name,arg){
 function statusChip(st,red,auto){var s=st||'open',m={open:['未审核','amber'],posted:['已审核','green'],voided:['已作废','gray']}[s]||[s,'gray'];
   return '<span class="chip '+m[1]+'">'+m[0]+(red?' · 红字':'')+'</span>'+(auto?'<span class="chip purple">自动</span>':'')}
 function openEditor(vid,pre){
-  loadCaches().then(function(){_openEditor(vid,pre)}).catch(function(e){toast('数据加载失败：'+e.message,'err')})
+  _openEditor(vid,pre);   // 先打开面板：即使数据接口异常，弹层也一定出现
+  var old=document.getElementById('veDataTip');if(old){old.parentNode.removeChild(old)}
+  loadCaches().then(function(){
+    renderVE();
+  }).catch(function(e){
+    var t=document.createElement('div');t.id='veDataTip';t.className='datatip';
+    t.innerHTML=esc('科目/模板数据加载失败：'+((e&&e.message)||e))+' <a href="javascript:;" id="veDataRetry">重新加载</a>';
+    var meta=document.querySelector('#ve .meta');
+    if(meta){meta.parentNode.insertBefore(t,meta)}
+    var rt=document.getElementById('veDataRetry');
+    if(rt){rt.onclick=function(){openEditor(vid,pre)}}
+  });
 }
 /* ---------- CSV ---------- */
 function exportCSV(name,heads,rows){
@@ -769,14 +785,15 @@ function renderVE(){
   var rows=state.veRows;
   var cc=childCount();
   $('#veBody').innerHTML=rows.map(function(r,i){
+    var acct=acctBy(r.code);
     var aux=(r.aux||[]).map(function(a){return '<span class="a" title="点此修改">'+esc(a.dim_name)+':'+esc(a.item_name)+' ✎</span>'}).join('');
     return '<tr data-i="'+i+'">'
     +'<td style="text-align:center;color:#9ca3af">'+(i+1)+'</td>'
-    +'<td class="acctcell" title="点此选择科目"><input class="c" value="'+esc(r.code)+'" placeholder="科目编码"><div style="font-size:11px;color:#2563eb;padding:0 6px 4px">'+esc(r.name||'')+'</div></td>'
+    +'<td class="acctcell" title="点此选择科目"><div style="display:flex;align-items:center"><input class="c" value="'+esc(r.code)+'" placeholder="科目编码"><button class="btn sm pickbtn" tabindex="-1" title="选择科目">▾</button></div><div style="font-size:11px;color:#2563eb;padding:0 6px 4px">'+esc(r.name||'')+'</div></td>'
     +'<td><div style="display:flex"><input class="sum" value="'+esc(r.summary||'')+'" placeholder="摘要…"><button class="btn sm auxbtn" title="设置辅助核算">🏷</button></div><div class="auxmini">'+aux+'</div></td>'
     +'<td class="adr"><input class="dr" type="text" inputmode="decimal" value="'+(r.dr?r.dr:'')+'" placeholder="借"></td>'
     +'<td class="acr"><input class="cr" type="text" inputmode="decimal" value="'+(r.cr?r.cr:'')+'" placeholder="贷"></td>'
-    +'<td class="gray" style="font-size:11px;padding:4px 6px" title="选择科目后显示类型/方向">'+(r.name?('<span class="chip">'+({asset:'资产',liability:'负债',equity:'权益',income:'收入',expense:'费用'}[acctBy(r.code).category])+'</span><span class="light"> '+(isDrNormal((acctBy(r.code)||{}).category)?'借':'贷')+'方向</span>'):'<span class="light">点科目列选科目</span>')+'</td>'
+    +'<td class="gray" style="font-size:11px;padding:4px 6px" title="选择科目后显示类型/方向">'+(acct?('<span class="chip">'+({asset:'资产',liability:'负债',equity:'权益',income:'收入',expense:'费用'}[acct.category])+'</span><span class="light"> '+(isDrNormal(acct.category)?'借':'贷')+'方向</span>'):'<span class="light">点科目列选科目</span>')+'</td>'
     +'<td style="text-align:center"><button class="btn sm danger" data-del="'+i+'">×</button></td></tr>';
   }).join('');
   $('#veTpl').innerHTML='<option value="">— 套用模板 —</option>'+(state.tmpls||[]).map(function(t){return '<option value="'+t.id+'">'+esc(t.name)+'</option>'}).join('');

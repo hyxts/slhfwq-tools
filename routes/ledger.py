@@ -14,7 +14,7 @@
 import os, json
 from datetime import datetime, date, timedelta
 
-from flask import Blueprint, jsonify, request, send_from_directory
+from flask import Blueprint, jsonify, request, send_from_directory, make_response
 
 from .utils import TZ, make_logger, make_db
 
@@ -1012,7 +1012,11 @@ def contacts():
 # ========== PC 桌面版页面 ==========
 @bp.route('/ledger/pc')
 def ledger_pc():
-    return send_from_directory(AC_DIR, 'pc.html')
+    # 明确禁用缓存：避免用户浏览器长期停留在旧版 pc.html
+    resp = make_response(send_from_directory(AC_DIR, 'pc.html'))
+    resp.headers['Cache-Control'] = 'no-store, no-cache, must-revalidate, max-age=0'
+    resp.headers['Pragma'] = 'no-cache'
+    return resp
 
 
 # ========== 辅助核算 API ==========
