@@ -3,7 +3,9 @@
 
 手机 GPS 实时采集 -> 分段保存轨迹 -> 里程分段累计与总计
 """
-import os, math
+import os, math, json
+import urllib.request
+import urllib.parse
 from datetime import datetime
 
 from flask import Blueprint, jsonify, request, send_from_directory, make_response
@@ -24,6 +26,13 @@ MAX_ACCURACY_M = 100.0    # 精度（米）差于此值的点直接丢弃
 MIN_STEP_M = 5.0          # 相邻点最小位移，低于此值视为 GPS 静止抖动
 MAX_SPEED_KMH = 300.0     # 相邻点推算速度超过此值视为异常跳点
 NAME_MAX = 20             # 分段名称最大字数
+
+# ========== 逆地理（坐标 -> 地点名称） ==========
+PLACE_MAX = 80            # 地点名称最大字数
+GEO_TTL_OK = 30 * 86400   # 有效结果的缓存时长（秒）
+GEO_TTL_EMPTY = 86400     # 空结果的缓存时长（秒），避免反复请求第三方
+GEO_TIMEOUT = 6           # 单次逆地理请求超时（秒）
+GEO_UA = 'gjx-toolbox-track/1.0 (+https://gjx.pythonanywhere.com)'
 
 
 def init_db():
@@ -57,6 +66,16 @@ def init_db():
                 ts TEXT DEFAULT ''
             )''')
             conn.execute('CREATE INDEX IF NOT EXISTS idx_points_seg ON points(seg_id, seq)')
+            conn.execute('''CREATE TABLE IF NOT EXISTS geo_cache (
+                gkey TEXT PRIMARY KEY,
+                place TEXT DEFAULT '',
+                ts TEXT DEFAULT ''
+            )''')
+            # 起终点地点名：老库增量补列，重复执行自动跳过
+            cols = {r[1] for r in conn.execute('PRAGMA table_info(segments)').fetchall()}
+            for col in ('start_place', 'end_place'):
+                if col not in cols:
+                    conn.execute(f"ALTER TABLE segments ADD COLUMN {col} TEXT DEFAULT ''")
             conn.commit()
         finally:
             conn.close()
@@ -153,6 +172,84 @@ def _summarize(pts):
             'avg_speed_kmh': round(avg, 1)}
 
 
+# ---------- 逆地理：坐标 -> 地点名称 ----------
+
+def _geo_key(lat, lng):
+    """缓存键：4 位小数（约 11 米），邻近点位复用同一条结果"""
+    return '%.4f,%.4f' % (lat, lng)
+
+
+def _short_place(data):
+    """从 Nominatim 响应中提取简短地点名，形如「西湖大厦 · 文三路 · 西湖区」"""
+    if not isinstance(data, dict):
+        return ''
+    addr = data.get('address') or {}
+    parts = []
+    nm = str(data.get('name') or '').strip()
+    if nm:
+        parts.append(nm)
+    for key in ('road', 'neighbourhood', 'suburb', 'city_district',
+                'town', 'village', 'city', 'county'):
+        val = str(addr.get(key) or '').strip()
+        if val and val not in parts:
+            parts.append(val)
+        if len(parts) >= 3:
+            break
+    if not parts:
+        return str(data.get('display_name') or '').strip()[:PLACE_MAX]
+    return ' · '.join(parts[:3])[:PLACE_MAX]
+
+
+def _geo_request(lat, lng):
+    """调用 Nominatim 逆地理，失败返回空串（不抛异常）"""
+    try:
+        query = urllib.parse.urlencode({
+            'format': 'jsonv2', 'lat': '%.6f' % lat, 'lon': '%.6f' % lng,
+            'zoom': 18, 'accept-language': 'zh-CN,zh',
+        })
+        req = urllib.request.Request(
+            'https://nominatim.openstreetmap.org/reverse?' + query,
+            headers={'User-Agent': GEO_UA, 'Accept': 'application/json'})
+        with urllib.request.urlopen(req, timeout=GEO_TIMEOUT) as resp:
+            data = json.loads(resp.read().decode('utf-8', 'replace'))
+        return _short_place(data)
+    except Exception as e:
+        _log(f'逆地理请求失败: {e}')
+        return ''
+
+
+def _geo_lookup(lat, lng):
+    """带缓存的逆地理查询，返回地点名或 None"""
+    try:
+        key = _geo_key(lat, lng)
+        conn = _get_db()
+        try:
+            row = conn.execute('SELECT place, ts FROM geo_cache WHERE gkey=?', (key,)).fetchone()
+        finally:
+            conn.close()
+        if row:
+            cached = row['place'] or ''
+            ttl = GEO_TTL_OK if cached else GEO_TTL_EMPTY
+            t = _parse_ts(row['ts'])
+            if t is not None:
+                if t.tzinfo is not None:
+                    t = t.replace(tzinfo=None)
+                if (datetime.now() - t).total_seconds() < ttl:
+                    return cached or None
+        place = _geo_request(lat, lng)
+        conn = _get_db()
+        try:
+            conn.execute('INSERT OR REPLACE INTO geo_cache (gkey, place, ts) VALUES (?,?,?)',
+                         (key, place, now_ts().strftime('%Y-%m-%d %H:%M:%S')))
+            conn.commit()
+        finally:
+            conn.close()
+        return place or None
+    except Exception as e:
+        _log(f'逆地理查询异常: {e}')
+        return None
+
+
 def _load_points(conn, seg_id):
     """读取某分段的全部点"""
     rows = conn.execute(
@@ -205,6 +302,58 @@ def track_start():
         return jsonify({'success': False, 'error': str(e)}), 500
 
 
+@bp.route('/api/track/geocode', methods=['GET'])
+def track_geocode():
+    """把坐标解析为地点名称（带缓存，供起终点自动命名使用）"""
+    try:
+        lat = _to_float(request.args.get('lat'), None)
+        lng = _to_float(request.args.get('lng'), None)
+        if lat is None or lng is None:
+            return jsonify({'success': False, 'error': '缺少坐标'}), 400
+        if not (-90.0 <= lat <= 90.0) or not (-180.0 <= lng <= 180.0):
+            return jsonify({'success': False, 'error': '坐标超出范围'}), 400
+        place = _geo_lookup(lat, lng)
+        if not place:
+            return jsonify({'success': False, 'error': '未解析出地点名称'})
+        return jsonify({'success': True, 'place': place})
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@bp.route('/api/track/place', methods=['POST'])
+def track_place():
+    """写入分段起点/终点地点名（起点只写首次，终点以最新为准）"""
+    try:
+        data = request.get_json(silent=True) or {}
+        seg_id = data.get('seg_id')
+        kind = str(data.get('kind') or '').strip()
+        place = str(data.get('place') or '').strip()[:PLACE_MAX]
+        if not seg_id:
+            return jsonify({'success': False, 'error': '缺少 seg_id'}), 400
+        if kind not in ('start', 'end'):
+            return jsonify({'success': False, 'error': 'kind 只能是 start 或 end'}), 400
+        if not place:
+            return jsonify({'success': True, 'skipped': True})
+        col = 'start_place' if kind == 'start' else 'end_place'
+        conn = _get_db()
+        try:
+            row = conn.execute('SELECT id FROM segments WHERE id=?', (seg_id,)).fetchone()
+            if not row:
+                return jsonify({'success': False, 'error': '分段不存在'}), 404
+            if kind == 'start':
+                conn.execute(
+                    f"UPDATE segments SET {col}=? WHERE id=? AND COALESCE({col},'')=''",
+                    (place, seg_id))
+            else:
+                conn.execute(f'UPDATE segments SET {col}=? WHERE id=?', (place, seg_id))
+            conn.commit()
+        finally:
+            conn.close()
+        return jsonify({'success': True})
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
 @bp.route('/api/track/push', methods=['POST'])
 def track_push():
     """增量上传轨迹点，返回该段最新统计"""
@@ -250,6 +399,7 @@ def track_finish():
             return jsonify({'success': False, 'error': '缺少 seg_id'}), 400
         name = str(data.get('name') or '').strip()[:NAME_MAX]
         note = str(data.get('note') or '').strip()[:200]
+        end_place = str(data.get('end_place') or '').strip()[:PLACE_MAX]
         conn = _get_db()
         try:
             row = conn.execute('SELECT id FROM segments WHERE id=?', (seg_id,)).fetchone()
@@ -258,8 +408,9 @@ def track_finish():
             stats = _refresh_segment(conn, seg_id)
             conn.execute(
                 '''UPDATE segments SET status='finished', ended_at=?,
-                          name=COALESCE(NULLIF(?, ''), name), note=? WHERE id=?''',
-                (now_ts().strftime('%Y-%m-%d %H:%M:%S'), name, note, seg_id))
+                          name=COALESCE(NULLIF(?, ''), name), note=?,
+                          end_place=COALESCE(NULLIF(?, ''), end_place) WHERE id=?''',
+                (now_ts().strftime('%Y-%m-%d %H:%M:%S'), name, note, end_place, seg_id))
             conn.commit()
         finally:
             conn.close()
@@ -301,7 +452,8 @@ def track_segments():
         try:
             rows = conn.execute(
                 '''SELECT id, name, note, started_at, ended_at, distance_m, duration_sec,
-                          point_count, max_speed_kmh, avg_speed_kmh, status
+                          point_count, max_speed_kmh, avg_speed_kmh, status,
+                          start_place, end_place
                    FROM segments ORDER BY id DESC LIMIT ?''', (limit,)).fetchall()
             data = [dict(r) for r in rows]
             agg = conn.execute(

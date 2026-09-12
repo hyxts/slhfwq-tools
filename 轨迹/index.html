@@ -29,6 +29,13 @@ main{max-width:1100px;margin:0 auto;padding:12px}
 .cell span{display:block;font-size:12px;color:var(--text-secondary);margin-top:3px}
 .cell.ok b{color:var(--ok)}
 .meta{display:flex;justify-content:space-between;gap:10px;font-size:12px;color:var(--text-secondary);margin-top:12px}
+.place{margin-top:10px;background:#f8fafc;border-radius:10px;padding:9px 12px;font-size:13px;line-height:1.6;
+       color:var(--text-secondary);word-break:break-all}
+.place b{color:var(--text);font-weight:600}
+.place:empty{display:none}
+.row .del{flex:none;width:38px;height:38px;min-height:38px;padding:0;background:#fff;border:1px solid var(--border);
+          color:var(--danger);border-radius:9px;display:inline-flex;align-items:center;justify-content:center}
+.row .del:active{background:#fef2f2}
 button{border:none;border-radius:10px;padding:10px 16px;font-weight:600;min-height:44px;font-size:15px;
        background:#e2e8f0;color:var(--text);cursor:pointer;font-family:inherit}
 button:active{opacity:.85}
@@ -97,6 +104,7 @@ textarea{min-height:64px;resize:vertical}
       <span id="gpsTip">定位未启动</span>
       <span id="ptTip">0 个定位点</span>
     </div>
+    <div class="place" id="curPlace" hidden></div>
   </section>
 
   <section class="card ctrl">
@@ -139,6 +147,7 @@ textarea{min-height:64px;resize:vertical}
 <div class="mask" id="mFinish">
   <div class="sheet">
     <h3>结束并保存本段</h3>
+    <div class="place" id="finPlace"></div>
     <label>分段名称（最多 20 字）</label>
     <input id="finName" maxlength="20" placeholder="例如：上班通勤">
     <label>备注（可选）</label>
@@ -190,7 +199,8 @@ const state = {
   points: [], pending: [], distM: 0, lastPt: null,
   startedAt: 0, curSpeed: 0, curMax: 0,
   watchId: null, wake: null, timer: null, tick: null,
-  acc: null, segList: []
+  acc: null, segList: [],
+  startPlace: '', endPlace: '', startBusy: false, endPromise: null
 };
 
 function haversine(la1, lo1, la2, lo2){
@@ -204,6 +214,41 @@ async function api(url, opt){
   const res = await fetch(url, o);
   const txt = await res.text();
   try { return JSON.parse(txt); } catch(e){ return {success:false, error:'服务器返回异常'}; }
+}
+
+/* ---------------- 地点名称解析（后端优先，前端多级兜底） ---------------- */
+function sleep(ms){ return new Promise(r => setTimeout(r, ms)); }
+function withTimeout(p, ms){
+  return Promise.race([p, new Promise((_, rej) => setTimeout(() => rej(new Error('timeout')), ms))]);
+}
+async function fetchJson(url, ms){
+  const res = await withTimeout(fetch(url), ms);
+  return await res.json();
+}
+function coordText(lat, lng){ return lat.toFixed(4) + ', ' + lng.toFixed(4); }
+
+async function resolvePlace(lat, lng){
+  // 1) 后端解析（带缓存，同一地点不会重复请求第三方）
+  try {
+    const r = await withTimeout(api('/api/track/geocode?lat=' + lat + '&lng=' + lng), 9000);
+    if (r && r.success && r.place) return r.place;
+  } catch(e){}
+  // 2) 浏览器直连 BigDataCloud（免密钥、允许跨域）
+  try {
+    const j = await fetchJson('https://api.bigdatacloud.net/data/reverse-geocode-client?latitude='
+      + lat + '&longitude=' + lng + '&localityLanguage=zh', 7000);
+    const s = [j.locality || j.city, j.principalSubdivision].filter(Boolean).join(' · ');
+    if (s) return s;
+  } catch(e){}
+  // 3) 浏览器直连 Nominatim
+  try {
+    const j = await fetchJson('https://nominatim.openstreetmap.org/reverse?format=jsonv2&zoom=18'
+      + '&accept-language=zh-CN&lat=' + lat + '&lon=' + lng, 7000);
+    const s = String(j.display_name || '').split(',').slice(0, 3).join(' · ').trim();
+    if (s) return s;
+  } catch(e){}
+  // 4) 全部失败时退回坐标，保证界面不空
+  return coordText(lat, lng);
 }
 function fmtKm(m){ return ((m || 0) / 1000).toFixed(2); }
 function fmtDur(sec){
@@ -245,6 +290,16 @@ function renderLive(){
   $('#curAvg').textContent = Math.round(avg);
   $('#curMax').textContent = Math.round(state.curMax || 0);
   $('#ptTip').textContent = state.points.length + ' 个定位点';
+  const cp = $('#curPlace');
+  if (state.startPlace){
+    cp.hidden = false;
+    cp.innerHTML = '<b>起点</b> · ' + esc(state.startPlace);
+  } else if (state.startBusy){
+    cp.hidden = false;
+    cp.innerHTML = '<b>起点</b> · 正在获取位置名称…';
+  } else {
+    cp.hidden = true;
+  }
 }
 function applyStats(st){
   if (!st) return;
@@ -287,6 +342,21 @@ function onPos(pos){
   renderLive();
   drawTrail($('#trail'), state.points);
   if (state.pending.length >= UPLOAD_EVERY) uploadPending();
+  // 第一个有效点即起点：自动解析地点名称并写回分段
+  if (state.points.length === 1 && !state.startPlace && !state.startBusy){
+    state.startBusy = true;
+    renderLive();
+    const first = state.points[0];
+    resolvePlace(first.lat, first.lng).then(p => {
+      state.startPlace = p;
+      state.startBusy = false;
+      renderLive();
+      if (state.segId){
+        api('/api/track/place', {method:'POST',
+          body: JSON.stringify({seg_id: state.segId, kind: 'start', place: p})}).catch(() => {});
+      }
+    }).catch(() => { state.startBusy = false; renderLive(); });
+  }
 }
 function onErr(e){
   const tips = {1:'定位权限被拒绝，请在浏览器设置中允许定位', 2:'暂时无法获取定位信号', 3:'定位请求超时'};
@@ -381,8 +451,9 @@ async function startRec(){
   state.recording = true; state.paused = false;
   state.points = []; state.pending = []; state.distM = 0;
   state.lastPt = null; state.curMax = 0; state.startedAt = Date.now();
+  state.startPlace = ''; state.endPlace = ''; state.startBusy = false; state.endPromise = null;
   setBtns(); startWatch(); keepAwake(true);
-  setNet('记录中（第 ' + r.seg_id + ' 段）');
+  setNet('记录中（第 ' + r.seg_id + ' 段）｜正在获取起点位置');
   renderLive();
 }
 function pauseRec(){
@@ -399,18 +470,41 @@ function askFinish(){
   $('#finName').value = $('#finName').value || (new Date().toLocaleString('zh-CN', {month:'2-digit', day:'2-digit', hour:'2-digit', minute:'2-digit'}).replace(/\//g,'-') + ' 行程');
   $('#finDist').textContent = fmtKm(state.distM);
   $('#finDur').textContent = fmtDur(segDuration());
+  $('#finPlace').innerHTML = '<b>起点</b> · ' + esc(state.startPlace || '未取到') +
+    '<br><b>终点</b> · <span id="finEndTip">正在获取位置名称…</span>';
   openMask('mFinish');
+  // 终点取最后一个有效点的位置
+  const last = state.points[state.points.length - 1];
+  if (last){
+    state.endPromise = resolvePlace(last.lat, last.lng).then(p => {
+      state.endPlace = p;
+      const tip = $('#finEndTip');
+      if (tip) tip.textContent = p;
+      return p;
+    }).catch(() => {
+      const tip = $('#finEndTip');
+      if (tip) tip.textContent = coordText(last.lat, last.lng);
+      return '';
+    });
+  } else {
+    state.endPlace = '';
+    const tip = $('#finEndTip');
+    if (tip) tip.textContent = '本段没有定位点';
+  }
 }
 async function doFinish(){
   const name = $('#finName').value.trim().slice(0, 20) || '未命名行程';
   const note = $('#finNote').value.trim().slice(0, 200);
   setNet('正在保存…');
+  // 终点名称最多再等 4 秒，超时就先用已有结果保存，不卡住界面
+  if (state.endPromise) await Promise.race([state.endPromise, sleep(4000)]);
   await uploadPending();
-  const r = await api('/api/track/finish', {method:'POST', body: JSON.stringify({seg_id: state.segId, name: name, note: note})});
+  const r = await api('/api/track/finish', {method:'POST',
+    body: JSON.stringify({seg_id: state.segId, name: name, note: note, end_place: state.endPlace || ''})});
   if (!r.success){ setNet('保存失败：' + (r.error || '')); return; }
   closeMask('mFinish');
   state.recording = false; state.paused = false;
-  state.curSpeed = 0;
+  state.curSpeed = 0; state.endPromise = null;
   if (state.watchId != null){ navigator.geolocation.clearWatch(state.watchId); state.watchId = null; }
   keepAwake(false);
   setBtns();
@@ -433,11 +527,22 @@ async function loadList(){
   if (!state.segList.length){ $('#segList').innerHTML = '<div class="empty">还没有记录，点击「开始记录」出发</div>'; return; }
   $('#segList').innerHTML = state.segList.map(s => {
     const tag = s.status === 'recording' ? '<span class="warn">（记录中）</span>' : '';
+    const route = placeLine(s);
     return '<div class="row" data-id="' + s.id + '">' +
       '<div class="l"><div class="n">' + esc(s.name || '未命名行程') + tag + '</div>' +
-      '<div class="s">' + fmtClock(s.started_at) + ' · ' + fmtDur(s.duration_sec) + ' · 均速 ' + Math.round(s.avg_speed_kmh || 0) + '</div></div>' +
-      '<div class="d">' + fmtKm(s.distance_m) + ' <i>km</i></div></div>';
+      '<div class="s">' + fmtClock(s.started_at) + ' · ' + fmtDur(s.duration_sec) + ' · 均速 ' + Math.round(s.avg_speed_kmh || 0) + '</div>' +
+      (route ? '<div class="s">' + route + '</div>' : '') + '</div>' +
+      '<div class="d">' + fmtKm(s.distance_m) + ' <i>km</i></div>' +
+      '<button class="del" data-del="' + s.id + '" title="删除这段记录" aria-label="删除这段记录">' +
+      '<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"' +
+      ' stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M8 6V4h8v2"/>' +
+      '<path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6M14 11v6"/></svg></button></div>';
   }).join('');
+}
+function placeLine(s){
+  const a = (s && s.start_place) || '', b = (s && s.end_place) || '';
+  if (!a && !b) return '';
+  return '起点 ' + esc(a || '未知') + ' → 终点 ' + esc(b || '未知');
 }
 function esc(s){
   return String(s == null ? '' : s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -457,7 +562,9 @@ async function showDetail(id){
   $('#dtNote').value = s.note || '';
   $('#dtMeta').innerHTML = '开始：' + esc(fmtClock(s.started_at) || '—') +
     '<br>结束：' + esc(fmtClock(s.ended_at) || '—') +
-    '<br>定位点：' + (s.point_count || 0) + ' 个';
+    '<br>定位点：' + (s.point_count || 0) + ' 个' +
+    (s.start_place ? '<br>起点：' + esc(s.start_place) : '') +
+    (s.end_place ? '<br>终点：' + esc(s.end_place) : '');
   openMask('mDetail');
   drawTrail($('#dtCanvas'), s.points || []);
 }
@@ -471,15 +578,28 @@ async function saveDetail(){
   setNet('已更新');
   await loadList();
 }
-async function delDetail(){
-  if (!dtId) return;
-  if (!confirm('确定删除这条分段记录？轨迹点会一并删除。')) return;
-  const r = await api('/api/track/segment/' + dtId, {method:'DELETE'});
+async function delSeg(id, fromDetail){
+  if (!confirm('确定删除这条记录？该段的轨迹点会一并删除，且不可恢复。')) return;
+  const r = await api('/api/track/segment/' + id, {method:'DELETE'});
   if (!r.success){ setNet('删除失败：' + (r.error || '')); return; }
-  if (dtId === state.segId){ state.segId = null; state.recording = false; setBtns(); }
-  closeMask('mDetail');
+  // 删掉的正好是当前正在记录的段：同步清理本地状态，避免继续往已删除的段里写
+  if (String(id) === String(state.segId)){
+    state.segId = null; state.recording = false; state.paused = false;
+    state.points = []; state.pending = []; state.distM = 0; state.lastPt = null;
+    state.startPlace = ''; state.endPlace = ''; state.curMax = 0;
+    if (state.watchId != null){ navigator.geolocation.clearWatch(state.watchId); state.watchId = null; }
+    keepAwake(false);
+    drawTrail($('#trail'), []);
+    setBtns();
+  }
+  if (fromDetail) closeMask('mDetail');
   setNet('已删除');
   await loadList();
+  renderLive();
+}
+async function delDetail(){
+  if (!dtId) return;
+  await delSeg(dtId, true);
 }
 
 /* ---------------- 启动 ---------------- */
@@ -491,6 +611,9 @@ async function restoreActive(){
   state.points = s.points || [];
   state.distM = s.distance_m || 0;
   state.curMax = s.max_speed_kmh || 0;
+  state.startPlace = s.start_place || '';
+  state.endPlace = s.end_place || '';
+  state.startBusy = false;
   state.recording = true; state.paused = true;
   state.startedAt = state.points.length ? Date.parse(state.points[0].ts) : Date.now();
   state.lastPt = state.points.length ? state.points[state.points.length - 1] : null;
@@ -511,6 +634,8 @@ function bind(){
   $('#dtDel').onclick = delDetail;
   document.querySelectorAll('[data-close]').forEach(b => b.onclick = () => closeMask(b.dataset.close));
   $('#segList').onclick = e => {
+    const del = e.target.closest('[data-del]');
+    if (del){ delSeg(del.dataset.del, false); return; }
     const row = e.target.closest('.row');
     if (row) showDetail(row.dataset.id);
   };
