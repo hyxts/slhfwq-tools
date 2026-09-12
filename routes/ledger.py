@@ -68,8 +68,45 @@ PRESET_ACCOUNTS = [
 
 _EPS = 0.009  # 平衡判断容差（分以下舍入误差）
 
+# 内置场景模板：把「生意场景」映射成复式分录，金额留空由用户填写。
+# 不写入数据库，始终可用；每行 = (科目编码, 方向 debit/credit, 摘要)
+PRESET_TEMPLATES = [
+    ('销售收款（钱已到账）', [('1002', 'debit', '收到销售款'), ('5001', 'credit', '销售收入')]),
+    ('赊销（客户先欠款）', [('1122', 'debit', '赊销商品'), ('5001', 'credit', '销售收入')]),
+    ('收回客户欠款', [('1002', 'debit', '收回货款'), ('1122', 'credit', '冲减应收账款')]),
+    ('进货付款（买入商品）', [('1405', 'debit', '采购商品入库'), ('1002', 'credit', '银行付款')]),
+    ('赊购（先欠供应商）', [('1405', 'debit', '赊购商品入库'), ('2202', 'credit', '欠供应商货款')]),
+    ('付货款给供应商', [('2202', 'debit', '归还供应商欠款'), ('1002', 'credit', '银行付款')]),
+    ('日常费用支出', [('6602', 'debit', '办公/房租/水电等'), ('1002', 'credit', '银行付款')]),
+    ('发放工资', [('6602', 'debit', '发放员工工资'), ('1001', 'credit', '现金或银行支付')]),
+    ('借入款项', [('1002', 'debit', '收到借款'), ('2001', 'credit', '短期借款')]),
+]
+
+# 示例账套凭证：(月内第几日, 摘要, [(科目编码|AR|AP, 方向 dr/cr, 金额)])
+# AR/AP 表示示例往来科目（应收账款/应付账款下级）
+DEMO_VOUCHERS = [
+    (3, '股东投入资金', [('1002', 'dr', 100000), ('3001', 'cr', 100000)]),
+    (5, '采购库存商品（银行付款）', [('1405', 'dr', 30000), ('1002', 'cr', 30000)]),
+    (8, '赊销商品给客户', [('AR', 'dr', 25000), ('5001', 'cr', 25000)]),
+    (12, '销售商品收款', [('1002', 'dr', 18000), ('5001', 'cr', 18000)]),
+    (15, '收回客户欠款', [('1002', 'dr', 10000), ('AR', 'cr', 10000)]),
+    (18, '结转销售成本', [('6401', 'dr', 12000), ('1405', 'cr', 12000)]),
+    (20, '支付办公费用', [('6602', 'dr', 5000), ('1002', 'cr', 5000)]),
+    (25, '赊购商品（欠供应商）', [('1405', 'dr', 20000), ('AP', 'cr', 20000)]),
+    (28, '支付货款给供应商', [('AP', 'dr', 12000), ('1002', 'cr', 12000)]),
+    (28, '发放员工工资', [('6602', 'dr', 8000), ('1001', 'cr', 8000)]),
+]
+
 
 # ========== 工具函数 ==========
+def _fail(e):
+    """统一错误响应：业务校验错误(ValueError)返回 400，其余记日志并返回 500"""
+    if isinstance(e, ValueError):
+        return jsonify({'success': False, 'error': str(e)}), 400
+    _log(f'服务端错误: {e!r}')
+    return jsonify({'success': False, 'error': '服务器内部错误，请稍后重试'}), 500
+
+
 def _round(v):
     try:
         return round(float(v), 2)
@@ -372,7 +409,7 @@ def list_accounts():
             data.append(r)
         return jsonify({'success': True, 'data': data})
     except Exception as e:
-        return jsonify({'success': False, 'error': str(e)}), 500
+        return _fail(e)
 
 
 def _validate_account(data, conn, exclude_id=None):
@@ -436,7 +473,7 @@ def create_account():
         _log(f'新增科目 {a["code"]} {a["name"]}')
         return jsonify({'success': True})
     except Exception as e:
-        return jsonify({'success': False, 'error': str(e)}), 400
+        return _fail(e)
 
 
 @bp.route('/api/ledger/accounts/<acid>', methods=['PUT'])
@@ -469,7 +506,7 @@ def update_account(acid):
         _log(f'更新科目 {acid}')
         return jsonify({'success': True})
     except Exception as e:
-        return jsonify({'success': False, 'error': str(e)}), 400
+        return _fail(e)
 
 
 @bp.route('/api/ledger/accounts/<acid>', methods=['DELETE'])
@@ -497,7 +534,7 @@ def delete_account(acid):
         _log(f'删除科目 {row["code"]} {row["name"]}')
         return jsonify({'success': True})
     except Exception as e:
-        return jsonify({'success': False, 'error': str(e)}), 400
+        return _fail(e)
 
 
 # ========== 凭证 API ==========
@@ -505,7 +542,7 @@ def _load_vouchers_list(conn, month):
     start, end = _month_bounds(month)
     rows = conn.execute(
         'SELECT v.id, v.voucher_no, v.vdate, v.summary, v.status, v.red, v.auto, '
-        'v.source_vid, v.attachments, '
+        'v.source_vid, v.attachments, v.demo, '
         '(SELECT COALESCE(SUM(e.debit),0) FROM voucher_entries e WHERE e.voucher_id=v.id) AS total '
         'FROM vouchers v WHERE v.vdate>=? AND v.vdate<=? '
         'ORDER BY v.vdate, v.id',
@@ -517,6 +554,7 @@ def _load_vouchers_list(conn, month):
                     'red': bool(r['red']), 'auto': bool(r['auto']),
                     'source_vid': r['source_vid'],
                     'attachments': r['attachments'] or 0,
+                    'demo': bool(r['demo']),
                     'total': _round(r['total'])})
     return out
 
@@ -579,7 +617,7 @@ def list_vouchers():
         conn.close()
         return jsonify({'success': True, 'data': data})
     except Exception as e:
-        return jsonify({'success': False, 'error': str(e)}), 400
+        return _fail(e)
 
 
 @bp.route('/api/ledger/vouchers/<vid>', methods=['GET'])
@@ -607,7 +645,7 @@ def get_voucher(vid):
         conn.close()
         return jsonify({'success': True, 'data': v, 'entries': entries})
     except Exception as e:
-        return jsonify({'success': False, 'error': str(e)}), 400
+        return _fail(e)
 
 
 @bp.route('/api/ledger/vouchers', methods=['POST'])
@@ -633,7 +671,7 @@ def create_voucher():
         _log(f'新增凭证 {no} 合计 {total:.2f}')
         return jsonify({'success': True, 'id': vid, 'voucher_no': no})
     except Exception as e:
-        return jsonify({'success': False, 'error': str(e)}), 400
+        return _fail(e)
 
 
 @bp.route('/api/ledger/vouchers/<vid>', methods=['PUT'])
@@ -670,7 +708,7 @@ def update_voucher(vid):
         _log(f'更新凭证 {vid} 合计 {total:.2f}')
         return jsonify({'success': True})
     except Exception as e:
-        return jsonify({'success': False, 'error': str(e)}), 400
+        return _fail(e)
 
 
 @bp.route('/api/ledger/vouchers/<vid>', methods=['DELETE'])
@@ -695,7 +733,7 @@ def delete_voucher(vid):
         _log(f'删除凭证 {row["voucher_no"]}')
         return jsonify({'success': True})
     except Exception as e:
-        return jsonify({'success': False, 'error': str(e)}), 400
+        return _fail(e)
 
 
 # ========== 账簿 API ==========
@@ -756,7 +794,7 @@ def account_ledger():
                        'credit': _round(sum(i['credit'] for i in items))},
         })
     except Exception as e:
-        return jsonify({'success': False, 'error': str(e)}), 400
+        return _fail(e)
 
 
 @bp.route('/api/ledger/trial', methods=['GET'])
@@ -823,7 +861,7 @@ def trial_balance():
             'balanced': balanced,
         })
     except Exception as e:
-        return jsonify({'success': False, 'error': str(e)}), 400
+        return _fail(e)
 
 
 def _ends_by_category(conn, start, end):
@@ -896,7 +934,7 @@ def balance_sheet():
             'diff': diff,
         })
     except Exception as e:
-        return jsonify({'success': False, 'error': str(e)}), 400
+        return _fail(e)
 
 
 @bp.route('/api/ledger/income', methods=['GET'])
@@ -943,7 +981,7 @@ def income_statement():
             'profit': profit,
         })
     except Exception as e:
-        return jsonify({'success': False, 'error': str(e)}), 400
+        return _fail(e)
 
 
 # ========== 往来 API ==========
@@ -1006,7 +1044,7 @@ def contacts():
         conn.close()
         return jsonify({'success': True, 'sides': sides, 'today': today.isoformat()})
     except Exception as e:
-        return jsonify({'success': False, 'error': str(e)}), 500
+        return _fail(e)
 
 
 # ========== PC 桌面版页面 ==========
@@ -1055,7 +1093,7 @@ def aux_list_dims():
         conn.close()
         return jsonify({'success': True, 'data': data})
     except Exception as e:
-        return jsonify({'success': False, 'error': str(e)}), 400
+        return _fail(e)
 
 
 @bp.route('/api/ledger/aux/dims', methods=['POST'])
@@ -1074,7 +1112,7 @@ def aux_create_dim():
         _log(f'新增辅助核算维度: {name}')
         return jsonify({'success': True})
     except Exception as e:
-        return jsonify({'success': False, 'error': str(e)}), 400
+        return _fail(e)
 
 
 @bp.route('/api/ledger/aux/dims/<did>', methods=['PUT'])
@@ -1095,7 +1133,7 @@ def aux_update_dim(did):
         conn.close()
         return jsonify({'success': True})
     except Exception as e:
-        return jsonify({'success': False, 'error': str(e)}), 400
+        return _fail(e)
 
 
 @bp.route('/api/ledger/aux/dims/<did>', methods=['DELETE'])
@@ -1113,7 +1151,7 @@ def aux_delete_dim(did):
         conn.close()
         return jsonify({'success': True})
     except Exception as e:
-        return jsonify({'success': False, 'error': str(e)}), 400
+        return _fail(e)
 
 
 @bp.route('/api/ledger/aux/items', methods=['POST'])
@@ -1133,7 +1171,7 @@ def aux_create_item():
         _log(f'新增辅助项 {name}')
         return jsonify({'success': True})
     except Exception as e:
-        return jsonify({'success': False, 'error': str(e)}), 400
+        return _fail(e)
 
 
 @bp.route('/api/ledger/aux/items/<iid>', methods=['PUT'])
@@ -1153,7 +1191,7 @@ def aux_update_item(iid):
         conn.close()
         return jsonify({'success': True})
     except Exception as e:
-        return jsonify({'success': False, 'error': str(e)}), 400
+        return _fail(e)
 
 
 @bp.route('/api/ledger/aux/items/<iid>', methods=['DELETE'])
@@ -1171,7 +1209,7 @@ def aux_delete_item(iid):
         conn.close()
         return jsonify({'success': True})
     except Exception as e:
-        return jsonify({'success': False, 'error': str(e)}), 400
+        return _fail(e)
 
 
 @bp.route('/api/ledger/aux/openings', methods=['GET'])
@@ -1194,7 +1232,7 @@ def aux_get_openings():
             'item_id': r['aux_item_id'], 'item_name': r['item_name'],
             'dim_id': r['dim_id'], 'amount': _round(r['amt'])} for r in rows]})
     except Exception as e:
-        return jsonify({'success': False, 'error': str(e)}), 400
+        return _fail(e)
 
 
 @bp.route('/api/ledger/aux/openings', methods=['PUT'])
@@ -1229,7 +1267,7 @@ def aux_set_openings():
         _log(f'更新辅助期初: {code}')
         return jsonify({'success': True})
     except Exception as e:
-        return jsonify({'success': False, 'error': str(e)}), 400
+        return _fail(e)
 
 
 @bp.route('/api/ledger/aux/balance', methods=['GET'])
@@ -1333,7 +1371,7 @@ def aux_balance():
                        'end_cr': _round(sum(r['end_cr'] for r in rows_out))},
         })
     except Exception as e:
-        return jsonify({'success': False, 'error': str(e)}), 400
+        return _fail(e)
 
 
 # ========== 凭证审核 / 作废 / 红冲 API ==========
@@ -1366,7 +1404,7 @@ def voucher_audit(vid):
         _log(f'凭证{vid} 操作 {action} -> {target}')
         return jsonify({'success': True})
     except Exception as e:
-        return jsonify({'success': False, 'error': str(e)}), 400
+        return _fail(e)
 
 
 @bp.route('/api/ledger/vouchers/<vid>/reverse', methods=['POST'])
@@ -1409,10 +1447,23 @@ def voucher_reverse(vid):
         _log(f'红冲凭证 {src["voucher_no"]} -> {no}')
         return jsonify({'success': True, 'id': nid, 'voucher_no': no})
     except Exception as e:
-        return jsonify({'success': False, 'error': str(e)}), 400
+        return _fail(e)
 
 
 # ========== 凭证模板 API ==========
+def _preset_templates():
+    """内置场景模板（只读、不进数据库）：id 形如 preset:0，content 用 direction 表示借贷方向"""
+    out = []
+    for i, (name, lines) in enumerate(PRESET_TEMPLATES):
+        out.append({
+            'id': 'preset:' + str(i),
+            'name': name,
+            'preset': True,
+            'content': [{'summary': s, 'account_code': c, 'direction': d} for c, d, s in lines],
+        })
+    return out
+
+
 @bp.route('/api/ledger/templates', methods=['GET'])
 def list_templates():
     try:
@@ -1427,10 +1478,10 @@ def list_templates():
             except Exception:
                 content = []
             out.append({'id': r['id'], 'name': r['name'], 'content': content,
-                        'updated_at': r['updated_at']})
-        return jsonify({'success': True, 'data': out})
+                        'preset': False, 'updated_at': r['updated_at']})
+        return jsonify({'success': True, 'data': out, 'preset': _preset_templates()})
     except Exception as e:
-        return jsonify({'success': False, 'error': str(e)}), 400
+        return _fail(e)
 
 
 @bp.route('/api/ledger/templates', methods=['POST'])
@@ -1449,7 +1500,7 @@ def create_template():
         _log(f'新增凭证模板: {name}')
         return jsonify({'success': True})
     except Exception as e:
-        return jsonify({'success': False, 'error': str(e)}), 400
+        return _fail(e)
 
 
 @bp.route('/api/ledger/templates/<tid>', methods=['PUT'])
@@ -1470,7 +1521,7 @@ def update_template(tid):
         conn.close()
         return jsonify({'success': True})
     except Exception as e:
-        return jsonify({'success': False, 'error': str(e)}), 400
+        return _fail(e)
 
 
 @bp.route('/api/ledger/templates/<tid>', methods=['DELETE'])
@@ -1484,7 +1535,92 @@ def delete_template(tid):
         conn.close()
         return jsonify({'success': True})
     except Exception as e:
-        return jsonify({'success': False, 'error': str(e)}), 400
+        return _fail(e)
+
+
+# ========== 示例账套（可随时一键清除） ==========
+def _demo_contact_code(conn, root, code, name, category):
+    """示例往来科目：优先复用已有下级科目，否则新建并标记 demo=1。
+    返回 (科目编码, 是否本次新建)"""
+    row = conn.execute('SELECT code FROM accounts WHERE parent_code=? ORDER BY code LIMIT 1',
+                       (root,)).fetchone()
+    if row:
+        return row['code'], False
+    conn.execute('INSERT INTO accounts (code, name, category, parent_code, remark, demo) '
+                 'VALUES (?,?,?,?,?,1)', (code, name, category, root, '示例账套自动建立'))
+    return code, True
+
+
+@bp.route('/api/ledger/demo', methods=['POST'])
+def load_demo():
+    """载入示例账套：写入带 demo 标记的凭证，供新用户先看效果再记自己的账"""
+    try:
+        conn = _get_db()
+        if conn.execute('SELECT 1 FROM vouchers WHERE demo=1 LIMIT 1').fetchone():
+            raise ValueError('示例账套已存在，请先清除后再载入')
+        ym = _now().strftime('%Y-%m')
+        ar_code, _ = _demo_contact_code(conn, AR_CODE, AR_CODE + '01', '示例客户·甲公司', 'asset')
+        ap_code, _ = _demo_contact_code(conn, AP_CODE, AP_CODE + '01', '示例供应商·乙公司', 'liability')
+        codes = {'AR': ar_code, 'AP': ap_code}
+        accts = _acct_map(conn)
+        count = 0
+        span = len(DEMO_VOUCHERS)
+        today_day = max(1, _now().day)
+        for idx, (_day, summary, lines) in enumerate(DEMO_VOUCHERS):
+            clean = []
+            for code, direction, amount in lines:
+                code = codes.get(code, code)
+                if code not in accts:
+                    continue
+                clean.append({'account_code': code, 'summary': summary, 'aux': {},
+                              'debit': amount if direction == 'dr' else 0.0,
+                              'credit': amount if direction == 'cr' else 0.0})
+            if len(clean) < 2:
+                continue
+            # 示例凭证落在当月已过去的日期里，避免出现"未来日期"凭证
+            vday = min(today_day, max(1, round(1 + (today_day - 1) * idx / max(1, span - 1))))
+            no = _next_voucher_no(conn, ym.replace('-', ''))
+            vid = conn.execute(
+                'INSERT INTO vouchers (voucher_no, vdate, summary, demo) VALUES (?,?,?,1)',
+                (no, f'{ym}-{vday:02d}', summary)).lastrowid
+            _save_entries(conn, vid, clean)
+            count += 1
+        conn.commit()
+        conn.close()
+        _log(f'载入示例账套：{count} 张凭证')
+        return jsonify({'success': True, 'vouchers': count, 'month': ym})
+    except Exception as e:
+        return _fail(e)
+
+
+@bp.route('/api/ledger/demo', methods=['DELETE'])
+def clear_demo():
+    """清除示例账套：删除 demo 凭证，以及未被引用的示例科目"""
+    try:
+        conn = _get_db()
+        vids = [r['id'] for r in conn.execute('SELECT id FROM vouchers WHERE demo=1').fetchall()]
+        for vid in vids:
+            conn.execute('DELETE FROM voucher_entry_aux WHERE entry_id IN '
+                         '(SELECT id FROM voucher_entries WHERE voucher_id=?)', (vid,))
+            conn.execute('DELETE FROM voucher_entries WHERE voucher_id=?', (vid,))
+        conn.execute('DELETE FROM vouchers WHERE demo=1')
+        gone = 0
+        for r in conn.execute('SELECT code FROM accounts WHERE demo=1').fetchall():
+            code = r['code']
+            if conn.execute('SELECT 1 FROM voucher_entries WHERE account_code=? LIMIT 1',
+                            (code,)).fetchone():
+                continue
+            if conn.execute('SELECT 1 FROM accounts WHERE parent_code=? LIMIT 1',
+                            (code,)).fetchone():
+                continue
+            conn.execute('DELETE FROM accounts WHERE code=?', (code,))
+            gone += 1
+        conn.commit()
+        conn.close()
+        _log(f'清除示例账套：凭证 {len(vids)} 张、科目 {gone} 个')
+        return jsonify({'success': True, 'vouchers': len(vids), 'accounts': gone})
+    except Exception as e:
+        return _fail(e)
 
 
 # ========== 期间结账 / 结转损益 API ==========
@@ -1562,7 +1698,7 @@ def list_periods():
         return jsonify({'success': True, 'data': out,
                         'now': now.strftime('%Y-%m')})
     except Exception as e:
-        return jsonify({'success': False, 'error': str(e)}), 400
+        return _fail(e)
 
 
 def _ensure_profit_account(conn):
@@ -1661,7 +1797,7 @@ def carry_profit():
         return jsonify({'success': True, 'id': vid, 'voucher_no': no,
                         'total': total_dr})
     except Exception as e:
-        return jsonify({'success': False, 'error': str(e)}), 400
+        return _fail(e)
 
 
 @bp.route('/api/ledger/carry-profit', methods=['DELETE'])
@@ -1686,7 +1822,7 @@ def delete_carry_profit():
         _log(f'删除结转凭证 {month} {vid}')
         return jsonify({'success': True})
     except Exception as e:
-        return jsonify({'success': False, 'error': str(e)}), 400
+        return _fail(e)
 
 
 @bp.route('/api/ledger/closing/<month>', methods=['POST'])
@@ -1717,7 +1853,7 @@ def close_period(month):
         _log(f'结账 {month}')
         return jsonify({'success': True})
     except Exception as e:
-        return jsonify({'success': False, 'error': str(e)}), 400
+        return _fail(e)
 
 
 @bp.route('/api/ledger/closing/<month>', methods=['DELETE'])
@@ -1737,7 +1873,7 @@ def unclose_period(month):
         _log(f'反结账 {month}')
         return jsonify({'success': True})
     except Exception as e:
-        return jsonify({'success': False, 'error': str(e)}), 400
+        return _fail(e)
 
 
 # ========== 概览/仪表盘 ==========
@@ -1829,17 +1965,19 @@ def dashboard():
         used_accts = len({r['account_code'] for r in conn.execute(
             'SELECT DISTINCT account_code FROM voucher_entries').fetchall()})
         v_count = conn.execute('SELECT COUNT(*) FROM vouchers').fetchone()[0]
+        demo_count = conn.execute('SELECT COUNT(*) FROM vouchers WHERE demo=1').fetchone()[0]
         conn.close()
         return jsonify({
             'success': True, 'month': month,
             'monthly': m, 'cash': {'rows': cash_rows, 'total': cash_total},
             'ar_net': ar_net, 'ap_net': ap_net,
             'trend': trend, 'recent': recent,
+            'demo': demo_count,
             'stats': {'accounts': total_accts, 'used_accounts': used_accts,
                       'vouchers': v_count},
         })
     except Exception as e:
-        return jsonify({'success': False, 'error': str(e)}), 500
+        return _fail(e)
 
 
 # ========== 初始化 ==========
@@ -1882,6 +2020,8 @@ def _init_db_impl():
         "ALTER TABLE vouchers ADD COLUMN auto INTEGER DEFAULT 0",
         "ALTER TABLE vouchers ADD COLUMN source_vid INTEGER DEFAULT 0",
         "ALTER TABLE vouchers ADD COLUMN attachments INTEGER DEFAULT 0",
+        "ALTER TABLE vouchers ADD COLUMN demo INTEGER DEFAULT 0",
+        "ALTER TABLE accounts ADD COLUMN demo INTEGER DEFAULT 0",
     ]
     for _sql in _ALTERS:
         try:
@@ -1931,6 +2071,16 @@ def _init_db_impl():
     conn.execute('CREATE INDEX IF NOT EXISTS idx_auxitems_dim ON aux_items(dim_id)')
     conn.execute('CREATE INDEX IF NOT EXISTS idx_auxopen_acct ON aux_openings(account_code)')
     conn.execute('CREATE INDEX IF NOT EXISTS idx_vouchers_status ON vouchers(status)')
+    # 账簿/报表高频查询字段索引
+    conn.execute('CREATE INDEX IF NOT EXISTS idx_entries_acct ON voucher_entries(account_code)')
+    conn.execute('CREATE INDEX IF NOT EXISTS idx_entries_vid ON voucher_entries(voucher_id)')
+    conn.execute('CREATE INDEX IF NOT EXISTS idx_vouchers_vdate ON vouchers(vdate)')
+    conn.execute('CREATE INDEX IF NOT EXISTS idx_vouchers_demo ON vouchers(demo)')
+    # 凭证号唯一（老库若有重复数据则跳过，不影响启动）
+    try:
+        conn.execute('CREATE UNIQUE INDEX IF NOT EXISTS uq_vouchers_no ON vouchers(voucher_no)')
+    except Exception as e:
+        print(f'[ledger] 凭证号唯一索引创建跳过: {e}')
     # 空库时导入预设科目表
     cnt = conn.execute('SELECT COUNT(*) FROM accounts').fetchone()[0]
     if cnt == 0:
