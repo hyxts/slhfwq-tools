@@ -130,6 +130,8 @@ input:focus,select:focus,textarea:focus{border-color:var(--primary)!important;bo
 #ve .grid input{border:none;background:transparent;width:100%;padding:7px 6px;height:34px}
 #ve .grid input.dr{color:var(--dr)}#ve .grid input.cr{color:var(--cr)}
 #ve .grid .adr input{background:#eef4ff}#ve .grid .acr input{background:#fff0f2}
+#ve .grid td.acctcell{cursor:pointer}
+#ve .grid td.acctcell:hover{background:#f2f7ff}
 #ve .sumrow td{background:#f8fafc;font-weight:700;padding:8px 6px}
 .auxmini{display:flex;gap:5px;padding:2px 6px;flex-wrap:wrap}
 .auxmini .a{font-size:10.5px;background:var(--primary-l);color:var(--primary);border-radius:5px;padding:1px 6px;display:inline-flex;gap:3px;align-items:center}
@@ -558,7 +560,7 @@ function switchPage(name,arg){
 function statusChip(st,red,auto){var s=st||'open',m={open:['未审核','amber'],posted:['已审核','green'],voided:['已作废','gray']}[s]||[s,'gray'];
   return '<span class="chip '+m[1]+'">'+m[0]+(red?' · 红字':'')+'</span>'+(auto?'<span class="chip purple">自动</span>':'')}
 function openEditor(vid,pre){
-  loadCaches().then(function(){_openEditor(vid,pre)})
+  loadCaches().then(function(){_openEditor(vid,pre)}).catch(function(e){toast('数据加载失败：'+e.message,'err')})
 }
 /* ---------- CSV ---------- */
 function exportCSV(name,heads,rows){
@@ -574,19 +576,25 @@ function acctMeta(acct){
 }
 function buildTreeHtml(list,search,activeCode){
   var cc={};list.forEach(function(a){if(a.parent_code)cc[a.parent_code]=1});
-  var q=(search||'').trim();
-  var roots=list.filter(function(a){return !a.parent_code});
+  var q=(search||'').trim().toLowerCase();
   var html='';
-  function walk(a,dep){
-    var kids=list.filter(function(x){return x.parent_code===a.code});
-    if(q){kids=[]}
-    html+='<div class="node'+(activeCode===a.code?' on':'')+'" data-code="'+a.code+'" style="padding-left:'+(dep*16+6)+'px">'
-      +(kids.length?'<span class="caret">▾</span>':'<span class="caret"></span>')
+  function nodeHtml(a,dep){
+    return '<div class="node'+(activeCode===a.code?' on':'')+'" data-code="'+a.code+'" style="padding-left:'+(dep*16+6)+'px">'
+      +(cc[a.code]?'<span class="caret">▾</span>':'<span class="caret"></span>')
       +'<span class="cat" style="background:'+{asset:'#0d9488',liability:'#1d4ed8',equity:'#7c3aed',income:'#059669',expense:'#dc2626'}[a.category]+'">'+acctMeta(a)+'</span>'
       +'<span class="nm">'+esc(a.code)+' '+esc(a.name)+'</span><span class="cb">'+(isLeaf(a.code)?'':'·')+'</span></div>';
-    kids.forEach(function(k){walk(k,dep+1)});
   }
-  roots.forEach(function(r){walk(r,0)});
+  if(q){
+    list.forEach(function(a){
+      if((''+a.code).toLowerCase().indexOf(q)>=0||(''+(a.name||'')).toLowerCase().indexOf(q)>=0){html+=nodeHtml(a,0)}
+    });
+    return html;
+  }
+  function walk(a,dep){
+    html+=nodeHtml(a,dep);
+    list.filter(function(x){return x.parent_code===a.code}).forEach(function(k){walk(k,dep+1)});
+  }
+  list.filter(function(a){return !a.parent_code}).forEach(function(r){walk(r,0)});
   return html;
 }
 /* ---------- 顶栏事件 ---------- */
@@ -764,7 +772,7 @@ function renderVE(){
     var aux=(r.aux||[]).map(function(a){return '<span class="a" title="点此修改">'+esc(a.dim_name)+':'+esc(a.item_name)+' ✎</span>'}).join('');
     return '<tr data-i="'+i+'">'
     +'<td style="text-align:center;color:#9ca3af">'+(i+1)+'</td>'
-    +'<td><input class="c" value="'+esc(r.code)+'" placeholder="科目编码" title="直接输编码或点选"><div style="font-size:11px;color:#2563eb;padding:0 6px 4px">'+esc(r.name||'')+'</div></td>'
+    +'<td class="acctcell" title="点此选择科目"><input class="c" value="'+esc(r.code)+'" placeholder="科目编码"><div style="font-size:11px;color:#2563eb;padding:0 6px 4px">'+esc(r.name||'')+'</div></td>'
     +'<td><div style="display:flex"><input class="sum" value="'+esc(r.summary||'')+'" placeholder="摘要…"><button class="btn sm auxbtn" title="设置辅助核算">🏷</button></div><div class="auxmini">'+aux+'</div></td>'
     +'<td class="adr"><input class="dr" type="text" inputmode="decimal" value="'+(r.dr?r.dr:'')+'" placeholder="借"></td>'
     +'<td class="acr"><input class="cr" type="text" inputmode="decimal" value="'+(r.cr?r.cr:'')+'" placeholder="贷"></td>'
@@ -795,13 +803,16 @@ $('#veBody').addEventListener('input',function(e){
 });
 function updateHint(i){/*重新渲染该行提示*/}
 $('#veBody').addEventListener('click',function(e){
-  var b=e.target.closest('.auxbtn'),del=e.target.closest('[data-del]'),codeinp=e.target.closest('input.c');
+  var b=e.target.closest('.auxbtn'),del=e.target.closest('[data-del]');
   if(b){editRowAux(+e.target.closest('tr').dataset.i);return}
   if(del){state.veRows.splice(+del.dataset.del,1);if(!state.veRows.length)addVERow();renderVE();return}
-  if(codeinp){
-    var i=+codeinp.closest('tr').dataset.i;
-    if(e.detail===2||!codeinp.value.trim()){openAcctPick(function(code){setRowCode(i,code)})}
-  }
+  var cell=e.target.closest('td.acctcell');
+  if(!cell)return;
+  var i=+cell.closest('tr').dataset.i;
+  var inp=cell.querySelector('input.c');
+  // 点在输入框内且已有编码时保留直接编辑（双击仍打开选择器）；点单元格其它位置一律打开
+  if(inp&&e.target===inp&&e.detail!==2&&inp.value.trim())return;
+  openAcctPick(function(code){setRowCode(i,code)});
 });
 $('#veBody').addEventListener('keydown',function(e){
   if(e.key==='Enter'&&e.target.tagName==='INPUT'&&!e.target.closest('input.dr')&&!e.target.closest('input.cr')){
@@ -847,11 +858,20 @@ async function saveVE(again){
 function openAcctPick(cb,hint){
   state.pick.cb=cb;state.pick.selCode='';
   $('#acPickHint').textContent=hint||'选择科目填入分录';
+  if(!state.accts||!state.accts.length){
+    $('#acPickTree').innerHTML='<div class="light" style="padding:14px">科目数据加载中…</div>';
+    $('#acPickInfo').innerHTML='';$('#acPickSel').textContent='';
+    openMask('mAcct');
+    loadCaches().then(function(){renderPickTree('')}).catch(function(e){
+      $('#acPickTree').innerHTML='<div style="padding:14px;color:#dc2626">科目加载失败：'+esc(e.message)+'</div>'});
+    return;
+  }
   renderPickTree('');
   openMask('mAcct');
 }
 function renderPickTree(q){
-  $('#acPickTree').innerHTML=buildTreeHtml(state.accts,q);
+  var html=buildTreeHtml(state.accts||[],q);
+  $('#acPickTree').innerHTML=html||'<div class="light" style="padding:14px">未匹配到科目</div>';
   $('#acPickInfo').innerHTML='<div class="light" style="padding:14px">在左侧选择科目</div>';
   $('#acPickSel').textContent='';
 }
