@@ -227,28 +227,45 @@ async function fetchJson(url, ms){
 }
 function coordText(lat, lng){ return lat.toFixed(4) + ', ' + lng.toFixed(4); }
 
+/* 赛跑：返回第一个成功结果；全部失败或超时返回空串 */
+function firstPlace(tasks, ms){
+  return new Promise(resolve => {
+    let done = false, left = tasks.length;
+    const timer = setTimeout(() => { if (!done){ done = true; resolve(''); } }, ms);
+    const settle = () => {
+      left -= 1;
+      if (left <= 0 && !done){ done = true; clearTimeout(timer); resolve(''); }
+    };
+    tasks.forEach(t => Promise.resolve(t).then(v => {
+      if (!done && v){ done = true; clearTimeout(timer); resolve(v); }
+    }).catch(() => {}).then(settle));
+  });
+}
+/* 三条独立通路 */
+async function viaBackend(lat, lng){
+  const r = await withTimeout(api('/api/track/geocode?lat=' + lat + '&lng=' + lng), 8000);
+  return (r && r.success && r.place) ? r.place : '';
+}
+async function viaNominatim(lat, lng){
+  const j = await fetchJson('https://nominatim.openstreetmap.org/reverse?format=jsonv2&zoom=18'
+    + '&accept-language=zh-CN&lat=' + lat + '&lon=' + lng, 8000);
+  return String(j.display_name || '').split(',').slice(0, 3).join(' · ').trim();
+}
+async function viaBigData(lat, lng){
+  const j = await fetchJson('https://api.bigdatacloud.net/data/reverse-geocode-client?latitude='
+    + lat + '&longitude=' + lng + '&localityLanguage=zh', 8000);
+  return [j.locality || j.city, j.principalSubdivision].filter(Boolean).join(' · ');
+}
+
 async function resolvePlace(lat, lng){
-  // 1) 后端解析（带缓存，同一地点不会重复请求第三方）
-  try {
-    const r = await withTimeout(api('/api/track/geocode?lat=' + lat + '&lng=' + lng), 9000);
-    if (r && r.success && r.place) return r.place;
-  } catch(e){}
-  // 2) 浏览器直连 BigDataCloud（免密钥、允许跨域）
-  try {
-    const j = await fetchJson('https://api.bigdatacloud.net/data/reverse-geocode-client?latitude='
-      + lat + '&longitude=' + lng + '&localityLanguage=zh', 7000);
-    const s = [j.locality || j.city, j.principalSubdivision].filter(Boolean).join(' · ');
-    if (s) return s;
-  } catch(e){}
-  // 3) 浏览器直连 Nominatim
-  try {
-    const j = await fetchJson('https://nominatim.openstreetmap.org/reverse?format=jsonv2&zoom=18'
-      + '&accept-language=zh-CN&lat=' + lat + '&lon=' + lng, 7000);
-    const s = String(j.display_name || '').split(',').slice(0, 3).join(' · ').trim();
-    if (s) return s;
-  } catch(e){}
-  // 4) 全部失败时退回坐标，保证界面不空
-  return coordText(lat, lng);
+  // 详细地址优先：后端(带缓存)与 Nominatim 直连同时请求，3 秒内谁先成功用谁
+  const detailed = [viaBackend(lat, lng), viaNominatim(lat, lng)];
+  let place = await firstPlace(detailed, 3000);
+  if (place) return place;
+  // 两者都慢或失败：让更快的城市级服务加入赛跑
+  place = await firstPlace(detailed.concat([viaBigData(lat, lng)]), 4000);
+  // 全部失败时退回坐标，保证界面不空
+  return place || coordText(lat, lng);
 }
 function fmtKm(m){ return ((m || 0) / 1000).toFixed(2); }
 function fmtDur(sec){
