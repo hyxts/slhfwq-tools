@@ -1,0 +1,537 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>开车轨迹</title>
+<link rel="icon" type="image/svg+xml" href="/track/icon-192.svg">
+<link rel="manifest" href="/track/manifest.json">
+<meta name="theme-color" content="#4f46e5">
+<style>
+:root{--primary:#4f46e5;--bg:#f0f2f5;--card-bg:#ffffff;--text:#1e293b;--text-secondary:#64748b;--border:#e2e8f0;--shadow:0 2px 8px rgba(0,0,0,.06);--danger:#dc2626;--ok:#059669}
+*{margin:0;padding:0;box-sizing:border-box}
+body{padding-top:env(safe-area-inset-top);padding-left:env(safe-area-inset-left);padding-right:env(safe-area-inset-right);padding-bottom:calc(16px + env(safe-area-inset-bottom));
+    background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif;font-size:15px}
+body::before{content:'';position:fixed;top:0;left:0;right:0;height:env(safe-area-inset-top);background:#ffffff;z-index:101;pointer-events:none}
+header{background:#ffffff;border-bottom:1px solid var(--border);padding:12px 16px;position:sticky;top:0;z-index:100;
+       display:flex;align-items:center;justify-content:space-between}
+header .ttl{font-size:17px;font-weight:600}
+.net{font-size:12px;color:var(--text-secondary);max-width:44vw;text-align:right;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+main{max-width:1100px;margin:0 auto;padding:12px}
+.card{background:var(--card-bg);border:1px solid var(--border);border-radius:12px;padding:16px;margin-bottom:12px;box-shadow:var(--shadow)}
+.ttl2{font-size:13px;font-weight:600;color:var(--text-secondary);margin-bottom:10px}
+.big{text-align:center;padding:4px 0 14px}
+.big .num{font-size:46px;font-weight:700;line-height:1.05;font-variant-numeric:tabular-nums}
+.big .unit{font-size:13px;color:var(--text-secondary);margin-top:4px}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:10px}
+.cell{background:#f8fafc;border-radius:10px;padding:10px 8px;text-align:center}
+.cell b{display:block;font-size:19px;font-weight:700;font-variant-numeric:tabular-nums}
+.cell span{display:block;font-size:12px;color:var(--text-secondary);margin-top:3px}
+.cell.ok b{color:var(--ok)}
+.meta{display:flex;justify-content:space-between;gap:10px;font-size:12px;color:var(--text-secondary);margin-top:12px}
+button{border:none;border-radius:10px;padding:10px 16px;font-weight:600;min-height:44px;font-size:15px;
+       background:#e2e8f0;color:var(--text);cursor:pointer;font-family:inherit}
+button:active{opacity:.85}
+.btn-primary{background:var(--primary);color:#fff}
+.btn-danger{background:var(--danger);color:#fff}
+.btn-ghost{background:#fff;border:1px solid var(--border)}
+.ctrl{display:flex;gap:10px;flex-wrap:wrap}
+.ctrl button{flex:1;min-width:120px}
+canvas{width:100%;height:190px;display:block;border-radius:10px}
+.row{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:11px 0;border-bottom:1px solid #f1f5f9}
+.row:last-child{border-bottom:none}
+.row .l{flex:1;min-width:0}
+.row .n{font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.row .s{font-size:12px;color:var(--text-secondary);margin-top:3px}
+.row .d{font-weight:700;font-variant-numeric:tabular-nums;white-space:nowrap}
+.row .d i{font-style:normal;font-size:12px;color:var(--text-secondary);font-weight:400}
+.empty{text-align:center;color:var(--text-secondary);font-size:13px;padding:22px 0}
+.mask{position:fixed;inset:0;background:rgba(15,23,42,.45);z-index:200;display:none;align-items:center;justify-content:center;padding:16px}
+.mask.on{display:flex}
+.sheet{background:#fff;border-radius:12px;width:min(92vw,520px);max-height:88vh;overflow-y:auto;padding:16px}
+.sheet h3{font-size:16px;margin-bottom:12px}
+.sheet label{display:block;font-size:13px;color:var(--text-secondary);margin:10px 0 5px}
+input,textarea{width:100%;border:1px solid var(--border);border-radius:10px;padding:10px 12px;min-height:44px;
+               font-size:16px;font-family:inherit;color:var(--text);background:#fff}
+textarea{min-height:64px;resize:vertical}
+.sheet .acts{display:flex;gap:10px;margin-top:16px}
+.sheet .acts button{flex:1}
+.hint{font-size:12px;color:var(--text-secondary);line-height:1.6;margin-top:10px}
+.dgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(110px,1fr));gap:10px;margin:10px 0}
+.tipbox{background:#f8fafc;border-radius:10px;padding:10px 12px;font-size:13px;line-height:1.7;color:var(--text-secondary)}
+.warn{color:#d97706}
+@media (max-width:768px){
+  .card{border-radius:10px;padding:14px}
+  .big .num{font-size:40px}
+  .sheet{width:100%;max-width:100%;height:100%;max-height:100%;border-radius:0}
+}
+</style>
+</head>
+<body>
+<header>
+  <div style="display:flex;align-items:center;gap:8px">
+    <a href="/nav" title="返回导航"
+       style="color:#64748b;text-decoration:none;font-size:20px;font-weight:400;
+              line-height:1;display:inline-flex;align-items:center;
+              justify-content:center;min-width:44px;min-height:44px;
+              border-radius:8px"
+       onclick="if(document.referrer.includes('/nav')){history.back();return false}">←</a>
+    <span class="ttl">开车轨迹</span>
+  </div>
+  <span class="net" id="netTip">就绪</span>
+</header>
+
+<main>
+  <section class="card">
+    <div class="big">
+      <div class="num" id="curDist">0.00</div>
+      <div class="unit">本段里程（公里）</div>
+    </div>
+    <div class="grid">
+      <div class="cell"><b id="curTime">00:00:00</b><span>本段时长</span></div>
+      <div class="cell ok"><b id="curSpd">0</b><span>当前时速 km/h</span></div>
+      <div class="cell"><b id="curAvg">0</b><span>本段均速 km/h</span></div>
+      <div class="cell"><b id="curMax">0</b><span>本段最高 km/h</span></div>
+    </div>
+    <div class="meta">
+      <span id="gpsTip">定位未启动</span>
+      <span id="ptTip">0 个定位点</span>
+    </div>
+  </section>
+
+  <section class="card ctrl">
+    <button class="btn-primary" id="btnStart">开始记录</button>
+    <button id="btnPause" hidden>暂停记录</button>
+    <button id="btnResume" hidden>继续记录</button>
+    <button class="btn-danger" id="btnFinish" hidden>结束并保存</button>
+  </section>
+
+  <section class="card">
+    <div class="ttl2">实时轨迹</div>
+    <canvas id="trail"></canvas>
+  </section>
+
+  <section class="card">
+    <div class="ttl2">总计</div>
+    <div class="grid">
+      <div class="cell"><b id="totDist">0.00</b><span>总里程（公里）</span></div>
+      <div class="cell"><b id="totToday">0.00</b><span>今日里程（公里）</span></div>
+      <div class="cell"><b id="totSeg">0</b><span>总段数</span></div>
+      <div class="cell"><b id="totTime">0分</b><span>总时长</span></div>
+    </div>
+  </section>
+
+  <section class="card">
+    <div class="ttl2">历史分段</div>
+    <div id="segList"><div class="empty">加载中…</div></div>
+  </section>
+
+  <section class="card">
+    <div class="tipbox">
+      <div>定位说明</div>
+      <div>1. 记录期间请保持本页面在前台，锁屏或切到其他 App 会中断 GPS 采集。</div>
+      <div>2. 开始记录后会请求屏幕常亮，避免手机自动熄屏。</div>
+      <div>3. 信号弱时数据先存本地，恢复网络后自动补传，不会丢失。</div>
+    </div>
+  </section>
+</main>
+
+<div class="mask" id="mFinish">
+  <div class="sheet">
+    <h3>结束并保存本段</h3>
+    <label>分段名称（最多 20 字）</label>
+    <input id="finName" maxlength="20" placeholder="例如：上班通勤">
+    <label>备注（可选）</label>
+    <textarea id="finNote" maxlength="200" placeholder="路线、路况等"></textarea>
+    <div class="dgrid">
+      <div class="cell"><b id="finDist">0.00</b><span>本段里程 km</span></div>
+      <div class="cell"><b id="finDur">0分</b><span>本段时长</span></div>
+    </div>
+    <div class="acts">
+      <button class="btn-ghost" data-close="mFinish">取消</button>
+      <button class="btn-primary" id="finOk">保存</button>
+    </div>
+  </div>
+</div>
+
+<div class="mask" id="mDetail">
+  <div class="sheet">
+    <h3 id="dtTitle">分段详情</h3>
+    <div class="dgrid">
+      <div class="cell"><b id="dtDist">0.00</b><span>里程 km</span></div>
+      <div class="cell"><b id="dtDur">0分</b><span>时长</span></div>
+      <div class="cell"><b id="dtAvg">0</b><span>均速 km/h</span></div>
+      <div class="cell"><b id="dtMax">0</b><span>最高 km/h</span></div>
+    </div>
+    <canvas id="dtCanvas" style="margin:10px 0"></canvas>
+    <div class="tipbox" id="dtMeta"></div>
+    <label>分段名称（最多 20 字）</label>
+    <input id="dtName" maxlength="20">
+    <label>备注</label>
+    <textarea id="dtNote" maxlength="200"></textarea>
+    <div class="acts">
+      <button class="btn-danger" id="dtDel">删除</button>
+      <button class="btn-primary" id="dtSave">保存修改</button>
+      <button class="btn-ghost" data-close="mDetail">关闭</button>
+    </div>
+  </div>
+</div>
+
+<script>
+const MIN_STEP_M = 5;      // 相邻点最小位移，低于视为 GPS 抖动
+const MAX_SPEED = 300;     // 异常跳点阈值 km/h
+const MAX_ACC = 100;       // 精度阈值（米）
+const UPLOAD_EVERY = 8;    // 累积多少个点上传一次
+const UPLOAD_MS = 15000;   // 定时上传间隔
+
+const $ = s => document.querySelector(s);
+const state = {
+  segId: null, recording: false, paused: false,
+  points: [], pending: [], distM: 0, lastPt: null,
+  startedAt: 0, curSpeed: 0, curMax: 0,
+  watchId: null, wake: null, timer: null, tick: null,
+  acc: null, segList: []
+};
+
+function haversine(la1, lo1, la2, lo2){
+  const R = 6371000, r = Math.PI / 180;
+  const dLa = (la2 - la1) * r, dLo = (lo2 - lo1) * r;
+  const a = Math.sin(dLa/2)**2 + Math.cos(la1*r)*Math.cos(la2*r)*Math.sin(dLo/2)**2;
+  return 2 * R * Math.asin(Math.min(1, Math.sqrt(a)));
+}
+async function api(url, opt){
+  const o = Object.assign({headers:{'Content-Type':'application/json'}}, opt || {});
+  const res = await fetch(url, o);
+  const txt = await res.text();
+  try { return JSON.parse(txt); } catch(e){ return {success:false, error:'服务器返回异常'}; }
+}
+function fmtKm(m){ return ((m || 0) / 1000).toFixed(2); }
+function fmtDur(sec){
+  sec = Math.max(0, Math.round(sec || 0));
+  const h = Math.floor(sec/3600), m = Math.floor(sec%3600/60), s = sec%60;
+  if (h) return h + '小时' + m + '分';
+  if (m) return m + '分' + s + '秒';
+  return s + '秒';
+}
+function fmtHMS(sec){
+  sec = Math.max(0, Math.round(sec || 0));
+  const h = String(Math.floor(sec/3600)).padStart(2,'0');
+  const m = String(Math.floor(sec%3600/60)).padStart(2,'0');
+  const s = String(sec%60).padStart(2,'0');
+  return h + ':' + m + ':' + s;
+}
+function fmtClock(str){
+  if (!str) return '';
+  const p = String(str).replace('T',' ').split(' ');
+  const d = (p[0] || '').split('-');
+  return (d.length === 3 ? d[1] + '-' + d[2] : '') + ' ' + (p[1] || '').slice(0,5);
+}
+function setNet(t){ $('#netTip').textContent = t; }
+function openMask(id){ $('#' + id).classList.add('on'); }
+function closeMask(id){ $('#' + id).classList.remove('on'); }
+
+/* ---------------- 实时状态渲染 ---------------- */
+function segDuration(){
+  if (!state.points.length) return 0;
+  const a = Date.parse(state.points[0].ts), b = Date.parse(state.points[state.points.length-1].ts);
+  return (isFinite(a) && isFinite(b)) ? Math.max(0, (b - a)/1000) : 0;
+}
+function renderLive(){
+  $('#curDist').textContent = fmtKm(state.distM);
+  const dur = state.recording ? Math.max(segDuration(), (Date.now() - state.startedAt)/1000) : segDuration();
+  $('#curTime').textContent = fmtHMS(dur);
+  $('#curSpd').textContent = Math.round(state.curSpeed || 0);
+  const avg = dur > 0 ? (state.distM / dur * 3.6) : 0;
+  $('#curAvg').textContent = Math.round(avg);
+  $('#curMax').textContent = Math.round(state.curMax || 0);
+  $('#ptTip').textContent = state.points.length + ' 个定位点';
+}
+function applyStats(st){
+  if (!st) return;
+  state.distM = st.distance_m;
+  state.curMax = st.max_speed_kmh;
+  renderLive();
+  drawTrail($('#trail'), state.points);
+}
+
+/* ---------------- 定位 ---------------- */
+function onPos(pos){
+  const c = pos.coords;
+  state.acc = c.accuracy;
+  if (c.accuracy > MAX_ACC){
+    $('#gpsTip').className = 'warn';
+    $('#gpsTip').textContent = '信号弱（精度 ' + Math.round(c.accuracy) + ' 米），已忽略';
+    return;
+  }
+  $('#gpsTip').className = '';
+  $('#gpsTip').textContent = '定位正常（精度 ' + Math.round(c.accuracy) + ' 米）';
+  const pt = {
+    lat: +c.latitude.toFixed(7), lng: +c.longitude.toFixed(7),
+    accuracy: Math.round(c.accuracy),
+    speed_kmh: (c.speed != null && c.speed >= 0) ? +(c.speed * 3.6).toFixed(1) : 0,
+    ts: new Date(pos.timestamp).toISOString()
+  };
+  state.curSpeed = pt.speed_kmh;
+  if (!state.recording || state.paused){ renderLive(); return; }
+  const prev = state.lastPt;
+  if (prev){
+    const d = haversine(prev.lat, prev.lng, pt.lat, pt.lng);
+    const dt = (Date.parse(pt.ts) - Date.parse(prev.ts)) / 1000;
+    if (d < MIN_STEP_M){ renderLive(); return; }
+    if (dt > 0 && (d / dt * 3.6) > MAX_SPEED) return;
+    state.distM += d;
+  }
+  state.lastPt = pt;
+  state.points.push(pt);
+  state.pending.push(pt);
+  renderLive();
+  drawTrail($('#trail'), state.points);
+  if (state.pending.length >= UPLOAD_EVERY) uploadPending();
+}
+function onErr(e){
+  const tips = {1:'定位权限被拒绝，请在浏览器设置中允许定位', 2:'暂时无法获取定位信号', 3:'定位请求超时'};
+  $('#gpsTip').className = 'warn';
+  $('#gpsTip').textContent = tips[e.code] || '定位异常';
+}
+
+/* ---------------- 上传 ---------------- */
+async function uploadPending(){
+  if (!state.segId || !state.pending.length) return;
+  const batch = state.pending.splice(0, 60);
+  try {
+    const r = await api('/api/track/push', {method:'POST', body: JSON.stringify({seg_id: state.segId, points: batch})});
+    if (!r.success){
+      state.pending = batch.concat(state.pending);
+      setNet('上传失败：' + (r.error || '未知错误'));
+      return;
+    }
+    setNet('已同步 ' + state.points.length + ' 点');
+    applyStats(r.stats);
+  } catch(e){
+    state.pending = batch.concat(state.pending);
+    setNet('离线，待补传 ' + state.pending.length + ' 点');
+  }
+}
+
+/* ---------------- 轨迹绘制 ---------------- */
+function drawTrail(cv, pts){
+  if (!cv) return;
+  const dpr = window.devicePixelRatio || 1;
+  const w = cv.clientWidth || 300, h = cv.clientHeight || 190;
+  if (cv.width !== Math.round(w*dpr) || cv.height !== Math.round(h*dpr)){
+    cv.width = Math.round(w*dpr); cv.height = Math.round(h*dpr);
+  }
+  const ctx = cv.getContext('2d');
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  ctx.clearRect(0, 0, w, h);
+  ctx.fillStyle = '#f8fafc'; ctx.fillRect(0, 0, w, h);
+  if (!pts || pts.length < 2){
+    ctx.fillStyle = '#94a3b8'; ctx.font = '13px sans-serif'; ctx.textAlign = 'center';
+    ctx.fillText(pts && pts.length ? '轨迹点不足，继续行驶即可绘制' : '暂无轨迹', w/2, h/2);
+    return;
+  }
+  let minLa = 90, maxLa = -90, minLo = 180, maxLo = -180;
+  pts.forEach(p => {
+    minLa = Math.min(minLa, p.lat); maxLa = Math.max(maxLa, p.lat);
+    minLo = Math.min(minLo, p.lng); maxLo = Math.max(maxLo, p.lng);
+  });
+  const kx = Math.cos((minLa + maxLa) / 2 * Math.PI / 180);
+  const rawW = Math.max((maxLo - minLo) * kx, 1e-9);
+  const rawH = Math.max(maxLa - minLa, 1e-9);
+  const pad = 16;
+  const scale = Math.min((w - pad*2) / rawW, (h - pad*2) / rawH);
+  const offX = (w - rawW * scale) / 2, offY = (h - rawH * scale) / 2;
+  const XY = p => [offX + (p.lng - minLo) * kx * scale, offY + (maxLa - p.lat) * scale];
+  ctx.strokeStyle = '#4f46e5'; ctx.lineWidth = 2.5; ctx.lineJoin = 'round'; ctx.lineCap = 'round';
+  ctx.beginPath();
+  pts.forEach((p, i) => { const q = XY(p); if (i) ctx.lineTo(q[0], q[1]); else ctx.moveTo(q[0], q[1]); });
+  ctx.stroke();
+  const s = XY(pts[0]), e = XY(pts[pts.length-1]);
+  ctx.fillStyle = '#059669'; ctx.beginPath(); ctx.arc(s[0], s[1], 5, 0, Math.PI*2); ctx.fill();
+  ctx.fillStyle = '#dc2626'; ctx.beginPath(); ctx.arc(e[0], e[1], 5, 0, Math.PI*2); ctx.fill();
+}
+
+/* ---------------- 记录控制 ---------------- */
+async function keepAwake(on){
+  try {
+    if (on){
+      if ('wakeLock' in navigator && !state.wake) state.wake = await navigator.wakeLock.request('screen');
+    } else if (state.wake){
+      await state.wake.release(); state.wake = null;
+    }
+  } catch(e){}
+}
+function startWatch(){
+  if (!navigator.geolocation){ $('#gpsTip').textContent = '当前浏览器不支持定位'; return; }
+  if (state.watchId != null) return;
+  state.watchId = navigator.geolocation.watchPosition(onPos, onErr,
+    {enableHighAccuracy: true, maximumAge: 0, timeout: 30000});
+}
+function setBtns(){
+  const r = state.recording;
+  $('#btnStart').hidden = r;
+  $('#btnPause').hidden = !(r && !state.paused);
+  $('#btnResume').hidden = !(r && state.paused);
+  $('#btnFinish').hidden = !r;
+}
+async function startRec(){
+  const r = await api('/api/track/start', {method:'POST', body: JSON.stringify({})});
+  if (!r.success){ setNet('开始失败：' + (r.error || '')); return; }
+  state.segId = r.seg_id;
+  state.recording = true; state.paused = false;
+  state.points = []; state.pending = []; state.distM = 0;
+  state.lastPt = null; state.curMax = 0; state.startedAt = Date.now();
+  setBtns(); startWatch(); keepAwake(true);
+  setNet('记录中（第 ' + r.seg_id + ' 段）');
+  renderLive();
+}
+function pauseRec(){
+  state.paused = true; state.curSpeed = 0;
+  setBtns(); setNet('已暂停');
+  renderLive();
+}
+function resumeRec(){
+  state.paused = false;
+  if (state.points.length) state.lastPt = state.points[state.points.length - 1];
+  setBtns(); setNet('记录中');
+}
+function askFinish(){
+  $('#finName').value = $('#finName').value || (new Date().toLocaleString('zh-CN', {month:'2-digit', day:'2-digit', hour:'2-digit', minute:'2-digit'}).replace(/\//g,'-') + ' 行程');
+  $('#finDist').textContent = fmtKm(state.distM);
+  $('#finDur').textContent = fmtDur(segDuration());
+  openMask('mFinish');
+}
+async function doFinish(){
+  const name = $('#finName').value.trim().slice(0, 20) || '未命名行程';
+  const note = $('#finNote').value.trim().slice(0, 200);
+  setNet('正在保存…');
+  await uploadPending();
+  const r = await api('/api/track/finish', {method:'POST', body: JSON.stringify({seg_id: state.segId, name: name, note: note})});
+  if (!r.success){ setNet('保存失败：' + (r.error || '')); return; }
+  closeMask('mFinish');
+  state.recording = false; state.paused = false;
+  state.curSpeed = 0;
+  if (state.watchId != null){ navigator.geolocation.clearWatch(state.watchId); state.watchId = null; }
+  keepAwake(false);
+  setBtns();
+  setNet('已保存：' + name);
+  $('#finNote').value = '';
+  await loadList();
+  renderLive();
+}
+
+/* ---------------- 列表与详情 ---------------- */
+async function loadList(){
+  const r = await api('/api/track/segments?limit=100');
+  if (!r.success){ $('#segList').innerHTML = '<div class="empty">加载失败</div>'; return; }
+  const t = r.total || {}, td = r.today || {};
+  $('#totDist').textContent = fmtKm(t.distance_m);
+  $('#totToday').textContent = fmtKm(td.distance_m);
+  $('#totSeg').textContent = t.segments || 0;
+  $('#totTime').textContent = fmtDur(t.duration_sec);
+  state.segList = r.data || [];
+  if (!state.segList.length){ $('#segList').innerHTML = '<div class="empty">还没有记录，点击「开始记录」出发</div>'; return; }
+  $('#segList').innerHTML = state.segList.map(s => {
+    const tag = s.status === 'recording' ? '<span class="warn">（记录中）</span>' : '';
+    return '<div class="row" data-id="' + s.id + '">' +
+      '<div class="l"><div class="n">' + esc(s.name || '未命名行程') + tag + '</div>' +
+      '<div class="s">' + fmtClock(s.started_at) + ' · ' + fmtDur(s.duration_sec) + ' · 均速 ' + Math.round(s.avg_speed_kmh || 0) + '</div></div>' +
+      '<div class="d">' + fmtKm(s.distance_m) + ' <i>km</i></div></div>';
+  }).join('');
+}
+function esc(s){
+  return String(s == null ? '' : s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+let dtId = null;
+async function showDetail(id){
+  const r = await api('/api/track/segment/' + id);
+  if (!r.success){ setNet('读取失败'); return; }
+  const s = r.data;
+  dtId = s.id;
+  $('#dtTitle').textContent = s.name || '分段详情';
+  $('#dtDist').textContent = fmtKm(s.distance_m);
+  $('#dtDur').textContent = fmtDur(s.duration_sec);
+  $('#dtAvg').textContent = Math.round(s.avg_speed_kmh || 0);
+  $('#dtMax').textContent = Math.round(s.max_speed_kmh || 0);
+  $('#dtName').value = s.name || '';
+  $('#dtNote').value = s.note || '';
+  $('#dtMeta').innerHTML = '开始：' + esc(fmtClock(s.started_at) || '—') +
+    '<br>结束：' + esc(fmtClock(s.ended_at) || '—') +
+    '<br>定位点：' + (s.point_count || 0) + ' 个';
+  openMask('mDetail');
+  drawTrail($('#dtCanvas'), s.points || []);
+}
+async function saveDetail(){
+  if (!dtId) return;
+  const name = $('#dtName').value.trim().slice(0, 20);
+  if (!name){ setNet('名称不能为空'); return; }
+  const r = await api('/api/track/segment/' + dtId, {method:'POST', body: JSON.stringify({name: name, note: $('#dtNote').value.trim().slice(0,200)})});
+  if (!r.success){ setNet('保存失败：' + (r.error || '')); return; }
+  closeMask('mDetail');
+  setNet('已更新');
+  await loadList();
+}
+async function delDetail(){
+  if (!dtId) return;
+  if (!confirm('确定删除这条分段记录？轨迹点会一并删除。')) return;
+  const r = await api('/api/track/segment/' + dtId, {method:'DELETE'});
+  if (!r.success){ setNet('删除失败：' + (r.error || '')); return; }
+  if (dtId === state.segId){ state.segId = null; state.recording = false; setBtns(); }
+  closeMask('mDetail');
+  setNet('已删除');
+  await loadList();
+}
+
+/* ---------------- 启动 ---------------- */
+async function restoreActive(){
+  const r = await api('/api/track/active');
+  if (!r.success || !r.data) return;
+  const s = r.data;
+  state.segId = s.id;
+  state.points = s.points || [];
+  state.distM = s.distance_m || 0;
+  state.curMax = s.max_speed_kmh || 0;
+  state.recording = true; state.paused = true;
+  state.startedAt = state.points.length ? Date.parse(state.points[0].ts) : Date.now();
+  state.lastPt = state.points.length ? state.points[state.points.length - 1] : null;
+  setBtns();
+  setNet('已恢复未结束的第 ' + s.id + ' 段，点「继续记录」接着跑');
+  startWatch();
+  renderLive();
+  drawTrail($('#trail'), state.points);
+}
+
+function bind(){
+  $('#btnStart').onclick = startRec;
+  $('#btnPause').onclick = pauseRec;
+  $('#btnResume').onclick = resumeRec;
+  $('#btnFinish').onclick = askFinish;
+  $('#finOk').onclick = doFinish;
+  $('#dtSave').onclick = saveDetail;
+  $('#dtDel').onclick = delDetail;
+  document.querySelectorAll('[data-close]').forEach(b => b.onclick = () => closeMask(b.dataset.close));
+  $('#segList').onclick = e => {
+    const row = e.target.closest('.row');
+    if (row) showDetail(row.dataset.id);
+  };
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible' && state.recording) keepAwake(true);
+  });
+  window.addEventListener('resize', () => {
+    drawTrail($('#trail'), state.points);
+  });
+}
+
+(async function boot(){
+  bind();
+  setBtns();
+  await loadList();
+  await restoreActive();
+  renderLive();
+  drawTrail($('#trail'), state.points);
+  state.timer = setInterval(() => { if (state.recording) uploadPending(); }, UPLOAD_MS);
+  state.tick = setInterval(() => { if (state.recording) renderLive(); }, 1000);
+})();
+</script>
+</body>
+</html>
