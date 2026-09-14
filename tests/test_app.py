@@ -593,21 +593,22 @@ class TestQRCode(unittest.TestCase):
         self.assertNotIn('linearGradient', svg)
         self.assertIn('shape-rendering="crispEdges"', svg)
 
-    def test_mode_vcard_default(self) -> None:
-        """默认写入 vCard 名片：微信/系统扫码器识别为联系人后可点呼叫"""
+    def test_mode_page_default(self) -> None:
+        """默认为网页中转：任何扫码器打开页面后都能拨号"""
         r = self.client.post('/api/qrcode', json={'phone': '13800138000', 'fmt': 'json'})
         d: dict = r.get_json()['data']
-        self.assertEqual(d['mode'], 'vcard')
-        self.assertIn('BEGIN:VCARD', d['content'])
-        self.assertIn('TEL;TYPE=CELL:+8613800138000', d['content'])
+        self.assertEqual(d['mode'], 'page')
+        self.assertTrue(d['content'].endswith('/qrcode/call/8613800138000'))
 
-    def test_mode_tel_and_page(self) -> None:
+    def test_mode_tel_and_vcard(self) -> None:
         r = self.client.post('/api/qrcode',
                              json={'phone': '13800138000', 'mode': 'tel', 'fmt': 'json'})
         self.assertEqual(r.get_json()['data']['content'], 'tel:+8613800138000')
         r = self.client.post('/api/qrcode',
-                             json={'phone': '13800138000', 'mode': 'page', 'fmt': 'json'})
-        self.assertTrue(r.get_json()['data']['content'].endswith('/qrcode/call/8613800138000'))
+                             json={'phone': '13800138000', 'mode': 'vcard', 'fmt': 'json'})
+        d: dict = r.get_json()['data']
+        self.assertIn('BEGIN:VCARD', d['content'])
+        self.assertIn('TEL;TYPE=CELL:+8613800138000', d['content'])
 
     def test_invalid_mode(self) -> None:
         r = self.client.post('/api/qrcode',

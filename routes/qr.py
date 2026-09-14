@@ -6,11 +6,12 @@
 设计说明：
 - 不依赖任何第三方库：PythonAnywhere 免费版无法保证 pip 安装成功，
   因此 QR 编码、Reed-Solomon 纠错、PNG(zlib/struct) 全部自行实现。
-- 只生成电话二维码（挪车码）。**扫码内容有三种模式**（参数 mode）：
-  * vcard（默认）：`BEGIN:VCARD…` 联系人名片，微信/系统扫码器都识别成名片并
-    给出「呼叫」按钮——`tel:` 在微信里只会被当成一段文本显示，无法直接拨号。
-  * tel：直接 `tel:+86…`，iOS 相机等部分扫码器可直接拨号。
-  * page：本站中转页 `/qrcode/call/<号码>`，任何扫码器都能打开，页面自动/点击拨号。
+- 只生成电话二维码（挪车码）。**扫码内容有三种模式**（参数 mode，默认 page）：
+  * page（默认）：本站中转页 `/qrcode/call/<号码>`，微信 / 相机 / 浏览器都能打开，
+    页面立即唤起拨号（也有大按钮兜底），是目前唯一各扫码器都稳的方案。
+  * tel：直接 `tel:+86…`，只有 iOS 相机等少数扫码器会拨号，微信里只当文本显示。
+  * vcard：`BEGIN:VCARD…` 联系人名片，扫码后显示为名片、需再点一次「呼叫」，
+    部分扫码器识别不稳定，仅作备选。
 - SVG 支持标题（如「扫描挪车」）与底部提示行，并做圆角码点、圆角定位点与渐变
   标题条美化；**二维码下方不再印号码**（扫码即可拨号，印出来反而泄露隐私）。
 - PNG 为纯码（标准库无法渲染中文，带文字的 PNG 由前端 Canvas 合成导出）。
@@ -40,7 +41,7 @@ MAX_PIXELS = 1600         # 输出图片边长上限，超出自动缩小 scale
 MAX_TITLE_CHARS = 12      # 标题字数上限
 MAX_NOTE_CHARS = 24       # 提示行字数上限
 LEVELS = ('L', 'M', 'Q', 'H')
-MODES = ('vcard', 'tel', 'page')   # 扫码后的动作：名片 / 直拨 / 网页中转
+MODES = ('page', 'tel', 'vcard')   # 扫码后的动作：网页中转（默认）/ 直拨 / 名片
 MIN_VERSION, MAX_VERSION = 1, 10
 
 # 主题：渐变标题条（起/止色）与码点颜色（均用深色，保证扫码对比度）
@@ -677,11 +678,11 @@ _VCARD_NAME = '挪车'          # 名片显示名：固定短名，避免内容�
 
 
 def build_content(mode: str, phone: str) -> str:
-    """按扫码模式生成二维码内容
+    """按扫码模式生成二维码内容（默认 page）
 
-    vcard：联系人名片，微信/系统扫码器识别为名片并给出「呼叫」按钮；
-    tel  ：直接 tel: 链接，部分手机相机可直接拨号；
-    page ：本站中转页 URL，任何扫码器都能打开，页面再触发拨号。
+    page ：本站中转页 URL，微信 / 相机 / 浏览器都能打开，页面再触发拨号；
+    tel  ：直接 tel: 链接，仅部分扫码器可直接拨号；
+    vcard：联系人名片，扫码后显示为名片、需再点「呼叫」。
     """
     if mode == 'tel':
         return 'tel:' + phone
@@ -706,7 +707,7 @@ def _read_params() -> dict[str, Any]:
         'phone': phone,
         'intl': intl_raw not in ('0', 'false', 'no', 'off'),
         'title': _text_param(src, 'title', MAX_TITLE_CHARS),
-        'mode': (str(src.get('mode') or 'vcard')).strip().lower(),
+        'mode': (str(src.get('mode') or 'page')).strip().lower(),
         'hint': _text_param(src, 'hint', MAX_NOTE_CHARS),
         'theme': (str(src.get('theme') or 'green')).strip().lower(),
         'level': (str(src.get('level') or 'M')).strip().upper(),
@@ -770,7 +771,7 @@ def make_qrcode():
 
     GET  参数：phone / title / hint / theme / level / scale / border / fmt / mode
     POST JSON：同上
-    mode=vcard（默认，扫码识别为名片）/ tel（直接拨号）/ page（网页中转）
+    mode=page（默认，网页中转后再拨号）/ tel（直接拨号）/ vcard（联系人名片）
     fmt=svg 返回 SVG（带标题与提示的精美卡片）；fmt=png 返回纯码 PNG；fmt=json 返回矩阵
     """
     try:

@@ -122,9 +122,9 @@ input:focus,select:focus{outline:none;border-color:var(--primary);box-shadow:0 0
   <section class="card">
     <div class="ttl2">扫码后做什么</div>
     <div class="seg" id="callSeg">
-      <button data-m="vcard" class="on">名片（推荐）</button>
+      <button data-m="page" class="on">网页中转（推荐）</button>
       <button data-m="tel">直接拨号</button>
-      <button data-m="page">网页中转</button>
+      <button data-m="vcard">联系人名片</button>
     </div>
     <div class="hint" id="callHint"></div>
   </section>
@@ -161,15 +161,17 @@ input:focus,select:focus{outline:none;border-color:var(--primary);box-shadow:0 0
 
 <script>
 var $ = function(id){ return document.getElementById(id); };
-var state = { level:'H', scale:10, border:4, theme:'green', intl:true, call:'vcard', svg:'', phone:'', tel:'' };
+var state = { level:'H', scale:10, border:4, theme:'green', intl:true, call:'page', svg:'', phone:'', tel:'' };
 var HIST_KEY = 'qrcode_phone_history_v2';
-var PREF_KEY = 'qrcode_phone_pref_v2';
+var PREF_KEY = 'qrcode_phone_pref_v3';
 var CALL_HINT = {
-  vcard:'把号码写成联系人名片，微信和系统相机都会识别成名片，点「呼叫」即可拨号（推荐，各扫码器通用）。内容比 tel: 长、码点更密，打印贴纸建议不小于 5cm。',
-  tel:'直接写入 tel: 链接，iOS 相机等部分扫码器可一键拨号；微信里通常只显示一串文字。',
-  page:'先打开本站中转页再自动拨号，任何扫码器都可用，但扫码时需要联网。'
+  page:'扫码后先打开本站中转页，页面立刻唤起拨号（没弹出来就点页面上的大按钮）。微信、相机、浏览器都支持，唯一要求是扫码时联网。',
+  tel:'直接写入 tel: 链接，只有 iOS 相机等少数扫码器会拨号；微信里通常只显示一串文字，不能拨号。',
+  vcard:'把号码写成联系人名片，扫码后显示为一张名片，还要再点一次「呼叫」，部分扫码器识别不稳定；内容也更长、码点更密。'
 };
-var CALL_LABEL = { vcard:'联系人名片', tel:'tel: 链接', page:'网页中转' };
+var CALL_LABEL = { page:'网页中转', tel:'tel: 链接', vcard:'联系人名片' };
+/* 旧版本默认过名片，历史/偏好里存到的 vcard 一律按网页中转处理 */
+function fixCall(c){ return (!c || c === 'vcard') ? 'page' : c; }
 
 /* ---------- 号码处理 ---------- */
 function rawPhone(){
@@ -241,7 +243,7 @@ async function render(){
     state.tel = 'tel:' + normPhone();
     $('errBox').textContent = '';
     $('metaBox').style.display = 'flex';
-    $('metaTel').textContent = '内容 ' + CALL_LABEL[state.call] + '（' + state.tel + '）';
+    $('metaTel').textContent = '拨打 ' + state.tel + '（' + CALL_LABEL[state.call] + '）';
     $('metaInfo').textContent = '纠错等级 ' + state.level;
   }catch(e){
     $('errBox').textContent = '网络异常，请重试';
@@ -354,7 +356,7 @@ function renderHist(){
     var n = document.createElement('div');
     n.className = 'n';
     n.textContent = (item.title || '电话二维码') + ' · ' + fmtMask('+' + item.phone.replace(/\D/g, ''))
-                    + ' · ' + (CALL_LABEL[item.call] || CALL_LABEL.vcard);
+                    + ' · ' + (CALL_LABEL[fixCall(item.call)] || CALL_LABEL.page);
     var s = document.createElement('div');
     s.className = 's';
     var d = new Date(item.ts);
@@ -377,7 +379,8 @@ function applyHist(item){
   $('phoneInput').value = item.phone || '';
   $('titleInput').value = item.title || '';
   $('hintInput').value = item.hint || '';
-  if (item.call){ setSeg('callSeg', item.call); state.call = item.call; showCallHint(); }
+  var c = fixCall(item.call);
+  setSeg('callSeg', c); state.call = c; showCallHint();
   if (item.theme) setSeg('themeSeg', item.theme);
   if (item.level){ state.level = item.level; $('levelSel').value = item.level; }
   if (typeof item.intl === 'boolean'){ state.intl = item.intl; $('intlChk').checked = item.intl; }
@@ -428,13 +431,13 @@ function loadPref(){
   if (p.level){ state.level = p.level; $('levelSel').value = p.level; }
   if (p.scale){ state.scale = parseInt(p.scale, 10) || 10; $('scaleSel').value = String(state.scale); }
   if (typeof p.intl === 'boolean'){ state.intl = p.intl; $('intlChk').checked = p.intl; }
-  if (p.call){ setSeg('callSeg', p.call); state.call = p.call; }
+  if (p.call){ var c = fixCall(p.call); setSeg('callSeg', c); state.call = c; }
   if (p.theme){ setSeg('themeSeg', p.theme); state.theme = p.theme; }
   if (p.title) $('titleInput').value = p.title;
   if (p.hint) $('hintInput').value = p.hint;
 }
 function showCallHint(){
-  $('callHint').textContent = CALL_HINT[state.call] || CALL_HINT.vcard;
+  $('callHint').textContent = CALL_HINT[state.call] || CALL_HINT.page;
 }
 
 /* ---------- 事件绑定 ---------- */
@@ -465,7 +468,7 @@ for (var j = 0; j < hchips.length; j++){
 }
 
 loadPref();
-state.call = curSeg('callSeg') || 'vcard';
+state.call = fixCall(curSeg('callSeg'));
 if (!$('hintInput').value) $('hintInput').value = '扫我呼叫车主';
 showCallHint();
 renderHist();
