@@ -605,3 +605,31 @@ def capacity():
     return jsonify({'success': True, 'data': {
         lv: version_capacity(MAX_VERSION, lv) for lv in LEVELS
     }, 'max_chars': MAX_TEXT_CHARS})
+
+
+@bp.route('/api/backup/qrdiag')
+def qrdiag():                              # 临时诊断：确认静态目录在服务器上的落盘情况
+    import subprocess as _sp
+    info: dict[str, Any] = {'base': BASE_DIR}
+    info['exists_qr'] = os.path.isdir(QR_DIR)
+    try:
+        info['entries'] = sorted(os.listdir(BASE_DIR))[:60]
+    except Exception as e:
+        info['entries'] = 'ERR %r' % e
+    if os.path.isdir(QR_DIR):
+        try:
+            info['qr_files'] = sorted(os.listdir(QR_DIR))
+        except Exception as e:
+            info['qr_files'] = 'ERR %r' % e
+    for cmd, key in ((['git', 'ls-files'], 'git_ls'),
+                     (['git', 'status', '--porcelain'], 'git_status'),
+                     (['git', 'config', '--get', 'core.sparseCheckout'], 'sparse'),
+                     (['git', 'rev-parse', 'HEAD'], 'head')):
+        try:
+            r = _sp.run(cmd, cwd=BASE_DIR, capture_output=True, text=True, timeout=15)
+            lines = r.stdout.splitlines()
+            info[key] = (lines[:15] if key != 'head' else r.stdout.strip())
+            info[key + '_rc'] = r.returncode
+        except Exception as e:
+            info[key] = 'ERR %r' % e
+    return jsonify({'success': True, 'diag': info})
