@@ -1,0 +1,403 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>二维码生成</title>
+<link rel="icon" type="image/svg+xml" href="/qrcode/icon-192.svg">
+<link rel="manifest" href="/qrcode/manifest.json">
+<meta name="theme-color" content="#059669">
+<style>
+:root{--primary:#059669;--primary-l:#ecfdf5;--bg:#f0f2f5;--card-bg:#ffffff;--text:#1e293b;
+      --text-secondary:#64748b;--border:#e2e8f0;--shadow:0 2px 8px rgba(0,0,0,.06);--danger:#dc2626}
+*{margin:0;padding:0;box-sizing:border-box}
+body{padding-top:env(safe-area-inset-top);padding-left:env(safe-area-inset-left);padding-right:env(safe-area-inset-right);
+     padding-bottom:calc(16px + env(safe-area-inset-bottom));background:var(--bg);color:var(--text);font-size:15px;
+     font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif}
+body::before{content:'';position:fixed;top:0;left:0;right:0;height:env(safe-area-inset-top);background:#ffffff;z-index:101;pointer-events:none}
+header{background:#ffffff;border-bottom:1px solid var(--border);padding:12px 16px;position:sticky;top:0;z-index:100;
+       display:flex;align-items:center;justify-content:space-between}
+header .ttl{font-size:17px;font-weight:600}
+main{max-width:900px;margin:0 auto;padding:12px}
+.card{background:var(--card-bg);border:1px solid var(--border);border-radius:12px;padding:16px;margin-bottom:12px;box-shadow:var(--shadow)}
+.ttl2{font-size:13px;font-weight:600;color:var(--text-secondary);margin-bottom:10px}
+.seg{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px}
+.seg button{flex:1;min-width:72px;min-height:44px;border-radius:10px;border:1px solid var(--border);
+            background:#fff;color:var(--text-secondary);font-weight:600;font-size:15px;font-family:inherit;cursor:pointer}
+.seg button.on{background:var(--primary);border-color:var(--primary);color:#fff}
+label{display:block;font-size:13px;color:var(--text-secondary);margin:10px 0 5px}
+input,textarea,select{width:100%;border:1px solid var(--border);border-radius:10px;padding:10px 12px;min-height:44px;
+                     font-size:16px;font-family:inherit;color:var(--text);background:#fff}
+textarea{min-height:72px;resize:vertical}
+input:focus,textarea:focus,select:focus{outline:none;border-color:var(--primary);box-shadow:0 0 0 3px rgba(5,150,105,.12)}
+.check{display:flex;align-items:center;gap:8px;margin-top:10px;font-size:14px;color:var(--text-secondary);min-height:44px}
+.check input{width:20px;height:20px;min-height:20px;flex:none}
+.hint{font-size:12px;color:var(--text-secondary);line-height:1.6;margin-top:8px}
+.qrbox{background:#fff;border:1px solid var(--border);border-radius:10px;padding:14px;display:flex;
+       align-items:center;justify-content:center;min-height:220px}
+.qrbox svg{width:100%;max-width:300px;height:auto;display:block}
+.qrbox .ph{color:var(--text-secondary);font-size:13px;text-align:center;line-height:1.7}
+.content{background:#f8fafc;border-radius:10px;padding:10px 12px;margin-top:12px;font-size:13px;color:var(--text-secondary);
+         word-break:break-all;line-height:1.6}
+.content b{color:var(--text);font-weight:600}
+.meta{display:flex;justify-content:space-between;flex-wrap:wrap;gap:8px;font-size:12px;color:var(--text-secondary);margin-top:10px}
+.err{color:var(--danger);font-size:13px;margin-top:10px;min-height:18px}
+.acts{display:flex;gap:10px;flex-wrap:wrap;margin-top:12px}
+.acts button{flex:1;min-width:100px;min-height:44px;border:none;border-radius:10px;padding:10px 16px;font-weight:600;
+             font-size:15px;font-family:inherit;cursor:pointer;background:#e2e8f0;color:var(--text)}
+.acts button:active{opacity:.85}
+.btn-primary{background:var(--primary);color:#fff}
+.row{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:11px 0;border-bottom:1px solid #f1f5f9}
+.row:last-child{border-bottom:none}
+.row .l{flex:1;min-width:0}
+.row .n{font-weight:600;font-size:14px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.row .s{font-size:12px;color:var(--text-secondary);margin-top:3px}
+.row .rm{flex:none;min-width:44px;min-height:44px;border:1px solid var(--border);background:#fff;border-radius:9px;
+         color:var(--danger);font-size:13px;font-family:inherit;cursor:pointer}
+.empty{text-align:center;color:var(--text-secondary);font-size:13px;padding:20px 0}
+@media (max-width:768px){
+  .card{border-radius:10px;padding:14px}
+  .acts button{min-width:calc(50% - 5px)}
+}
+</style>
+</head>
+<body>
+<header>
+  <div style="display:flex;align-items:center;gap:8px">
+    <a href="/nav" title="返回导航"
+       style="color:#64748b;text-decoration:none;font-size:20px;font-weight:400;
+              line-height:1;display:inline-flex;align-items:center;
+              justify-content:center;min-width:44px;min-height:44px;
+              border-radius:8px"
+       onclick="if(document.referrer.includes('/nav')){history.back();return false}">←</a>
+    <span class="ttl">二维码生成</span>
+  </div>
+</header>
+
+<main>
+  <section class="card">
+    <div class="ttl2">内容类型</div>
+    <div class="seg" id="typeSeg">
+      <button data-t="tel" class="on">电话</button>
+      <button data-t="sms">短信</button>
+      <button data-t="url">网址</button>
+      <button data-t="text">文本</button>
+    </div>
+
+    <div id="formTel">
+      <label for="telInput">手机号码</label>
+      <input id="telInput" type="tel" inputmode="tel" placeholder="请输入手机号，如 13800138000" autocomplete="off">
+      <div class="check"><input type="checkbox" id="intlChk" checked><label for="intlChk" style="margin:0">自动添加 +86 区号</label></div>
+      <div class="hint">扫码后手机会直接弹出拨号界面，适合印在名片、店铺台卡上。</div>
+    </div>
+
+    <div id="formSms" style="display:none">
+      <label for="smsNum">接收号码</label>
+      <input id="smsNum" type="tel" inputmode="tel" placeholder="如 13800138000" autocomplete="off">
+      <label for="smsBody">短信内容</label>
+      <textarea id="smsBody" placeholder="扫码后自动填入的短信内容（可留空）"></textarea>
+      <div class="hint">部分手机对短信二维码的支持不一致，如无法使用可改用「电话」类型。</div>
+    </div>
+
+    <div id="formUrl" style="display:none">
+      <label for="urlInput">网址</label>
+      <input id="urlInput" type="url" inputmode="url" placeholder="如 example.com" autocomplete="off">
+      <div class="hint">未填写协议时会自动补充 https://</div>
+    </div>
+
+    <div id="formText" style="display:none">
+      <label for="textInput">文本内容</label>
+      <textarea id="textInput" placeholder="任意文字，扫码后显示（最多约 90 个汉字）"></textarea>
+    </div>
+  </section>
+
+  <section class="card">
+    <div class="ttl2">二维码</div>
+    <div class="qrbox" id="qrBox">
+      <div class="ph">填写上方内容后<br>自动生成二维码</div>
+    </div>
+    <div class="content" id="contentBox" style="display:none">编码内容：<b id="contentText"></b></div>
+    <div class="meta" id="metaBox" style="display:none">
+      <span id="metaSize"></span>
+      <span id="metaLevel"></span>
+    </div>
+    <div class="err" id="errBox"></div>
+    <div class="acts">
+      <button class="btn-primary" id="btnPng">下载 PNG</button>
+      <button id="btnSvg">下载 SVG</button>
+      <button id="btnCopy">复制内容</button>
+    </div>
+  </section>
+
+  <section class="card">
+    <div class="ttl2">生成参数</div>
+    <label for="levelSel">纠错等级</label>
+    <select id="levelSel">
+      <option value="L">L — 约 7%（内容最多）</option>
+      <option value="M" selected>M — 约 15%（推荐）</option>
+      <option value="Q">Q — 约 25%</option>
+      <option value="H">H — 约 30%（可加 Logo / 遮挡）</option>
+    </select>
+    <label for="scaleSel">图片大小</label>
+    <select id="scaleSel">
+      <option value="6">小（约 200px）</option>
+      <option value="8" selected>中（约 280px）</option>
+      <option value="12">大（约 400px）</option>
+      <option value="16">超大（约 560px）</option>
+    </select>
+    <div class="hint">纠错等级越高，二维码越密但越耐污损；户外张贴或需加盖图案时建议选 H。</div>
+  </section>
+
+  <section class="card">
+    <div class="ttl2">最近生成</div>
+    <div id="histList"></div>
+  </section>
+</main>
+
+<script>
+var $ = function(id){ return document.getElementById(id); };
+var state = { type:'tel', level:'M', scale:8, border:4, text:'', svg:'' };
+var HIST_KEY = 'qrcode_history_v1';
+var PREF_KEY = 'qrcode_pref_v1';
+var TYPE_LABEL = { tel:'电话', sms:'短信', url:'网址', text:'文本' };
+
+/* ---------- 内容构造 ---------- */
+function cleanPhone(v){
+  return (v || '').replace(/[^\d+]/g, '');
+}
+function withIntl(p){
+  if (!p) return '';
+  if (p.indexOf('+') === 0) return p;
+  if ($('intlChk').checked){
+    var n = p.indexOf('86') === 0 ? p : '86' + p.replace(/^0+/, '');
+    return '+' + n;
+  }
+  return p;
+}
+function buildText(){
+  var t = state.type;
+  if (t === 'tel'){
+    return withIntl(cleanPhone($('telInput').value)) ? 'tel:' + withIntl(cleanPhone($('telInput').value)) : '';
+  }
+  if (t === 'sms'){
+    var n = withIntl(cleanPhone($('smsNum').value));
+    if (!n) return '';
+    var body = ($('smsBody').value || '').trim();
+    return body ? 'SMSTO:' + n + ':' + body : 'SMSTO:' + n + ':';
+  }
+  if (t === 'url'){
+    var u = ($('urlInput').value || '').trim();
+    if (!u) return '';
+    if (!/^[a-zA-Z][a-zA-Z0-9+.-]*:\/\//.test(u)) u = 'https://' + u;
+    return u;
+  }
+  return ($('textInput').value || '').trim();
+}
+
+/* ---------- 生成 ---------- */
+var timer = null;
+function schedule(){
+  clearTimeout(timer);
+  timer = setTimeout(render, 300);
+}
+async function render(){
+  var text = buildText();
+  if (!text){
+    $('qrBox').innerHTML = '<div class="ph">填写上方内容后<br>自动生成二维码</div>';
+    $('contentBox').style.display = 'none';
+    $('metaBox').style.display = 'none';
+    $('errBox').textContent = '';
+    state.text = ''; state.svg = '';
+    return;
+  }
+  try{
+    var res = await fetch('/api/qrcode', {
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ text:text, level:state.level, scale:state.scale, border:state.border, fmt:'svg' })
+    });
+    if (!res.ok){
+      var j = await res.json().catch(function(){ return {}; });
+      $('errBox').textContent = j.error || ('生成失败（' + res.status + '）');
+      return;
+    }
+    var svg = await res.text();
+    $('qrBox').innerHTML = svg;
+    state.svg = svg; state.text = text;
+    $('errBox').textContent = '';
+    $('contentBox').style.display = 'block';
+    $('contentText').textContent = text;
+    $('metaBox').style.display = 'flex';
+    $('metaSize').textContent = '内容 ' + new TextEncoder().encode(text).length + ' 字节';
+    $('metaLevel').textContent = '纠错等级 ' + state.level;
+  }catch(e){
+    $('errBox').textContent = '网络异常，请重试';
+  }
+}
+
+/* ---------- 下载 / 复制 ---------- */
+function saveBlob(blob, filename){
+  var url = URL.createObjectURL(blob);
+  var a = document.createElement('a');
+  a.href = url; a.download = filename;
+  document.body.appendChild(a); a.click();
+  document.body.removeChild(a);
+  setTimeout(function(){ URL.revokeObjectURL(url); }, 1000);
+}
+async function downloadPng(){
+  if (!state.text){ alert('请先填写内容'); return; }
+  try{
+    var res = await fetch('/api/qrcode', {
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ text:state.text, level:state.level, scale:state.scale, border:state.border, fmt:'png' })
+    });
+    if (!res.ok){ alert('下载失败，请重试'); return; }
+    var blob = await res.blob();
+    saveBlob(blob, 'qrcode-' + state.type + '.png');
+    pushHistory();
+  }catch(e){ alert('下载失败，请重试'); }
+}
+function downloadSvg(){
+  if (!state.svg){ alert('请先填写内容'); return; }
+  saveBlob(new Blob([state.svg], { type:'image/svg+xml' }), 'qrcode-' + state.type + '.svg');
+  pushHistory();
+}
+function copyText(){
+  if (!state.text){ alert('请先填写内容'); return; }
+  var txt = state.text;
+  if (navigator.clipboard && window.isSecureContext){
+    navigator.clipboard.writeText(txt).then(function(){ alert('已复制：' + txt); });
+    return;
+  }
+  var ta = document.createElement('textarea');
+  ta.value = txt; document.body.appendChild(ta); ta.select();
+  try{ document.execCommand('copy'); alert('已复制：' + txt); }
+  catch(e){ alert('复制失败，请手动选择复制'); }
+  document.body.removeChild(ta);
+}
+
+/* ---------- 历史记录 ---------- */
+function getHist(){
+  try{ return JSON.parse(localStorage.getItem(HIST_KEY) || '[]'); }
+  catch(e){ return []; }
+}
+function setHist(list){
+  try{ localStorage.setItem(HIST_KEY, JSON.stringify(list.slice(0, 10))); }catch(e){}
+}
+function pushHistory(){
+  if (!state.text) return;
+  var list = getHist().filter(function(x){ return x.text !== state.text; });
+  list.unshift({ type:state.type, text:state.text, ts:Date.now() });
+  setHist(list);
+  renderHist();
+}
+function renderHist(){
+  var list = getHist();
+  var box = $('histList');
+  if (!list.length){ box.innerHTML = '<div class="empty">暂无记录</div>'; return; }
+  box.innerHTML = '';
+  list.forEach(function(item, idx){
+    var row = document.createElement('div');
+    row.className = 'row';
+    var l = document.createElement('div');
+    l.className = 'l';
+    var n = document.createElement('div');
+    n.className = 'n';
+    n.textContent = TYPE_LABEL[item.type] + '：' + item.text;
+    var s = document.createElement('div');
+    s.className = 's';
+    var d = new Date(item.ts);
+    s.textContent = d.getFullYear() + '-' + pad(d.getMonth()+1) + '-' + pad(d.getDate()) + ' ' + pad(d.getHours()) + ':' + pad(d.getMinutes());
+    l.appendChild(n); l.appendChild(s);
+    l.onclick = function(){ applyHist(item); };
+    var rm = document.createElement('button');
+    rm.className = 'rm'; rm.textContent = '删除';
+    rm.onclick = function(){
+      var cur = getHist();
+      cur.splice(idx, 1);
+      setHist(cur); renderHist();
+    };
+    row.appendChild(l); row.appendChild(rm);
+    box.appendChild(row);
+  });
+}
+function pad(v){ return v < 10 ? '0' + v : '' + v; }
+function applyHist(item){
+  state.type = item.type;
+  switchType(item.type);
+  var raw = item.text;
+  if (item.type === 'tel'){
+    $('telInput').value = raw.replace(/^tel:/, '');
+  } else if (item.type === 'sms'){
+    var parts = raw.replace(/^SMSTO:/, '').split(':');
+    $('smsNum').value = parts[0] || '';
+    $('smsBody').value = parts.slice(1).join(':') || '';
+  } else if (item.type === 'url'){
+    $('urlInput').value = raw;
+  } else {
+    $('textInput').value = raw;
+  }
+  render();
+}
+
+/* ---------- 类型切换 ---------- */
+function switchType(type){
+  state.type = type;
+  var btns = $('typeSeg').getElementsByTagName('button');
+  for (var i = 0; i < btns.length; i++){
+    btns[i].className = btns[i].getAttribute('data-t') === type ? 'on' : '';
+  }
+  $('formTel').style.display = type === 'tel' ? 'block' : 'none';
+  $('formSms').style.display = type === 'sms' ? 'block' : 'none';
+  $('formUrl').style.display = type === 'url' ? 'block' : 'none';
+  $('formText').style.display = type === 'text' ? 'block' : 'none';
+  savePref();
+}
+
+/* ---------- 偏好 ---------- */
+function savePref(){
+  try{
+    localStorage.setItem(PREF_KEY, JSON.stringify({
+      level:state.level, scale:state.scale, intl:$('intlChk').checked, type:state.type
+    }));
+  }catch(e){}
+}
+function loadPref(){
+  var p = null;
+  try{ p = JSON.parse(localStorage.getItem(PREF_KEY) || 'null'); }catch(e){}
+  if (!p) return;
+  if (p.level){ state.level = p.level; $('levelSel').value = p.level; }
+  if (p.scale){ state.scale = parseInt(p.scale, 10) || 8; $('scaleSel').value = String(state.scale); }
+  if (typeof p.intl === 'boolean'){ $('intlChk').checked = p.intl; }
+}
+
+/* ---------- 事件绑定 ---------- */
+['telInput','smsNum','smsBody','urlInput','textInput'].forEach(function(id){
+  $(id).addEventListener('input', schedule);
+});
+$('intlChk').addEventListener('change', function(){ savePref(); schedule(); });
+$('levelSel').addEventListener('change', function(){ state.level = this.value; savePref(); render(); });
+$('scaleSel').addEventListener('change', function(){ state.scale = parseInt(this.value, 10) || 8; savePref(); render(); });
+$('btnPng').addEventListener('click', downloadPng);
+$('btnSvg').addEventListener('click', downloadSvg);
+$('btnCopy').addEventListener('click', copyText);
+var segs = $('typeSeg').getElementsByTagName('button');
+for (var i = 0; i < segs.length; i++){
+  segs[i].addEventListener('click', function(){
+    switchType(this.getAttribute('data-t'));
+    render();
+  });
+}
+
+loadPref();
+switchType((function(){
+  var p = null;
+  try{ p = JSON.parse(localStorage.getItem(PREF_KEY) || 'null'); }catch(e){}
+  return (p && p.type) || 'tel';
+})());
+renderHist();
+render();
+</script>
+</body>
+</html>

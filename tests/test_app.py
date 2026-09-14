@@ -539,6 +539,86 @@ class TestLedgerExtAPI(unittest.TestCase):
         self.assertIsInstance(d.get('data'), list)
 
 
+class TestQRCode(unittest.TestCase):
+    """二维码生成模块测试（需要登录会话）"""
+
+    client: FlaskClient = None
+
+    @classmethod
+    @override
+    def setUpClass(cls) -> None:
+        cls.client = app.test_client()
+        app.config['TESTING'] = True
+        with cls.client.session_transaction() as sess:  # type: ignore[attr-defined]
+            sess['auth'] = True
+
+    def test_page_accessible(self) -> None:
+        r = self.client.get('/qrcode')
+        self.assertEqual(r.status_code, 200)
+        self.assertIn('二维码', r.get_data(as_text=True))
+
+    def test_manifest(self) -> None:
+        r = self.client.get('/qrcode/manifest.json')
+        self.assertEqual(r.status_code, 200)
+        data: dict = r.get_json()
+        self.assertEqual(data.get('short_name'), '二维码')
+
+    def test_icons(self) -> None:
+        for name in ('icon-192.svg', 'icon-512.svg'):
+            r = self.client.get('/qrcode/' + name)
+            self.assertEqual(r.status_code, 200)
+            self.assertTrue(r.get_data().startswith(b'<svg'))
+
+    def test_svg_output(self) -> None:
+        r = self.client.post('/api/qrcode',
+                             json={'text': 'tel:+8613800138000', 'level': 'M', 'fmt': 'svg'})
+        self.assertEqual(r.status_code, 200)
+        self.assertTrue(r.get_data(as_text=True).startswith('<svg'))
+
+    def test_png_output(self) -> None:
+        r = self.client.post('/api/qrcode', json={'text': 'tel:+8613800138000', 'fmt': 'png'})
+        self.assertEqual(r.status_code, 200)
+        self.assertTrue(r.get_data().startswith(b'\x89PNG'))
+
+    def test_matrix_output(self) -> None:
+        r = self.client.post('/api/qrcode', json={'text': 'hello', 'fmt': 'json'})
+        self.assertEqual(r.status_code, 200)
+        data: dict = r.get_json()
+        self.assertTrue(data['success'])
+        self.assertEqual(len(data['data']['matrix']), data['data']['size'])
+
+    def test_get_params(self) -> None:
+        r = self.client.get('/api/qrcode?text=hello&fmt=svg&level=H')
+        self.assertEqual(r.status_code, 200)
+
+    def test_invalid_params(self) -> None:
+        cases: list[dict] = [
+            {'text': '   '},
+            {'text': 'x' * 500},
+            {'text': 'x', 'level': 'Z'},
+            {'text': 'x', 'fmt': 'gif'},
+            {'text': 'x', 'scale': 999},
+        ]
+        for payload in cases:
+            r = self.client.post('/api/qrcode', json=payload)
+            self.assertEqual(r.status_code, 400, str(payload))
+            self.assertFalse(r.get_json()['success'])
+
+    def test_over_capacity(self) -> None:
+        r = self.client.post('/api/qrcode', json={'text': 'a' * 300})
+        self.assertEqual(r.status_code, 400)
+
+    def test_capacity_api(self) -> None:
+        r = self.client.get('/api/qrcode/capacity')
+        self.assertEqual(r.status_code, 200)
+        self.assertIn('L', r.get_json()['data'])
+
+    def test_anonymous_blocked(self) -> None:
+        anon = app.test_client()
+        self.assertNotEqual(anon.post('/api/qrcode', json={'text': 'x'}).status_code, 200)
+        self.assertEqual(anon.get('/qrcode/manifest.json').status_code, 200)
+
+
 class TestRateLimiting(unittest.TestCase):
     """速率限制测试"""
 
