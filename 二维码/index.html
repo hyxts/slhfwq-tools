@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-<title>二维码生成</title>
+<title>挪车电话码</title>
 <link rel="icon" type="image/svg+xml" href="/qrcode/icon-192.svg">
 <link rel="manifest" href="/qrcode/manifest.json">
 <meta name="theme-color" content="#059669">
@@ -21,25 +21,25 @@ header .ttl{font-size:17px;font-weight:600}
 main{max-width:900px;margin:0 auto;padding:12px}
 .card{background:var(--card-bg);border:1px solid var(--border);border-radius:12px;padding:16px;margin-bottom:12px;box-shadow:var(--shadow)}
 .ttl2{font-size:13px;font-weight:600;color:var(--text-secondary);margin-bottom:10px}
-.seg{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px}
+label{display:block;font-size:13px;color:var(--text-secondary);margin:10px 0 5px}
+input,select{width:100%;border:1px solid var(--border);border-radius:10px;padding:10px 12px;min-height:44px;
+             font-size:16px;font-family:inherit;color:var(--text);background:#fff}
+input:focus,select:focus{outline:none;border-color:var(--primary);box-shadow:0 0 0 3px rgba(5,150,105,.12)}
+.hint{font-size:12px;color:var(--text-secondary);line-height:1.6;margin-top:8px}
+.check{display:flex;align-items:center;gap:8px;margin-top:10px;font-size:14px;color:var(--text-secondary);min-height:44px}
+.check input{width:20px;height:20px;min-height:20px;flex:none}
+.chips{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px}
+.chip{min-height:36px;padding:0 12px;border:1px solid var(--border);background:#fff;border-radius:18px;
+      color:var(--text-secondary);font-size:14px;font-family:inherit;cursor:pointer}
+.chip:active{background:var(--primary-l)}
+.seg{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px}
 .seg button{flex:1;min-width:72px;min-height:44px;border-radius:10px;border:1px solid var(--border);
             background:#fff;color:var(--text-secondary);font-weight:600;font-size:15px;font-family:inherit;cursor:pointer}
 .seg button.on{background:var(--primary);border-color:var(--primary);color:#fff}
-label{display:block;font-size:13px;color:var(--text-secondary);margin:10px 0 5px}
-input,textarea,select{width:100%;border:1px solid var(--border);border-radius:10px;padding:10px 12px;min-height:44px;
-                     font-size:16px;font-family:inherit;color:var(--text);background:#fff}
-textarea{min-height:72px;resize:vertical}
-input:focus,textarea:focus,select:focus{outline:none;border-color:var(--primary);box-shadow:0 0 0 3px rgba(5,150,105,.12)}
-.check{display:flex;align-items:center;gap:8px;margin-top:10px;font-size:14px;color:var(--text-secondary);min-height:44px}
-.check input{width:20px;height:20px;min-height:20px;flex:none}
-.hint{font-size:12px;color:var(--text-secondary);line-height:1.6;margin-top:8px}
-.qrbox{background:#fff;border:1px solid var(--border);border-radius:10px;padding:14px;display:flex;
-       align-items:center;justify-content:center;min-height:220px}
-.qrbox svg{width:100%;max-width:300px;height:auto;display:block}
+.qrbox{background:#fff;border:1px solid var(--border);border-radius:12px;padding:10px;display:flex;
+       align-items:center;justify-content:center;min-height:260px}
+.qrbox svg{width:100%;max-width:320px;height:auto;display:block;border-radius:10px}
 .qrbox .ph{color:var(--text-secondary);font-size:13px;text-align:center;line-height:1.7}
-.content{background:#f8fafc;border-radius:10px;padding:10px 12px;margin-top:12px;font-size:13px;color:var(--text-secondary);
-         word-break:break-all;line-height:1.6}
-.content b{color:var(--text);font-weight:600}
 .meta{display:flex;justify-content:space-between;flex-wrap:wrap;gap:8px;font-size:12px;color:var(--text-secondary);margin-top:10px}
 .err{color:var(--danger);font-size:13px;margin-top:10px;min-height:18px}
 .acts{display:flex;gap:10px;flex-wrap:wrap;margin-top:12px}
@@ -47,6 +47,8 @@ input:focus,textarea:focus,select:focus{outline:none;border-color:var(--primary)
              font-size:15px;font-family:inherit;cursor:pointer;background:#e2e8f0;color:var(--text)}
 .acts button:active{opacity:.85}
 .btn-primary{background:var(--primary);color:#fff}
+.tip{background:var(--primary-l);border-radius:10px;padding:10px 12px;margin-top:12px;font-size:12px;
+     color:#065f46;line-height:1.7}
 .row{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:11px 0;border-bottom:1px solid #f1f5f9}
 .row:last-child{border-bottom:none}
 .row .l{flex:1;min-width:0}
@@ -70,82 +72,78 @@ input:focus,textarea:focus,select:focus{outline:none;border-color:var(--primary)
               justify-content:center;min-width:44px;min-height:44px;
               border-radius:8px"
        onclick="if(document.referrer.includes('/nav')){history.back();return false}">←</a>
-    <span class="ttl">二维码生成</span>
+    <span class="ttl">挪车电话码</span>
   </div>
 </header>
 
 <main>
   <section class="card">
-    <div class="ttl2">内容类型</div>
-    <div class="seg" id="typeSeg">
-      <button data-t="tel" class="on">电话</button>
-      <button data-t="sms">短信</button>
-      <button data-t="url">网址</button>
-      <button data-t="text">文本</button>
-    </div>
-
-    <div id="formTel">
-      <label for="telInput">手机号码</label>
-      <input id="telInput" type="tel" inputmode="tel" placeholder="请输入手机号，如 13800138000" autocomplete="off">
-      <div class="check"><input type="checkbox" id="intlChk" checked><label for="intlChk" style="margin:0">自动添加 +86 区号</label></div>
-      <div class="hint">扫码后手机会直接弹出拨号界面，适合印在名片、店铺台卡上。</div>
-    </div>
-
-    <div id="formSms" style="display:none">
-      <label for="smsNum">接收号码</label>
-      <input id="smsNum" type="tel" inputmode="tel" placeholder="如 13800138000" autocomplete="off">
-      <label for="smsBody">短信内容</label>
-      <textarea id="smsBody" placeholder="扫码后自动填入的短信内容（可留空）"></textarea>
-      <div class="hint">部分手机对短信二维码的支持不一致，如无法使用可改用「电话」类型。</div>
-    </div>
-
-    <div id="formUrl" style="display:none">
-      <label for="urlInput">网址</label>
-      <input id="urlInput" type="url" inputmode="url" placeholder="如 example.com" autocomplete="off">
-      <div class="hint">未填写协议时会自动补充 https://</div>
-    </div>
-
-    <div id="formText" style="display:none">
-      <label for="textInput">文本内容</label>
-      <textarea id="textInput" placeholder="任意文字，扫码后显示（最多约 90 个汉字）"></textarea>
-    </div>
-  </section>
-
-  <section class="card">
-    <div class="ttl2">二维码</div>
+    <div class="ttl2">二维码预览</div>
     <div class="qrbox" id="qrBox">
-      <div class="ph">填写上方内容后<br>自动生成二维码</div>
+      <div class="ph">填写下方手机号后<br>自动生成挪车二维码</div>
     </div>
-    <div class="content" id="contentBox" style="display:none">编码内容：<b id="contentText"></b></div>
     <div class="meta" id="metaBox" style="display:none">
-      <span id="metaSize"></span>
-      <span id="metaLevel"></span>
+      <span id="metaTel"></span>
+      <span id="metaInfo"></span>
     </div>
     <div class="err" id="errBox"></div>
     <div class="acts">
-      <button class="btn-primary" id="btnPng">下载 PNG</button>
+      <button class="btn-primary" id="btnPng">保存图片</button>
       <button id="btnSvg">下载 SVG</button>
-      <button id="btnCopy">复制内容</button>
+      <button id="btnCopy">复制号码</button>
     </div>
+    <div class="tip">用手机相机或微信扫一扫，识别后会直接弹出「呼叫」按钮，点击即可拨通你的号码。</div>
   </section>
 
   <section class="card">
-    <div class="ttl2">生成参数</div>
+    <div class="ttl2">号码与文案</div>
+    <label for="phoneInput">手机号码</label>
+    <input id="phoneInput" type="tel" inputmode="numeric" maxlength="16" placeholder="如 13800138000" autocomplete="off">
+    <div class="check"><input type="checkbox" id="intlChk" checked><label for="intlChk" style="margin:0">自动添加 +86 区号</label></div>
+
+    <label for="titleInput">二维码标题</label>
+    <input id="titleInput" type="text" maxlength="12" placeholder="如 扫描挪车" autocomplete="off">
+    <div class="chips" id="titleChips">
+      <button class="chip" data-t="扫描挪车">扫描挪车</button>
+      <button class="chip" data-t="扫码呼叫车主">扫码呼叫车主</button>
+      <button class="chip" data-t="临时停车">临时停车</button>
+      <button class="chip" data-t="请多关照">请多关照</button>
+    </div>
+
+    <label for="hintInput">底部提示（可留空）</label>
+    <input id="hintInput" type="text" maxlength="24" placeholder="如 扫码后点击「呼叫」" autocomplete="off">
+
+    <label>号码显示方式</label>
+    <div class="seg" id="numSeg">
+      <button data-m="mask" class="on">隐藏中间</button>
+      <button data-m="full">完整显示</button>
+      <button data-m="none">不显示</button>
+    </div>
+    <div class="hint">隐藏中间四位更安全，既能让对方核对号码，又不会被拍照滥用。</div>
+  </section>
+
+  <section class="card">
+    <div class="ttl2">外观与参数</div>
+    <label>配色</label>
+    <div class="seg" id="themeSeg">
+      <button data-c="green" class="on">清新绿</button>
+      <button data-c="blue">沉稳蓝</button>
+      <button data-c="dark">墨黑</button>
+    </div>
     <label for="levelSel">纠错等级</label>
     <select id="levelSel">
-      <option value="L">L — 约 7%（内容最多）</option>
-      <option value="M" selected>M — 约 15%（推荐）</option>
+      <option value="M">M — 约 15%（推荐）</option>
       <option value="Q">Q — 约 25%</option>
-      <option value="H">H — 约 30%（可加 Logo / 遮挡）</option>
+      <option value="H" selected>H — 约 30%（贴车窗推荐）</option>
     </select>
     <label for="scaleSel">图片大小</label>
     <select id="scaleSel">
-      <option value="6">小（约 200px）</option>
-      <option value="8" selected>中（约 280px）</option>
-      <option value="12">大（约 400px）</option>
-      <option value="16">超大（约 560px）</option>
+      <option value="8">小（约 260px）</option>
+      <option value="10" selected>中（约 320px）</option>
+      <option value="14">大（约 450px）</option>
+      <option value="18">超大（约 580px）</option>
     </select>
-    <div class="hint">纠错等级越高，二维码越密但越耐污损；户外张贴或需加盖图案时建议选 H。</div>
+    <div class="hint">贴在前挡风玻璃上建议选 H 级纠错并过塑，隔着玻璃反光也能扫出来。</div>
   </section>
 
   <section class="card">
@@ -156,42 +154,47 @@ input:focus,textarea:focus,select:focus{outline:none;border-color:var(--primary)
 
 <script>
 var $ = function(id){ return document.getElementById(id); };
-var state = { type:'tel', level:'M', scale:8, border:4, text:'', svg:'' };
-var HIST_KEY = 'qrcode_history_v1';
-var PREF_KEY = 'qrcode_pref_v1';
-var TYPE_LABEL = { tel:'电话', sms:'短信', url:'网址', text:'文本' };
+var state = { level:'H', scale:10, border:4, theme:'green', intl:true, mode:'mask', svg:'', phone:'', tel:'' };
+var HIST_KEY = 'qrcode_phone_history_v1';
+var PREF_KEY = 'qrcode_phone_pref_v1';
 
-/* ---------- 内容构造 ---------- */
-function cleanPhone(v){
-  return (v || '').replace(/[^\d+]/g, '');
+/* ---------- 号码处理 ---------- */
+function rawPhone(){
+  return ($('phoneInput').value || '').replace(/[^\d+]/g, '');
 }
-function withIntl(p){
+function normPhone(){
+  var p = rawPhone();
   if (!p) return '';
-  if (p.indexOf('+') === 0) return p;
-  if ($('intlChk').checked){
-    var n = p.indexOf('86') === 0 ? p : '86' + p.replace(/^0+/, '');
-    return '+' + n;
-  }
-  return p;
+  var d;
+  if (p.indexOf('+') === 0) d = p.slice(1);
+  else if (state.intl && /^1\d{10}$/.test(p)) d = '86' + p;
+  else d = p;
+  return '+' + d;
 }
-function buildText(){
-  var t = state.type;
-  if (t === 'tel'){
-    return withIntl(cleanPhone($('telInput').value)) ? 'tel:' + withIntl(cleanPhone($('telInput').value)) : '';
-  }
-  if (t === 'sms'){
-    var n = withIntl(cleanPhone($('smsNum').value));
-    if (!n) return '';
-    var body = ($('smsBody').value || '').trim();
-    return body ? 'SMSTO:' + n + ':' + body : 'SMSTO:' + n + ':';
-  }
-  if (t === 'url'){
-    var u = ($('urlInput').value || '').trim();
-    if (!u) return '';
-    if (!/^[a-zA-Z][a-zA-Z0-9+.-]*:\/\//.test(u)) u = 'https://' + u;
-    return u;
-  }
-  return ($('textInput').value || '').trim();
+function digits11(p){
+  var d = (p || '').replace(/\D/g, '');
+  return d.length > 11 ? d.slice(-11) : d;
+}
+function fmtFull(p){
+  var d = digits11(p);
+  return d.length === 11 ? d.slice(0,3) + ' ' + d.slice(3,7) + ' ' + d.slice(7) : p;
+}
+function fmtMask(p){
+  var d = digits11(p);
+  return d.length === 11 ? d.slice(0,3) + ' **** ' + d.slice(7) : p;
+}
+function footerText(){
+  var p = normPhone();
+  if (!p) return '';
+  if (state.mode === 'full') return fmtFull(p);
+  if (state.mode === 'mask') return fmtMask(p);
+  return '';
+}
+function validPhone(){
+  var p = rawPhone();
+  if (!p) return false;
+  var d = p.indexOf('+') === 0 ? p.slice(1) : p;
+  return /^\d{6,15}$/.test(d);
 }
 
 /* ---------- 生成 ---------- */
@@ -201,20 +204,28 @@ function schedule(){
   timer = setTimeout(render, 300);
 }
 async function render(){
-  var text = buildText();
-  if (!text){
-    $('qrBox').innerHTML = '<div class="ph">填写上方内容后<br>自动生成二维码</div>';
-    $('contentBox').style.display = 'none';
-    $('metaBox').style.display = 'none';
-    $('errBox').textContent = '';
-    state.text = ''; state.svg = '';
+  var p = rawPhone();
+  if (!p){
+    resetBox('填写下方手机号后<br>自动生成挪车二维码');
     return;
   }
+  if (!validPhone()){
+    resetBox('号码格式不正确<br>请填写 6~15 位数字');
+    $('errBox').textContent = '请输入正确的手机号码（6~15 位数字）';
+    return;
+  }
+  var body = {
+    phone:p, intl:state.intl ? 1 : 0, level:state.level, scale:state.scale, border:state.border, fmt:'svg',
+    title:($('titleInput').value || '').trim(),
+    footer:footerText(),
+    hint:($('hintInput').value || '').trim(),
+    theme:state.theme
+  };
   try{
     var res = await fetch('/api/qrcode', {
       method:'POST',
       headers:{'Content-Type':'application/json'},
-      body: JSON.stringify({ text:text, level:state.level, scale:state.scale, border:state.border, fmt:'svg' })
+      body:JSON.stringify(body)
     });
     if (!res.ok){
       var j = await res.json().catch(function(){ return {}; });
@@ -223,19 +234,25 @@ async function render(){
     }
     var svg = await res.text();
     $('qrBox').innerHTML = svg;
-    state.svg = svg; state.text = text;
+    state.svg = svg;
+    state.phone = p;
+    state.tel = 'tel:' + normPhone();
     $('errBox').textContent = '';
-    $('contentBox').style.display = 'block';
-    $('contentText').textContent = text;
     $('metaBox').style.display = 'flex';
-    $('metaSize').textContent = '内容 ' + new TextEncoder().encode(text).length + ' 字节';
-    $('metaLevel').textContent = '纠错等级 ' + state.level;
+    $('metaTel').textContent = '编码内容 ' + state.tel;
+    $('metaInfo').textContent = '纠错等级 ' + state.level;
   }catch(e){
     $('errBox').textContent = '网络异常，请重试';
   }
 }
+function resetBox(html){
+  $('qrBox').innerHTML = html ? '<div class="ph">' + html + '</div>' : $('qrBox').innerHTML;
+  state.svg = ''; state.phone = ''; state.tel = '';
+  $('metaBox').style.display = 'none';
+  if (html) $('errBox').textContent = '';
+}
 
-/* ---------- 下载 / 复制 ---------- */
+/* ---------- 保存 / 下载 ---------- */
 function saveBlob(blob, filename){
   var url = URL.createObjectURL(blob);
   var a = document.createElement('a');
@@ -244,35 +261,62 @@ function saveBlob(blob, filename){
   document.body.removeChild(a);
   setTimeout(function(){ URL.revokeObjectURL(url); }, 1000);
 }
-async function downloadPng(){
-  if (!state.text){ alert('请先填写内容'); return; }
-  try{
-    var res = await fetch('/api/qrcode', {
-      method:'POST',
-      headers:{'Content-Type':'application/json'},
-      body: JSON.stringify({ text:state.text, level:state.level, scale:state.scale, border:state.border, fmt:'png' })
-    });
-    if (!res.ok){ alert('下载失败，请重试'); return; }
-    var blob = await res.blob();
-    saveBlob(blob, 'qrcode-' + state.type + '.png');
-    pushHistory();
-  }catch(e){ alert('下载失败，请重试'); }
+function svgToPngBlob(svg){
+  /* 把带文字的 SVG 画到 canvas 再导出 PNG：标准库后端画不出中文，前端合成 */
+  return new Promise(function(resolve, reject){
+    var img = new Image();
+    var url = URL.createObjectURL(new Blob([svg], { type:'image/svg+xml;charset=utf-8' }));
+    img.onload = function(){
+      var ratio = 3;
+      var w = img.width || 320, h = img.height || 320;
+      var cv = document.createElement('canvas');
+      cv.width = Math.round(w * ratio);
+      cv.height = Math.round(h * ratio);
+      var ctx = cv.getContext('2d');
+      ctx.fillStyle = '#ffffff';
+      ctx.fillRect(0, 0, cv.width, cv.height);
+      ctx.drawImage(img, 0, 0, cv.width, cv.height);
+      URL.revokeObjectURL(url);
+      cv.toBlob(function(b){ b ? resolve(b) : reject(new Error('toBlob 失败')); }, 'image/png');
+    };
+    img.onerror = function(){ URL.revokeObjectURL(url); reject(new Error('SVG 加载失败')); };
+    img.src = url;
+  });
 }
-function downloadSvg(){
-  if (!state.svg){ alert('请先填写内容'); return; }
-  saveBlob(new Blob([state.svg], { type:'image/svg+xml' }), 'qrcode-' + state.type + '.svg');
+async function savePng(){
+  if (!state.svg){ alert('请先填写手机号'); return; }
+  try{
+    saveBlob(await svgToPngBlob(state.svg), 'nuoche-' + state.phone + '.png');
+    pushHistory();
+  }catch(e){
+    try{                                   // 兜底：直接下后端生成的纯码 PNG
+      var res = await fetch('/api/qrcode', {
+        method:'POST',
+        headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({ phone:state.phone, level:state.level, scale:state.scale,
+                              border:state.border, fmt:'png' })
+      });
+      if (!res.ok) throw new Error('png');
+      saveBlob(await res.blob(), 'nuoche-' + state.phone + '.png');
+      pushHistory();
+    }catch(e2){ alert('保存失败，请重试'); }
+  }
+}
+function saveSvg(){
+  if (!state.svg){ alert('请先填写手机号'); return; }
+  saveBlob(new Blob([state.svg], { type:'image/svg+xml' }), 'nuoche-' + state.phone + '.svg');
   pushHistory();
 }
-function copyText(){
-  if (!state.text){ alert('请先填写内容'); return; }
-  var txt = state.text;
+function copyPhone(){
+  var p = normPhone();
+  if (!p){ alert('请先填写手机号'); return; }
   if (navigator.clipboard && window.isSecureContext){
-    navigator.clipboard.writeText(txt).then(function(){ alert('已复制：' + txt); });
+    navigator.clipboard.writeText(p).then(function(){ alert('已复制：' + p); });
     return;
   }
   var ta = document.createElement('textarea');
-  ta.value = txt; document.body.appendChild(ta); ta.select();
-  try{ document.execCommand('copy'); alert('已复制：' + txt); }
+  ta.value = p; document.body.appendChild(ta); ta.select();
+  try{ document.execCommand('copy'); alert('已复制：' + p); }
   catch(e){ alert('复制失败，请手动选择复制'); }
   document.body.removeChild(ta);
 }
@@ -286,9 +330,12 @@ function setHist(list){
   try{ localStorage.setItem(HIST_KEY, JSON.stringify(list.slice(0, 10))); }catch(e){}
 }
 function pushHistory(){
-  if (!state.text) return;
-  var list = getHist().filter(function(x){ return x.text !== state.text; });
-  list.unshift({ type:state.type, text:state.text, ts:Date.now() });
+  if (!state.phone) return;
+  var item = { phone:state.phone, title:($('titleInput').value || '').trim(),
+               hint:($('hintInput').value || '').trim(), mode:state.mode,
+               theme:state.theme, level:state.level, intl:state.intl, ts:Date.now() };
+  var list = getHist().filter(function(x){ return x.phone !== item.phone || x.title !== item.title; });
+  list.unshift(item);
   setHist(list);
   renderHist();
 }
@@ -304,7 +351,7 @@ function renderHist(){
     l.className = 'l';
     var n = document.createElement('div');
     n.className = 'n';
-    n.textContent = TYPE_LABEL[item.type] + '：' + item.text;
+    n.textContent = (item.title || '电话二维码') + ' · ' + fmtMask('+' + item.phone.replace(/\D/g, ''));
     var s = document.createElement('div');
     s.className = 's';
     var d = new Date(item.ts);
@@ -324,42 +371,50 @@ function renderHist(){
 }
 function pad(v){ return v < 10 ? '0' + v : '' + v; }
 function applyHist(item){
-  state.type = item.type;
-  switchType(item.type);
-  var raw = item.text;
-  if (item.type === 'tel'){
-    $('telInput').value = raw.replace(/^tel:/, '');
-  } else if (item.type === 'sms'){
-    var parts = raw.replace(/^SMSTO:/, '').split(':');
-    $('smsNum').value = parts[0] || '';
-    $('smsBody').value = parts.slice(1).join(':') || '';
-  } else if (item.type === 'url'){
-    $('urlInput').value = raw;
-  } else {
-    $('textInput').value = raw;
-  }
+  $('phoneInput').value = item.phone || '';
+  $('titleInput').value = item.title || '';
+  $('hintInput').value = item.hint || '';
+  if (item.mode) setSeg('numSeg', item.mode);
+  if (item.theme) setSeg('themeSeg', item.theme);
+  if (item.level){ state.level = item.level; $('levelSel').value = item.level; }
+  if (typeof item.intl === 'boolean'){ state.intl = item.intl; $('intlChk').checked = item.intl; }
+  savePref();
   render();
 }
 
-/* ---------- 类型切换 ---------- */
-function switchType(type){
-  state.type = type;
-  var btns = $('typeSeg').getElementsByTagName('button');
+/* ---------- 分段控件 ---------- */
+function bindSeg(id, onPick){
+  var btns = $(id).getElementsByTagName('button');
   for (var i = 0; i < btns.length; i++){
-    btns[i].className = btns[i].getAttribute('data-t') === type ? 'on' : '';
+    btns[i].addEventListener('click', function(){
+      setSeg(id, this.getAttribute('data-m') || this.getAttribute('data-c'));
+      onPick(this.getAttribute('data-m') || this.getAttribute('data-c'));
+    });
   }
-  $('formTel').style.display = type === 'tel' ? 'block' : 'none';
-  $('formSms').style.display = type === 'sms' ? 'block' : 'none';
-  $('formUrl').style.display = type === 'url' ? 'block' : 'none';
-  $('formText').style.display = type === 'text' ? 'block' : 'none';
-  savePref();
+}
+function setSeg(id, val){
+  var btns = $(id).getElementsByTagName('button');
+  for (var i = 0; i < btns.length; i++){
+    var v = btns[i].getAttribute('data-m') || btns[i].getAttribute('data-c');
+    btns[i].className = v === val ? 'on' : '';
+  }
+}
+function curSeg(id){
+  var btns = $(id).getElementsByTagName('button');
+  for (var i = 0; i < btns.length; i++){
+    if (btns[i].className === 'on') return btns[i].getAttribute('data-m') || btns[i].getAttribute('data-c');
+  }
+  return '';
 }
 
 /* ---------- 偏好 ---------- */
 function savePref(){
   try{
     localStorage.setItem(PREF_KEY, JSON.stringify({
-      level:state.level, scale:state.scale, intl:$('intlChk').checked, type:state.type
+      level:state.level, scale:state.scale, intl:state.intl,
+      mode:curSeg('numSeg'), theme:curSeg('themeSeg'),
+      title:($('titleInput').value || '').trim(),
+      hint:($('hintInput').value || '').trim()
     }));
   }catch(e){}
 }
@@ -368,36 +423,37 @@ function loadPref(){
   try{ p = JSON.parse(localStorage.getItem(PREF_KEY) || 'null'); }catch(e){}
   if (!p) return;
   if (p.level){ state.level = p.level; $('levelSel').value = p.level; }
-  if (p.scale){ state.scale = parseInt(p.scale, 10) || 8; $('scaleSel').value = String(state.scale); }
-  if (typeof p.intl === 'boolean'){ $('intlChk').checked = p.intl; }
+  if (p.scale){ state.scale = parseInt(p.scale, 10) || 10; $('scaleSel').value = String(state.scale); }
+  if (typeof p.intl === 'boolean'){ state.intl = p.intl; $('intlChk').checked = p.intl; }
+  if (p.mode) setSeg('numSeg', p.mode);
+  if (p.theme){ setSeg('themeSeg', p.theme); state.theme = p.theme; }
+  if (p.title) $('titleInput').value = p.title;
+  if (p.hint) $('hintInput').value = p.hint;
 }
 
 /* ---------- 事件绑定 ---------- */
-['telInput','smsNum','smsBody','urlInput','textInput'].forEach(function(id){
-  $(id).addEventListener('input', schedule);
-});
-$('intlChk').addEventListener('change', function(){ savePref(); schedule(); });
+$('phoneInput').addEventListener('input', schedule);
+$('titleInput').addEventListener('input', schedule);
+$('hintInput').addEventListener('input', schedule);
+$('intlChk').addEventListener('change', function(){ state.intl = this.checked; savePref(); schedule(); });
 $('levelSel').addEventListener('change', function(){ state.level = this.value; savePref(); render(); });
-$('scaleSel').addEventListener('change', function(){ state.scale = parseInt(this.value, 10) || 8; savePref(); render(); });
-$('btnPng').addEventListener('click', downloadPng);
-$('btnSvg').addEventListener('click', downloadSvg);
-$('btnCopy').addEventListener('click', copyText);
-var segs = $('typeSeg').getElementsByTagName('button');
-for (var i = 0; i < segs.length; i++){
-  segs[i].addEventListener('click', function(){
-    switchType(this.getAttribute('data-t'));
-    render();
+$('scaleSel').addEventListener('change', function(){ state.scale = parseInt(this.value, 10) || 10; savePref(); render(); });
+$('btnPng').addEventListener('click', savePng);
+$('btnSvg').addEventListener('click', saveSvg);
+$('btnCopy').addEventListener('click', copyPhone);
+bindSeg('numSeg', function(v){ state.mode = v; savePref(); render(); });
+bindSeg('themeSeg', function(v){ state.theme = v; savePref(); render(); });
+var chips = $('titleChips').getElementsByTagName('button');
+for (var i = 0; i < chips.length; i++){
+  chips[i].addEventListener('click', function(){
+    $('titleInput').value = this.getAttribute('data-t');
+    savePref(); render();
   });
 }
 
 loadPref();
-switchType((function(){
-  var p = null;
-  try{ p = JSON.parse(localStorage.getItem(PREF_KEY) || 'null'); }catch(e){}
-  return (p && p.type) || 'tel';
-})());
+state.mode = curSeg('numSeg') || 'mask';
 renderHist();
-render();
 </script>
 </body>
 </html>

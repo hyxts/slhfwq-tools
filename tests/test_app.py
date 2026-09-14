@@ -555,13 +555,13 @@ class TestQRCode(unittest.TestCase):
     def test_page_accessible(self) -> None:
         r = self.client.get('/qrcode')
         self.assertEqual(r.status_code, 200)
-        self.assertIn('二维码', r.get_data(as_text=True))
+        self.assertIn('挪车', r.get_data(as_text=True))
 
     def test_manifest(self) -> None:
         r = self.client.get('/qrcode/manifest.json')
         self.assertEqual(r.status_code, 200)
         data: dict = r.get_json()
-        self.assertEqual(data.get('short_name'), '二维码')
+        self.assertEqual(data.get('short_name'), '挪车码')
 
     def test_icons(self) -> None:
         for name in ('icon-192.svg', 'icon-512.svg'):
@@ -571,42 +571,63 @@ class TestQRCode(unittest.TestCase):
 
     def test_svg_output(self) -> None:
         r = self.client.post('/api/qrcode',
-                             json={'text': 'tel:+8613800138000', 'level': 'M', 'fmt': 'svg'})
+                             json={'phone': '13800138000', 'level': 'M', 'fmt': 'svg'})
         self.assertEqual(r.status_code, 200)
         self.assertTrue(r.get_data(as_text=True).startswith('<svg'))
 
+    def test_svg_card_has_title_and_footer(self) -> None:
+        """带标题/号码时输出精美卡片：渐变条 + 标题 + 号码行"""
+        r = self.client.post('/api/qrcode', json={
+            'phone': '13800138000', 'title': '扫描挪车',
+            'footer': '138 **** 8000', 'hint': '扫码后点击「呼叫」', 'fmt': 'svg'})
+        svg = r.get_data(as_text=True)
+        self.assertEqual(r.status_code, 200)
+        for frag in ('linearGradient', '扫描挪车', '138 **** 8000', '扫码后点击'):
+            self.assertIn(frag, svg)
+        self.assertTrue(svg.endswith('</svg>'))
+
+    def test_svg_plain_without_text(self) -> None:
+        """无文案时仍是纯码（体积小、兼容性好）"""
+        r = self.client.post('/api/qrcode', json={'phone': '13800138000', 'fmt': 'svg'})
+        svg = r.get_data(as_text=True)
+        self.assertNotIn('linearGradient', svg)
+        self.assertIn('shape-rendering="crispEdges"', svg)
+
     def test_png_output(self) -> None:
-        r = self.client.post('/api/qrcode', json={'text': 'tel:+8613800138000', 'fmt': 'png'})
+        r = self.client.post('/api/qrcode', json={'phone': '13800138000', 'fmt': 'png'})
         self.assertEqual(r.status_code, 200)
         self.assertTrue(r.get_data().startswith(b'\x89PNG'))
 
-    def test_matrix_output(self) -> None:
-        r = self.client.post('/api/qrcode', json={'text': 'hello', 'fmt': 'json'})
-        self.assertEqual(r.status_code, 200)
-        data: dict = r.get_json()
-        self.assertTrue(data['success'])
-        self.assertEqual(len(data['data']['matrix']), data['data']['size'])
+    def test_phone_normalized(self) -> None:
+        """11 位手机号自动补 +86，内容必须是 tel: 开头（扫码直接拨号）"""
+        r = self.client.post('/api/qrcode', json={'phone': '13800138000', 'fmt': 'json'})
+        data: dict = r.get_json()['data']
+        self.assertEqual(data['tel'], 'tel:+8613800138000')
+        self.assertEqual(len(data['matrix']), data['size'])
+
+    def test_intl_off(self) -> None:
+        r = self.client.post('/api/qrcode',
+                             json={'phone': '13800138000', 'intl': 0, 'fmt': 'json'})
+        self.assertEqual(r.get_json()['data']['tel'], 'tel:+13800138000')
 
     def test_get_params(self) -> None:
-        r = self.client.get('/api/qrcode?text=hello&fmt=svg&level=H')
+        r = self.client.get('/api/qrcode?phone=13800138000&fmt=svg&level=H&theme=blue')
         self.assertEqual(r.status_code, 200)
 
     def test_invalid_params(self) -> None:
         cases: list[dict] = [
-            {'text': '   '},
-            {'text': 'x' * 500},
-            {'text': 'x', 'level': 'Z'},
-            {'text': 'x', 'fmt': 'gif'},
-            {'text': 'x', 'scale': 999},
+            {'phone': '   '},
+            {'phone': 'abc'},
+            {'phone': '123'},
+            {'phone': '13800138000', 'level': 'Z'},
+            {'phone': '13800138000', 'fmt': 'gif'},
+            {'phone': '13800138000', 'scale': 999},
+            {'phone': '13800138000', 'title': 'x' * 20},
         ]
         for payload in cases:
             r = self.client.post('/api/qrcode', json=payload)
             self.assertEqual(r.status_code, 400, str(payload))
             self.assertFalse(r.get_json()['success'])
-
-    def test_over_capacity(self) -> None:
-        r = self.client.post('/api/qrcode', json={'text': 'a' * 300})
-        self.assertEqual(r.status_code, 400)
 
     def test_capacity_api(self) -> None:
         r = self.client.get('/api/qrcode/capacity')
@@ -615,7 +636,7 @@ class TestQRCode(unittest.TestCase):
 
     def test_anonymous_blocked(self) -> None:
         anon = app.test_client()
-        self.assertNotEqual(anon.post('/api/qrcode', json={'text': 'x'}).status_code, 200)
+        self.assertNotEqual(anon.post('/api/qrcode', json={'phone': '13800138000'}).status_code, 200)
         self.assertEqual(anon.get('/qrcode/manifest.json').status_code, 200)
 
 

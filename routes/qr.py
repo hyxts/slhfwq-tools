@@ -1,16 +1,21 @@
 # -*- coding: utf-8 -*-
-"""二维码生成模块
+"""电话二维码（挪车码）模块
 
 纯标准库实现 QR 编码（字节模式，版本 1~10，纠错 L/M/Q/H），输出 SVG / PNG / 矩阵。
 
 设计说明：
 - 不依赖任何第三方库：PythonAnywhere 免费版无法保证 pip 安装成功，
   因此 QR 编码、Reed-Solomon 纠错、PNG(zlib/struct) 全部自行实现。
-- 内容统一按 UTF-8 字节模式编码，中文可直接生成。
+- 只生成电话二维码，内容为 `tel:+86…`：微信/相机扫码后系统直接弹出拨号。
+- SVG 支持标题（如「扫描挪车」）、号码行、提示行，并做圆角码点、圆角定位点
+  与渐变标题条美化；PNG 为纯码（标准库无法渲染中文，带文字的 PNG 由前端
+  Canvas 合成导出）。
 - 无数据库：本模块是纯转换工具，不落库、不上传用户输入内容。
 """
 import os
+import re
 import struct
+import uuid
 import zlib
 from typing import Any
 
@@ -28,8 +33,24 @@ MAX_TEXT_CHARS = 400      # 输入字符上限（防超长占用 CPU）
 MAX_SCALE = 40            # 每个模块的像素上限
 MAX_BORDER = 10           # 静区（模块数）上限
 MAX_PIXELS = 1600         # 输出图片边长上限，超出自动缩小 scale
+MAX_TITLE_CHARS = 12      # 标题字数上限
+MAX_NOTE_CHARS = 24       # 号码行 / 提示行字数上限
 LEVELS = ('L', 'M', 'Q', 'H')
 MIN_VERSION, MAX_VERSION = 1, 10
+
+# 主题：渐变标题条（起/止色）与码点颜色（均用深色，保证扫码对比度）
+THEMES: dict[str, dict[str, str]] = {
+    'green': {'from': '#34d399', 'to': '#059669', 'dot': '#064e3b'},
+    'blue': {'from': '#60a5fa', 'to': '#2563eb', 'dot': '#1e3a8a'},
+    'dark': {'from': '#475569', 'to': '#0f172a', 'dot': '#0f172a'},
+}
+_FONT = "'PingFang SC','Microsoft YaHei','Helvetica Neue',Arial,sans-serif"
+
+# 美化参数（改动后必须重新跑解码验证：码点之间一旦留缝，识别率会明显下降，
+# 实测 inset=0 时圆角半径 0.25~0.4、定位点外框 ≤1.6 均可稳定解码）
+_DOT_INSET = 0.0        # 码点四周留缝（模块单位，必须保持 0，保证码点相连）
+_DOT_RX = 0.32          # 码点圆角半径
+_FINDER_RX = (1.0, 0.6, 0.4)   # 定位点：外框 / 白环 / 圆心的圆角半径（外框 >1.2 会掉识别率）
 
 
 class QRError(ValueError):
@@ -470,27 +491,123 @@ def encode(text: str, level: str = 'M', mask: int | None = None) -> tuple[list[l
 
 # ==================== 渲染 ====================
 
-def render_svg(matrix: list[list[int]], scale: int = 8, border: int = 4) -> str:
-    n = len(matrix) + border * 2
-    path: list[str] = []
-    for y, row in enumerate(matrix):
-        x = 0
-        while x < len(row):
-            if row[x]:
-                x2 = x
-                while x2 < len(row) and row[x2]:
-                    x2 += 1
-                path.append(f'M{x + border} {y + border}h{x2 - x}v1h-{x2 - x}z')
-                x = x2
-            else:
-                x += 1
-    size_px = n * scale
-    return (
-        f'<svg xmlns="http://www.w3.org/2000/svg" width="{size_px}" height="{size_px}" '
-        f'viewBox="0 0 {n} {n}" shape-rendering="crispEdges">'
-        f'<rect width="{n}" height="{n}" fill="#ffffff"/>'
-        f'<path d="{"".join(path)}" fill="#000000"/></svg>'
+def _esc(text: str) -> str:
+    """XML 文本转义（标题/号码由用户输入，必须转义后再写入 SVG）"""
+    return (text.replace('&', '&amp;').replace('<', '&lt;')
+                .replace('>', '&gt;').replace('"', '&quot;'))
+
+
+def _finder_boxes(size: int) -> list[tuple[int, int]]:
+    """三个定位图案的左上角坐标（7x7 区域）"""
+    return [(0, 0), (0, size - 7), (size - 7, 0)]
+
+
+def _in_finder(r: int, c: int, size: int) -> bool:
+    for fr, fc in _finder_boxes(size):
+        if fr <= r < fr + 7 and fc <= c < fc + 7:
+            return True
+    return False
+
+
+def render_svg(matrix: list[list[int]], scale: int = 8, border: int = 4,
+               title: str = '', footer: str = '', hint: str = '',
+               theme: str = 'green') -> str:
+    """渲染 SVG
+
+    title / footer / hint 均为空时输出「纯码」方形 SVG（体积小、兼容性最好）；
+    任一非空时输出带渐变标题条与文字的精美卡片。
+    """
+    size = len(matrix)
+    n = size + border * 2
+    title = (title or '').strip()
+    footer = (footer or '').strip()
+    hint = (hint or '').strip()
+    t = THEMES.get(theme, THEMES['green'])
+
+    # ---- 纯码：沿用整行合并的 path，元素最少 ----
+    if not title and not footer and not hint:
+        path: list[str] = []
+        for y, row in enumerate(matrix):
+            x = 0
+            while x < len(row):
+                if row[x]:
+                    x2 = x
+                    while x2 < len(row) and row[x2]:
+                        x2 += 1
+                    path.append(f'M{x + border} {y + border}h{x2 - x}v1h-{x2 - x}z')
+                    x = x2
+                else:
+                    x += 1
+        size_px = n * scale
+        return (
+            f'<svg xmlns="http://www.w3.org/2000/svg" width="{size_px}" height="{size_px}" '
+            f'viewBox="0 0 {n} {n}" shape-rendering="crispEdges">'
+            f'<rect width="{n}" height="{n}" fill="#ffffff"/>'
+            f'<path d="{"".join(path)}" fill="#000000"/></svg>'
+        )
+
+    # ---- 精美卡片 ----
+    pad = 1.8                                   # 卡片内边距（模块单位）
+    top_h = 5.4 if title else 0.0               # 渐变标题条高度
+    foot_h = 3.4 if footer else 0.0             # 号码行高度
+    hint_h = 3.0 if hint else 0.0               # 提示行高度
+    W = n + pad * 2
+    H = pad + top_h + n + foot_h + hint_h + pad
+    ox, oy = pad + border, pad + top_h + border  # 二维码左上角（模块坐标，含静区）
+
+    gid = f'qrg{uuid.uuid4().hex[:8]}'          # 避免同页多个 SVG 的渐变 id 冲突
+    dot = t['dot']
+    body: list[str] = []
+    # 定位图案：外框 → 白环 → 圆心，三层圆角矩形
+    fr_outer, fr_ring, fr_core = _FINDER_RX
+    for fr, fc in _finder_boxes(size):
+        x, y = ox + fc, oy + fr
+        body.append(f'<rect x="{x:.2f}" y="{y:.2f}" width="7" height="7" rx="{fr_outer}" fill="{dot}"/>')
+        body.append(f'<rect x="{x + 1:.2f}" y="{y + 1:.2f}" width="5" height="5" rx="{fr_ring}" fill="#ffffff"/>')
+        body.append(f'<rect x="{x + 2:.2f}" y="{y + 2:.2f}" width="3" height="3" rx="{fr_core}" fill="{dot}"/>')
+    # 数据码点：圆角小方块（略留缝隙 + 小圆角，形成精致的点阵质感）
+    side = 1 - _DOT_INSET * 2
+    for r in range(size):
+        row = matrix[r]
+        for c in range(size):
+            if row[c] and not _in_finder(r, c, size):
+                body.append(f'<rect x="{ox + c + _DOT_INSET:.2f}" y="{oy + r + _DOT_INSET:.2f}" '
+                            f'width="{side:.2f}" height="{side:.2f}" rx="{_DOT_RX}" fill="{dot}"/>')
+
+    texts: list[str] = []
+    if title:
+        # 顶部渐变圆角条（只圆上方两角）
+        rr = 3.0
+        texts.append(f'<path d="M0 {rr} a{rr} {rr} 0 0 1 {rr} -{rr} h{W - 2 * rr:.2f} '
+                     f'a{rr} {rr} 0 0 1 {rr} {rr} v{top_h - rr:.2f} h-{W:.2f} z" fill="url(#{gid})"/>')
+        fs = 3.0
+        texts.append(f'<text x="{W / 2:.2f}" y="{top_h * 0.68:.2f}" text-anchor="middle" '
+                     f'font-family="{_FONT}" font-size="{fs}" font-weight="700" '
+                     f'letter-spacing="0.4" fill="#ffffff">{_esc(title)}</text>')
+    base = pad + top_h + n                      # 二维码底边
+    if footer:
+        fs = 2.3
+        texts.append(f'<text x="{W / 2:.2f}" y="{base + 0.9 + fs * 0.75:.2f}" text-anchor="middle" '
+                     f'font-family="{_FONT}" font-size="{fs}" font-weight="700" '
+                     f'letter-spacing="0.6" fill="#334155">{_esc(footer)}</text>')
+    if hint:
+        fs = 1.7
+        top = base + (foot_h if footer else 0.6)
+        texts.append(f'<text x="{W / 2:.2f}" y="{top + fs * 0.9:.2f}" text-anchor="middle" '
+                     f'font-family="{_FONT}" font-size="{fs}" fill="#94a3b8">{_esc(hint)}</text>')
+
+    svg = (
+        f'<svg xmlns="http://www.w3.org/2000/svg" width="{W * scale:.0f}" height="{H * scale:.0f}" '
+        f'viewBox="0 0 {W:.2f} {H:.2f}">'
+        f'<defs><linearGradient id="{gid}" x1="0" y1="0" x2="1" y2="1">'
+        f'<stop offset="0%" stop-color="{t["from"]}"/>'
+        f'<stop offset="100%" stop-color="{t["to"]}"/></linearGradient></defs>'
+        f'<rect x="0" y="0" width="{W:.2f}" height="{H:.2f}" rx="3.2" fill="#ffffff"/>'
+        + ''.join(body)
+        + ''.join(texts)
+        + '</svg>'
     )
+    return svg
 
 
 def render_png(matrix: list[list[int]], scale: int = 8, border: int = 4) -> bytes:
@@ -520,11 +637,51 @@ def render_png(matrix: list[list[int]], scale: int = 8, border: int = 4) -> byte
 
 # ==================== 参数解析 ====================
 
+def normalize_phone(raw: str, intl: bool = True) -> str:
+    """把用户输入的号码规范为带国际区号的 E.164 形式
+
+    intl=True 时，11 位且以 1 开头的国内手机号自动补 +86；已含 + 或 86 前缀的
+    按原样保留。intl=False 时只用用户输入的数字（不加区号）。
+    """
+    p = re.sub(r'[^\d+]', '', raw or '')
+    if not p:
+        raise QRError('请输入手机号码')
+    if p.startswith('+'):
+        digits = p[1:]
+    else:
+        digits = p
+        if intl and len(digits) == 11 and digits.startswith('1'):
+            digits = '86' + digits
+    if not digits.isdigit():
+        raise QRError('手机号只能包含数字')
+    if not 6 <= len(digits) <= 15:
+        raise QRError('请输入正确的手机号码')
+    return '+' + digits
+
+
+def _text_param(src: Any, key: str, limit: int) -> str:
+    val = str(src.get(key) or '').strip()
+    if len(val) > limit:
+        raise QRError(f'{key} 最多 {limit} 个字符')
+    return val
+
+
 def _read_params() -> dict[str, Any]:
     src: Any = request.get_json(silent=True) if request.method == 'POST' else None
     src = src if isinstance(src, dict) else request.args
+    # phone 为主参数；text 兼容旧调用（tel: 开头会去掉协议头后按号码处理）
+    phone = str(src.get('phone') or '').strip()
+    if not phone:
+        raw_text = str(src.get('text') or '').strip()
+        phone = re.sub(r'^tel:', '', raw_text, flags=re.I)
+    intl_raw = str(src.get('intl') if src.get('intl') is not None else '1').strip().lower()
     return {
-        'text': (str(src.get('text') or '')).strip(),
+        'phone': phone,
+        'intl': intl_raw not in ('0', 'false', 'no', 'off'),
+        'title': _text_param(src, 'title', MAX_TITLE_CHARS),
+        'footer': _text_param(src, 'footer', MAX_NOTE_CHARS),
+        'hint': _text_param(src, 'hint', MAX_NOTE_CHARS),
+        'theme': (str(src.get('theme') or 'green')).strip().lower(),
         'level': (str(src.get('level') or 'M')).strip().upper(),
         'fmt': (str(src.get('fmt') or 'svg')).strip().lower(),
         'scale': src.get('scale'),
@@ -544,13 +701,14 @@ def _int_param(value: Any, default: int, low: int, high: int, name: str) -> int:
     return num
 
 
-def _build_result() -> tuple[list[list[int]], int, int, int, str]:
-    """解析校验参数并生成矩阵，返回 (矩阵, scale, border, 版本, fmt)"""
+def _build_result() -> dict[str, Any]:
+    """解析校验参数并生成矩阵
+
+    返回 dict：matrix / scale / border / version / fmt / phone / tel /
+    title / footer / hint / theme / level
+    """
     p = _read_params()
-    if not p['text']:
-        raise QRError('请输入要生成二维码的内容')
-    if len(p['text']) > MAX_TEXT_CHARS:
-        raise QRError(f'内容过长，最多 {MAX_TEXT_CHARS} 个字符')
+    phone = normalize_phone(p['phone'], bool(p['intl']))
     if p['level'] not in LEVELS:
         raise QRError('纠错等级只能是 L / M / Q / H')
     if p['fmt'] not in ('svg', 'png', 'json'):
@@ -559,37 +717,48 @@ def _build_result() -> tuple[list[list[int]], int, int, int, str]:
     scale = _int_param(p['scale'], 8, 1, MAX_SCALE, '缩放')
     border = _int_param(p['border'], 4, 0, MAX_BORDER, '静区')
 
-    matrix, version, _mask = encode(p['text'], p['level'])
+    tel = 'tel:' + phone
+    if len(tel) > MAX_TEXT_CHARS:
+        raise QRError('号码过长')
+    matrix, version, _mask = encode(tel, p['level'])
     n = len(matrix) + border * 2
     if n * scale > MAX_PIXELS:                 # 限制输出尺寸，避免超大图片
         scale = max(1, MAX_PIXELS // n)
-    return matrix, scale, border, version, str(p['fmt'])
+    return {
+        'matrix': matrix, 'scale': scale, 'border': border, 'version': version,
+        'fmt': str(p['fmt']), 'phone': phone, 'tel': tel,
+        'title': p['title'], 'footer': p['footer'], 'hint': p['hint'],
+        'theme': p['theme'], 'level': p['level'],
+    }
 
 
 # ==================== API ====================
 
 @bp.route('/api/qrcode', methods=['GET', 'POST'])
 def make_qrcode():
-    """生成二维码
+    """生成电话二维码（挪车码）
 
-    GET  参数：text / level / scale / border / fmt
+    GET  参数：phone / title / footer / hint / theme / level / scale / border / fmt
     POST JSON：同上
-    fmt=svg 返回 SVG 图片；fmt=png 返回 PNG 图片；fmt=json 返回矩阵数据
+    fmt=svg 返回 SVG（带标题与号码的精美卡片）；fmt=png 返回纯码 PNG；fmt=json 返回矩阵
     """
     try:
-        matrix, scale, border, version, fmt = _build_result()
-        if fmt == 'png':
-            data = render_png(matrix, scale, border)
+        r = _build_result()
+        if r['fmt'] == 'png':
+            data = render_png(r['matrix'], r['scale'], r['border'])
             return Response(data, mimetype='image/png',
                             headers={'Cache-Control': 'no-store'})
-        if fmt == 'json':
+        if r['fmt'] == 'json':
             return jsonify({'success': True, 'data': {
-                'matrix': matrix,
-                'size': len(matrix),
-                'version': version,
-                'level': _read_params()['level'],
+                'matrix': r['matrix'],
+                'size': len(r['matrix']),
+                'version': r['version'],
+                'level': r['level'],
+                'phone': r['phone'],
+                'tel': r['tel'],
             }})
-        svg = render_svg(matrix, scale, border)
+        svg = render_svg(r['matrix'], r['scale'], r['border'],
+                         r['title'], r['footer'], r['hint'], r['theme'])
         return Response(svg, mimetype='image/svg+xml',
                         headers={'Cache-Control': 'no-store'})
     except QRError as e:

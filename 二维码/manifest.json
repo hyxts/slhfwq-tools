@@ -1,7 +1,7 @@
 {
-  "name": "二维码生成",
-  "short_name": "二维码",
-  "description": "手机号 / 网址 / 文本一键生成可扫描的二维码",
+  "name": "挪车电话码",
+  "short_name": "挪车码",
+  "description": "手机号一键生成挪车二维码，扫码即可拨号",
   "start_url": "/qrcode",
   "display": "standalone",
   "orientation": "portrait",
