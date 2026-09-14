@@ -613,88 +613,48 @@ class TestQRCode(unittest.TestCase):
         self.assertTrue(r.get_data(as_text=True).startswith('<svg'))
 
     def test_svg_card_has_title_and_hint(self) -> None:
-        """带标题/提示时输出精美卡片：渐变条 + 标题 + 提示行（不再印号码）"""
+        """带标题/提示时输出卡片：标题条 + 标题 + 提示行（不再印号码）"""
         r = self.client.post('/api/qrcode', json={
             'phone': '13800138000', 'title': '扫描挪车',
             'hint': '扫我呼叫车主', 'fmt': 'svg'})
         svg = r.get_data(as_text=True)
         self.assertEqual(r.status_code, 200)
-        for frag in ('linearGradient', '扫描挪车', '扫我呼叫车主'):
+        for frag in ('扫描挪车', '扫我呼叫车主'):
             self.assertIn(frag, svg)
         self.assertTrue(svg.endswith('</svg>'))
+        self.assertNotIn('13800138000', svg)
 
     def test_svg_plain_without_text(self) -> None:
-        """无文案时只输出码本身（无文字），但同样是彩色的"""
+        """无文案时只输出码本身（无文字）"""
         r = self.client.post('/api/qrcode', json={'phone': '13800138000', 'fmt': 'svg'})
         svg = r.get_data(as_text=True)
         self.assertNotIn('<text', svg)
         self.assertIn('shape-rendering="crispEdges"', svg)
-        self.assertIn('linearGradient', svg)      # 彩色渐变
 
-    def _svg(self, theme: str, style: str) -> str:
+    def test_svg_is_black_white(self) -> None:
+        """传统样式：码点纯黑、背景纯白，不再有任何渐变配色"""
+        for payload in ({'phone': '13800138000', 'fmt': 'svg'},
+                        {'phone': '13800138000', 'title': '扫描挪车',
+                         'hint': '扫我呼叫车主', 'fmt': 'svg'}):
+            svg = self.client.post('/api/qrcode', json=payload).get_data(as_text=True)
+            self.assertIn('fill="#000000"', svg, str(payload))
+            self.assertNotIn('linearGradient', svg, str(payload))
+            self.assertNotIn('fill="url(#', svg, str(payload))
+
+    def test_theme_and_style_params_ignored(self) -> None:
+        """配色与码点样式已废弃：旧请求带 theme/style 仍能正常出码（不报错、不生效）"""
         r = self.client.post('/api/qrcode', json={
-            'phone': '13800138000', 'title': '扫描挪车',
-            'theme': theme, 'style': style, 'fmt': 'svg'})
-        self.assertEqual(r.status_code, 200, f'{theme}/{style}')
-        return r.get_data(as_text=True)
+            'phone': '13800138000', 'theme': 'rainbow', 'style': 'multi', 'fmt': 'svg'})
+        self.assertEqual(r.status_code, 200)
+        self.assertIn('fill="#000000"', r.get_data(as_text=True))
 
-    def test_svg_colored_by_theme(self) -> None:
-        """码点是主题多色渐变填充，不同主题颜色不同"""
-        seen: set[str] = set()
-        for theme in qr_mod.THEME_ORDER:
-            svg = self._svg(theme, 'multi')
-            t = qr_mod.THEMES[theme]
-            for key in qr_mod._DOT_KEYS:          # 默认多色：四个色停都要出现
-                self.assertIn(t[key], svg, f'{theme}.{key}')
-            self.assertIn('fill="url(#', svg, theme)     # 码点引用渐变
-            self.assertNotIn('fill="#000000"', svg, theme)
-            seen.add(t['dot1'])
-        self.assertEqual(len(seen), len(qr_mod.THEME_ORDER))   # 各套配色互不相同
-
-    def test_styles_switch_dot_colors(self) -> None:
-        """码点样式：多色用四个色停，同色渐变只用两端，纯色只有一色"""
-        for theme in ('green', 'rainbow'):
-            t = qr_mod.THEMES[theme]
-            multi, grad, solid = (self._svg(theme, s) for s in ('multi', 'grad', 'solid'))
-            for key in qr_mod._DOT_KEYS:
-                self.assertIn(t[key], multi, f'{theme}.multi.{key}')
-            self.assertIn(t['dot1'], grad, theme)
-            self.assertIn(t['dot2'], grad, theme)
-            self.assertNotIn(t['m1'], grad, theme)             # 同色渐变不带中间色
-            self.assertIn(t['dot1'], solid, theme)
-            self.assertNotIn(t['dot2'], solid, theme)
-            self.assertNotIn(t['m1'], solid, theme)
-
-    def test_dot_color_matches_stops(self) -> None:
-        """PNG 取色与 SVG 渐变同源：两端是 dot1/dot2，中间取到 m1/m2"""
-        for theme in qr_mod.THEME_ORDER:
-            t = qr_mod.THEMES[theme]
-            self.assertEqual(qr_mod.dot_color(t, 'solid', 0.0),
-                             qr_mod.dot_color(t, 'solid', 1.0), theme)
-            self.assertEqual(qr_mod.dot_color(t, 'solid', 0.5), qr_mod._rgb(t['dot1']), theme)
-            self.assertEqual(qr_mod.dot_color(t, 'grad', 0.0), qr_mod._rgb(t['dot1']), theme)
-            self.assertEqual(qr_mod.dot_color(t, 'grad', 1.0), qr_mod._rgb(t['dot2']), theme)
-            self.assertEqual(qr_mod.dot_color(t, 'multi', 0.0), qr_mod._rgb(t['dot1']), theme)
-            self.assertEqual(qr_mod.dot_color(t, 'multi', 1 / 3), qr_mod._rgb(t['m1']), theme)
-            self.assertEqual(qr_mod.dot_color(t, 'multi', 2 / 3), qr_mod._rgb(t['m2']), theme)
-            self.assertEqual(qr_mod.dot_color(t, 'multi', 1.0), qr_mod._rgb(t['dot2']), theme)
-
-    def test_theme_contrast(self) -> None:
-        """配色自检：码点每个色停都要足够暗、背景足够亮，否则彩色码扫不出来"""
-        for name, t in qr_mod.THEMES.items():
-            for key in qr_mod._DOT_KEYS:
-                self.assertLessEqual(qr_mod.luminance(t[key]), 120, f'{name}.{key}')
-            for key in ('bg1', 'bg2'):
-                self.assertGreaterEqual(qr_mod.luminance(t[key]), 235, f'{name}.{key}')
-
-    def test_png_colored(self) -> None:
-        """后端 PNG 同样是彩色：像素不止黑白两色"""
+    def test_png_black_white(self) -> None:
+        """后端 PNG 是黑白：像素只有纯黑与纯白两色"""
         r = self.client.post('/api/qrcode',
                              json={'phone': '13800138000', 'theme': 'blue', 'fmt': 'png'})
         png: bytes = r.get_data()
         self.assertTrue(png.startswith(b'\x89PNG'))
-        colors = _png_colors(png)
-        self.assertGreater(len(colors), 4, 'PNG 仍是纯黑白，未上色')
+        self.assertEqual(_png_colors(png), {(0, 0, 0), (255, 255, 255)})
 
     def test_content_is_call_page(self) -> None:
         """内容固定是网页中转页：任何扫码器打开后都能拨号"""
@@ -755,7 +715,6 @@ class TestQRCode(unittest.TestCase):
             {'phone': '13800138000', 'level': 'Z'},
             {'phone': '13800138000', 'fmt': 'gif'},
             {'phone': '13800138000', 'scale': 999},
-            {'phone': '13800138000', 'style': 'rainbow'},
             {'phone': '13800138000', 'title': 'x' * 20},
         ]
         for payload in cases:

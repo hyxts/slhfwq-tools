@@ -32,10 +32,6 @@ input:focus,select:focus{outline:none;border-color:var(--primary);box-shadow:0 0
 .chip{min-height:36px;padding:0 12px;border:1px solid var(--border);background:#fff;border-radius:18px;
       color:var(--text-secondary);font-size:14px;font-family:inherit;cursor:pointer}
 .chip:active{background:var(--primary-l)}
-.seg{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px}
-.seg button{flex:1;min-width:72px;min-height:44px;border-radius:10px;border:1px solid var(--border);
-            background:#fff;color:var(--text-secondary);font-weight:600;font-size:15px;font-family:inherit;cursor:pointer}
-.seg button.on{background:var(--primary);border-color:var(--primary);color:#fff}
 .qrbox{background:#fff;border:1px solid var(--border);border-radius:12px;padding:10px;display:flex;
        align-items:center;justify-content:center;min-height:260px}
 .qrbox svg{width:100%;max-width:320px;height:auto;display:block;border-radius:10px}
@@ -118,23 +114,7 @@ input:focus,select:focus{outline:none;border-color:var(--primary);box-shadow:0 0
   </section>
 
   <section class="card">
-    <div class="ttl2">外观与参数</div>
-    <label>配色</label>
-    <div class="seg" id="themeSeg">
-      <button data-c="green" class="on">清新绿</button>
-      <button data-c="blue">沉稳蓝</button>
-      <button data-c="purple">活力紫</button>
-      <button data-c="orange">暖阳橙</button>
-      <button data-c="dark">墨黑</button>
-      <button data-c="rainbow">流光</button>
-    </div>
-    <label>码点样式</label>
-    <div class="seg" id="styleSeg">
-      <button data-c="multi" class="on">多色渐变</button>
-      <button data-c="grad">同色渐变</button>
-      <button data-c="solid">纯色</button>
-    </div>
-    <div class="hint">多色渐变是四种深色（如深蓝→深紫→深玫红→深青）沿对角过渡；纯色最保守、识别最稳。静区与定位点白环始终是纯白。</div>
+    <div class="ttl2">参数</div>
     <label for="levelSel">纠错等级</label>
     <select id="levelSel">
       <option value="M">M — 约 15%（推荐）</option>
@@ -159,7 +139,7 @@ input:focus,select:focus{outline:none;border-color:var(--primary);box-shadow:0 0
 
 <script>
 var $ = function(id){ return document.getElementById(id); };
-var state = { level:'H', scale:10, border:4, theme:'green', style:'multi', svg:'', phone:'', tel:'' };
+var state = { level:'H', scale:10, border:4, svg:'', phone:'', tel:'' };
 var HIST_KEY = 'qrcode_phone_history_v4';
 var PREF_KEY = 'qrcode_phone_pref_v5';
 
@@ -202,8 +182,7 @@ async function render(){
   var body = {
     phone:p, level:state.level, scale:state.scale, border:state.border, fmt:'svg',
     title:($('titleInput').value || '').trim(),
-    hint:($('hintInput').value || '').trim(),
-    theme:state.theme, style:state.style
+    hint:($('hintInput').value || '').trim()
   };
   try{
     var res = await fetch('/api/qrcode', {
@@ -278,8 +257,7 @@ async function savePng(){
         method:'POST',
         headers:{'Content-Type':'application/json'},
         body:JSON.stringify({ phone:state.phone, level:state.level, scale:state.scale,
-                              border:state.border, theme:state.theme, style:state.style,
-                              fmt:'png' })
+                              border:state.border, fmt:'png' })
       });
       if (!res.ok) throw new Error('png');
       saveBlob(await res.blob(), 'nuoche-' + state.phone + '.png');
@@ -298,8 +276,7 @@ function setHist(list){
 function pushHistory(){
   if (!state.phone) return;
   var item = { phone:state.phone, title:($('titleInput').value || '').trim(),
-               hint:($('hintInput').value || '').trim(),
-               theme:state.theme, style:state.style, level:state.level, ts:Date.now() };
+               hint:($('hintInput').value || '').trim(), level:state.level, ts:Date.now() };
   var list = getHist().filter(function(x){ return x.phone !== item.phone || x.title !== item.title; });
   list.unshift(item);
   setHist(list);
@@ -340,38 +317,9 @@ function applyHist(item){
   $('phoneInput').value = item.phone || '';
   $('titleInput').value = item.title || '';
   $('hintInput').value = item.hint || '';
-  if (item.theme) setSeg('themeSeg', item.theme);
-  if (item.style) setSeg('styleSeg', item.style);
-  if (item.theme) state.theme = item.theme;
-  if (item.style) state.style = item.style;
   if (item.level){ state.level = item.level; $('levelSel').value = item.level; }
   savePref();
   render();
-}
-
-/* ---------- 分段控件 ---------- */
-function bindSeg(id, onPick){
-  var btns = $(id).getElementsByTagName('button');
-  for (var i = 0; i < btns.length; i++){
-    btns[i].addEventListener('click', function(){
-      var c = this.getAttribute('data-c');
-      setSeg(id, c);
-      onPick(c);
-    });
-  }
-}
-function setSeg(id, val){
-  var btns = $(id).getElementsByTagName('button');
-  for (var i = 0; i < btns.length; i++){
-    btns[i].className = btns[i].getAttribute('data-c') === val ? 'on' : '';
-  }
-}
-function curSeg(id){
-  var btns = $(id).getElementsByTagName('button');
-  for (var i = 0; i < btns.length; i++){
-    if (btns[i].className === 'on') return btns[i].getAttribute('data-c');
-  }
-  return '';
 }
 
 /* ---------- 偏好 ---------- */
@@ -379,7 +327,6 @@ function savePref(){
   try{
     localStorage.setItem(PREF_KEY, JSON.stringify({
       level:state.level, scale:state.scale,
-      theme:curSeg('themeSeg'), style:curSeg('styleSeg'),
       title:($('titleInput').value || '').trim(),
       hint:($('hintInput').value || '').trim()
     }));
@@ -391,8 +338,6 @@ function loadPref(){
   if (!p) return;
   if (p.level){ state.level = p.level; $('levelSel').value = p.level; }
   if (p.scale){ state.scale = parseInt(p.scale, 10) || 10; $('scaleSel').value = String(state.scale); }
-  if (p.theme){ setSeg('themeSeg', p.theme); state.theme = p.theme; }
-  if (p.style){ setSeg('styleSeg', p.style); state.style = p.style; }
   if (p.title) $('titleInput').value = p.title;
   if (p.hint) $('hintInput').value = p.hint;
 }
@@ -404,8 +349,6 @@ $('hintInput').addEventListener('input', schedule);
 $('levelSel').addEventListener('change', function(){ state.level = this.value; savePref(); render(); });
 $('scaleSel').addEventListener('change', function(){ state.scale = parseInt(this.value, 10) || 10; savePref(); render(); });
 $('btnPng').addEventListener('click', savePng);
-bindSeg('themeSeg', function(v){ state.theme = v; savePref(); render(); });
-bindSeg('styleSeg', function(v){ state.style = v; savePref(); render(); });
 var chips = $('titleChips').getElementsByTagName('button');
 for (var i = 0; i < chips.length; i++){
   chips[i].addEventListener('click', function(){

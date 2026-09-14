@@ -10,21 +10,17 @@
   微信 / 相机 / 浏览器都能打开，页面立即唤起拨号（也有大按钮兜底）。
   曾尝试过 `tel:`（微信里只当文本）与 vCard 名片（要再点一次「呼叫」），都不稳，已移除。
 - 号码不做国际区号处理：用户输入几位就用几位（6~15 位数字），不再自动补 +86。
-- SVG 支持标题（如「扫描挪车」）与底部提示行，并做圆角码点、圆角定位点与渐变
+- SVG 支持标题（如「扫描挪车」）与底部提示行，并做圆角码点、圆角定位点与深色
   标题条美化；**二维码下方不再印号码**（扫码即可拨号，印出来反而泄露隐私）。
-- **二维码本身是彩色的**：码点与定位点取主题深色对角渐变（6 套配色：绿 / 蓝 /
-  紫 / 橙 / 墨黑 / 流光），卡片底为同色系浅渐变，定位点白环与静区保持纯白。渐变
-  上每个色停都必须是深色（亮度 ≤ 120），否则彩色码扫不出来——见 THEMES 注释与测试断言。
-- **码点样式可选**（参数 style）：solid 纯色 / grad 同色渐变 / multi 多色渐变（默认）。
-  「多色」= 四个**都是深色但色相不同**的色停（如深蓝 → 深紫 → 深玫红 → 深青），
-  不是把亮色堆上去——亮色当码点会直接扫不出来。
-- PNG 同样彩色（逐模块按对角位置取渐变色，与 SVG 一致），仍为纯码无文字。
+- **二维码是传统黑白**：码点与定位点纯黑、背景与定位点白环纯白——对比度最大、
+  识别最稳，打印过塑与旧扫码器都不挑。曾做过 6 套主题渐变 + 三种码点样式的彩色
+  方案，因部分扫码器识别率下降且用户更认黑白，已整体回退（见开发规范 7.45）。
+- PNG 同样黑白（纯码无文字，逐模块上色时与 SVG 一致）。
 - 无数据库：本模块是纯转换工具，不落库、不上传用户输入内容。
 """
 import os
 import re
 import struct
-import uuid
 import zlib
 from typing import Any
 
@@ -47,39 +43,13 @@ MAX_NOTE_CHARS = 24       # 提示行字数上限
 LEVELS = ('L', 'M', 'Q', 'H')
 MIN_VERSION, MAX_VERSION = 1, 10
 
-# 主题：彩色渐变配色。from/accent/to = 标题条渐变（accent 是中间色，让标题条也是多色），
-# dot1 → m1 → m2 → dot2 = 码点渐变（四个色停，m1/m2 是跨色相的深色，构成真正的多色渐变），
-# bg1/bg2 = 背景渐变（必须接近纯白），ink = 提示文字色。
-# ⚠ 新增/改配色必须满足：四个码点色停亮度都要 ≤ 120、背景两端亮度 ≥ 235
-#   （tests 里 test_theme_contrast 会断言，否则彩色码会扫不出来）
-# ⚠ 「多色」不是把亮色堆上去：黄/青/浅粉这类高亮度色当码点会直接扫不出来，
-#   多色是「同是深色、但色相不同」——如深蓝 → 深紫 → 深玫红 → 深青。
-THEMES: dict[str, dict[str, str]] = {
-    'green': {'from': '#34d399', 'accent': '#22d3ee', 'to': '#059669',
-              'dot1': '#065f46', 'm1': '#0e7490', 'm2': '#15803d', 'dot2': '#0f766e',
-              'bg1': '#f0fdf4', 'bg2': '#ffffff', 'ink': '#5f8d80'},
-    'blue': {'from': '#60a5fa', 'accent': '#818cf8', 'to': '#2563eb',
-             'dot1': '#1e3a8a', 'm1': '#6d28d9', 'm2': '#0369a1', 'dot2': '#1d4ed8',
-             'bg1': '#eff6ff', 'bg2': '#ffffff', 'ink': '#6b86c4'},
-    'purple': {'from': '#a78bfa', 'accent': '#f472b6', 'to': '#7c3aed',
-               'dot1': '#4c1d95', 'm1': '#9d174d', 'm2': '#6d28d9', 'dot2': '#7e22ce',
-               'bg1': '#faf5ff', 'bg2': '#ffffff', 'ink': '#8a72b8'},
-    'orange': {'from': '#fb923c', 'accent': '#f59e0b', 'to': '#db2777',
-               'dot1': '#7c2d12', 'm1': '#b91c1c', 'm2': '#9a3412', 'dot2': '#c2410c',
-               'bg1': '#fff7ed', 'bg2': '#ffffff', 'ink': '#c07a4e'},
-    'dark': {'from': '#475569', 'accent': '#64748b', 'to': '#0f172a',
-             'dot1': '#0f172a', 'm1': '#312e81', 'm2': '#1e293b', 'dot2': '#334155',
-             'bg1': '#f8fafc', 'bg2': '#ffffff', 'ink': '#94a3b8'},
-    'rainbow': {'from': '#38bdf8', 'accent': '#a855f7', 'to': '#f43f5e',
-                'dot1': '#1d4ed8', 'm1': '#7e22ce', 'm2': '#be123c', 'dot2': '#0f766e',
-                'bg1': '#f5f3ff', 'bg2': '#ffffff', 'ink': '#7c6bb0'},
-}
-THEME_ORDER = ('green', 'blue', 'purple', 'orange', 'dark', 'rainbow')   # 前端按钮顺序
-
-# 码点样式：solid = 纯色（识别最稳）；grad = 同色系两色渐变；multi = 多色相渐变（默认）
-STYLES = ('solid', 'grad', 'multi')
-DEFAULT_STYLE = 'multi'
-_DOT_KEYS = ('dot1', 'm1', 'm2', 'dot2')       # multi 样式的四个色停（首尾复用 dot1/dot2）
+# 传统黑白配色：码点纯黑、背景纯白，识别率最高，打印/过塑/旧扫码器都不挑。
+# 之前做过 6 套主题渐变 + 三种码点样式（solid/grad/multi）的彩色方案，
+# 但彩色码在部分扫码器上识别率会下降，用户也认传统黑白，已整体回退——见开发规范 7.45。
+INK = '#000000'          # 码点与定位点
+PAPER = '#ffffff'        # 背景与定位点白环
+BAR_INK = '#111827'      # 卡片顶部标题条
+HINT_INK = '#6b7280'     # 卡片底部提示行
 _FONT = "'PingFang SC','Microsoft YaHei','Helvetica Neue',Arial,sans-serif"
 
 # 美化参数（改动后必须重新跑解码验证：码点之间一旦留缝，识别率会明显下降，
@@ -545,96 +515,18 @@ def _in_finder(r: int, c: int, size: int) -> bool:
     return False
 
 
-def _rgb(color: str) -> tuple[int, int, int]:
-    """#rrggbb → (r, g, b)"""
-    h = (color or '#000000').lstrip('#')
-    if len(h) == 3:
-        h = ''.join(c * 2 for c in h)
-    return int(h[0:2], 16), int(h[2:4], 16), int(h[4:6], 16)
-
-
-def luminance(color: str) -> int:
-    """感知亮度 0~255：配色自检用（码点必须足够暗、背景必须足够亮）"""
-    r, g, b = _rgb(color)
-    return round(0.299 * r + 0.587 * g + 0.114 * b)
-
-
-def mix_color(c1: str, c2: str, t: float) -> tuple[int, int, int]:
-    """在 c1 → c2 的渐变上取色（PNG 逐模块上色用，t=0 取 c1）"""
-    r1, g1, b1 = _rgb(c1)
-    r2, g2, b2 = _rgb(c2)
-    t = 0.0 if t < 0 else (1.0 if t > 1 else t)
-    return (round(r1 + (r2 - r1) * t), round(g1 + (g2 - g1) * t), round(b1 + (b2 - b1) * t))
-
-
-def _dot_stops(t: dict[str, str], style: str) -> list[tuple[float, str]]:
-    """码点渐变的色停（offset 0~1）
-
-    solid：单色，整块码一个颜色，识别最稳；
-    grad ：同色系 dot1 → dot2；
-    multi：dot1 → m1 → m2 → dot2，四个色停跨色相，是真正的多色渐变。
-    """
-    if style == 'solid':
-        return [(0.0, t['dot1'])]
-    if style == 'grad':
-        return [(0.0, t['dot1']), (1.0, t['dot2'])]
-    keys = _DOT_KEYS
-    return [(i / (len(keys) - 1), t[k]) for i, k in enumerate(keys)]
-
-
-def dot_color(t: dict[str, str], style: str, k: float) -> tuple[int, int, int]:
-    """取对角位置 k(0~1) 处的码点颜色（PNG 逐模块上色用，与 SVG 渐变一致）"""
-    stops = _dot_stops(t, style)
-    if len(stops) == 1:
-        return _rgb(stops[0][1])
-    for i in range(len(stops) - 1):
-        o1, c1 = stops[i]
-        o2, c2 = stops[i + 1]
-        if o1 <= k <= o2:
-            span = o2 - o1
-            return mix_color(c1, c2, 0.0 if span <= 0 else (k - o1) / span)
-    return _rgb(stops[-1][1])
-
-
-def _defs(gid: str, t: dict[str, str], x1: float, y1: float, x2: float, y2: float,
-          style: str = DEFAULT_STYLE) -> str:
-    """码点 / 背景 / 标题条三套渐变
-
-    码点与背景用 userSpaceOnUse + 码区坐标：整块码呈一个连续的对角渐变，
-    而不是每个小方块各自渐变（后者会让相邻码点明暗不一，降低识别稳定性）。
-    """
-    dot_stops = ''.join(f'<stop offset="{o * 100:.1f}%" stop-color="{c}"/>'
-                        for o, c in _dot_stops(t, style))
-    return (
-        f'<defs>'
-        f'<linearGradient id="{gid}d" gradientUnits="userSpaceOnUse" '
-        f'x1="{x1:.2f}" y1="{y1:.2f}" x2="{x2:.2f}" y2="{y2:.2f}">{dot_stops}</linearGradient>'
-        f'<linearGradient id="{gid}b" gradientUnits="userSpaceOnUse" '
-        f'x1="{x1:.2f}" y1="{y1:.2f}" x2="{x2:.2f}" y2="{y2:.2f}">'
-        f'<stop offset="0%" stop-color="{t["bg1"]}"/>'
-        f'<stop offset="100%" stop-color="{t["bg2"]}"/></linearGradient>'
-        f'<linearGradient id="{gid}t" x1="0" y1="0" x2="1" y2="1">'
-        f'<stop offset="0%" stop-color="{t["from"]}"/>'
-        f'<stop offset="50%" stop-color="{t["accent"]}"/>'
-        f'<stop offset="100%" stop-color="{t["to"]}"/></linearGradient>'
-        f'</defs>'
-    )
-
-
 def render_svg(matrix: list[list[int]], scale: int = 8, border: int = 4,
-               title: str = '', hint: str = '', theme: str = 'green',
-               style: str = DEFAULT_STYLE) -> str:
-    """渲染彩色 SVG
+               title: str = '', hint: str = '') -> str:
+    """渲染传统黑白 SVG
 
-    码点与定位点用主题深色渐变（userSpaceOnUse 对角渐变），定位点白环与静区保持
-    纯白以保证识别；title / hint 均为空时输出「纯码」方形 SVG（只有码，无文字）。
-    style：solid 纯色 / grad 同色渐变 / multi 多色渐变。
+    码点与定位点是纯黑，背景与定位点白环是纯白（对比度最大，识别最稳）。
+    title / hint 均为空时输出「纯码」方形 SVG（只有码，无文字）；
+    否则输出带标题条的卡片（卡片本身也是白底黑字，只是多了圆角与标题条）。
     """
     size = len(matrix)
     n = size + border * 2
     title = (title or '').strip()
     hint = (hint or '').strip()
-    t = THEMES.get(theme, THEMES['green'])
 
     # ---- 纯码：沿用整行合并的 path，元素最少 ----
     if not title and not hint:
@@ -651,32 +543,30 @@ def render_svg(matrix: list[list[int]], scale: int = 8, border: int = 4,
                 else:
                     x += 1
         size_px = n * scale
-        gid = f'qrg{uuid.uuid4().hex[:8]}'
         return (
             f'<svg xmlns="http://www.w3.org/2000/svg" width="{size_px}" height="{size_px}" '
             f'viewBox="0 0 {n} {n}" shape-rendering="crispEdges">'
-            + _defs(gid, t, border, border, border + size, border + size, style)
-            + f'<rect width="{n}" height="{n}" fill="url(#{gid}b)"/>'
-            f'<path d="{"".join(path)}" fill="url(#{gid}d)"/></svg>'
+            f'<rect width="{n}" height="{n}" fill="{PAPER}"/>'
+            f'<path d="{"".join(path)}" fill="{INK}"/></svg>'
         )
 
-    # ---- 精美卡片 ----
+    # ---- 卡片：白底黑码 + 深色标题条 ----
     pad = 1.8                                   # 卡片内边距（模块单位）
-    top_h = 5.4 if title else 0.0               # 渐变标题条高度
+    top_h = 5.4 if title else 0.0               # 标题条高度
     hint_h = 3.0 if hint else 0.0               # 提示行高度
     W = n + pad * 2
     H = pad + top_h + n + hint_h + pad
     ox, oy = pad + border, pad + top_h + border  # 二维码左上角（模块坐标，含静区）
 
-    gid = f'qrg{uuid.uuid4().hex[:8]}'          # 避免同页多个 SVG 的渐变 id 冲突
-    dot = f'url(#{gid}d)'                       # 码点 / 定位点：主题深色渐变
+    dot = INK                                   # 码点 / 定位点：纯黑
     body: list[str] = []
     # 定位图案：外框 → 白环 → 圆心，三层圆角矩形
     fr_outer, fr_ring, fr_core = _FINDER_RX
     for fr, fc in _finder_boxes(size):
         x, y = ox + fc, oy + fr
         body.append(f'<rect x="{x:.2f}" y="{y:.2f}" width="7" height="7" rx="{fr_outer}" fill="{dot}"/>')
-        body.append(f'<rect x="{x + 1:.2f}" y="{y + 1:.2f}" width="5" height="5" rx="{fr_ring}" fill="#ffffff"/>')
+        body.append(f'<rect x="{x + 1:.2f}" y="{y + 1:.2f}" width="5" height="5" '
+                    f'rx="{fr_ring}" fill="{PAPER}"/>')
         body.append(f'<rect x="{x + 2:.2f}" y="{y + 2:.2f}" width="3" height="3" rx="{fr_core}" fill="{dot}"/>')
     # 数据码点：圆角小方块（略留缝隙 + 小圆角，形成精致的点阵质感）
     side = 1 - _DOT_INSET * 2
@@ -689,29 +579,25 @@ def render_svg(matrix: list[list[int]], scale: int = 8, border: int = 4,
 
     texts: list[str] = []
     if title:
-        # 顶部渐变圆角条（只圆上方两角）
+        # 顶部深色圆角条（只圆上方两角）
         rr = 3.0
         texts.append(f'<path d="M0 {rr} a{rr} {rr} 0 0 1 {rr} -{rr} h{W - 2 * rr:.2f} '
-                     f'a{rr} {rr} 0 0 1 {rr} {rr} v{top_h - rr:.2f} h-{W:.2f} z" fill="url(#{gid}t)"/>')
+                     f'a{rr} {rr} 0 0 1 {rr} {rr} v{top_h - rr:.2f} h-{W:.2f} z" fill="{BAR_INK}"/>')
         fs = 3.0
         texts.append(f'<text x="{W / 2:.2f}" y="{top_h * 0.68:.2f}" text-anchor="middle" '
                      f'font-family="{_FONT}" font-size="{fs}" font-weight="700" '
-                     f'letter-spacing="0.4" fill="#ffffff">{_esc(title)}</text>')
+                     f'letter-spacing="0.4" fill="{PAPER}">{_esc(title)}</text>')
     base = pad + top_h + n                      # 二维码底边
     if hint:
         fs = 1.7
         top = base + 0.6
         texts.append(f'<text x="{W / 2:.2f}" y="{top + fs * 0.9:.2f}" text-anchor="middle" '
-                     f'font-family="{_FONT}" font-size="{fs}" fill="{t["ink"]}">{_esc(hint)}</text>')
+                     f'font-family="{_FONT}" font-size="{fs}" fill="{HINT_INK}">{_esc(hint)}</text>')
 
     svg = (
         f'<svg xmlns="http://www.w3.org/2000/svg" width="{W * scale:.0f}" height="{H * scale:.0f}" '
         f'viewBox="0 0 {W:.2f} {H:.2f}">'
-        + _defs(gid, t, ox, oy, ox + size, oy + size, style)
-        # 卡片底：主题浅色渐变；码区另铺一层纯白，静区保持最大对比
-        + f'<rect x="0" y="0" width="{W:.2f}" height="{H:.2f}" rx="3.2" fill="url(#{gid}b)"/>'
-        f'<rect x="{ox - border:.2f}" y="{oy - border:.2f}" width="{n}" height="{n}" '
-        f'rx="1.2" fill="#ffffff"/>'
+        f'<rect x="0" y="0" width="{W:.2f}" height="{H:.2f}" rx="3.2" fill="{PAPER}"/>'
         + ''.join(body)
         + ''.join(texts)
         + '</svg>'
@@ -719,25 +605,17 @@ def render_svg(matrix: list[list[int]], scale: int = 8, border: int = 4,
     return svg
 
 
-def render_png(matrix: list[list[int]], scale: int = 8, border: int = 4,
-               theme: str = 'green', style: str = DEFAULT_STYLE) -> bytes:
-    """输出彩色 PNG：按模块位置在主题的深色渐变上取色（与 SVG 的对角渐变一致）"""
-    t = THEMES.get(theme, THEMES['green'])
+def render_png(matrix: list[list[int]], scale: int = 8, border: int = 4) -> bytes:
+    """输出传统黑白 PNG（纯码，无文字）：黑码点 + 白底"""
     size = len(matrix)
     n = size + border * 2
-    span = max(1, 2 * (size - 1))
     raw = bytearray()
     for y in range(n):
-        my = min(max(y - border, 0), size - 1)
         source = matrix[y - border] if 0 <= y - border < size else None
         line = bytearray(b'\x00')          # filter type 0
         for x in range(n):
-            mx = min(max(x - border, 0), size - 1)
             dark = bool(source and 0 <= x - border < size and source[x - border])
-            k = (mx + my) / span           # 对角渐变位置
-            r, g, b = (dot_color(t, style, k) if dark
-                       else mix_color(t['bg1'], t['bg2'], k))
-            line += bytes((r, g, b)) * scale
+            line += (b'\x00\x00\x00' if dark else b'\xff\xff\xff') * scale
         for _ in range(scale):             # 每个模块纵向放大
             raw += line
 
@@ -801,8 +679,6 @@ def _read_params() -> dict[str, Any]:
         'phone': phone,
         'title': _text_param(src, 'title', MAX_TITLE_CHARS),
         'hint': _text_param(src, 'hint', MAX_NOTE_CHARS),
-        'theme': (str(src.get('theme') or 'green')).strip().lower(),
-        'style': (str(src.get('style') or DEFAULT_STYLE)).strip().lower(),
         'level': (str(src.get('level') or 'M')).strip().upper(),
         'fmt': (str(src.get('fmt') or 'svg')).strip().lower(),
         'scale': src.get('scale'),
@@ -826,7 +702,7 @@ def _build_result() -> dict[str, Any]:
     """解析校验参数并生成矩阵
 
     返回 dict：matrix / scale / border / version / fmt / phone / tel /
-    content / mode / title / hint / theme / level
+    content / mode / title / hint / level
     """
     p = _read_params()
     phone = normalize_phone(p['phone'])
@@ -834,8 +710,6 @@ def _build_result() -> dict[str, Any]:
         raise QRError('纠错等级只能是 L / M / Q / H')
     if p['fmt'] not in ('svg', 'png', 'json'):
         raise QRError('输出格式只能是 svg / png / json')
-    if p['style'] not in STYLES:
-        raise QRError('码点样式只能是 solid / grad / multi')
 
     scale = _int_param(p['scale'], 8, 1, MAX_SCALE, '缩放')
     border = _int_param(p['border'], 4, 0, MAX_BORDER, '静区')
@@ -851,8 +725,7 @@ def _build_result() -> dict[str, Any]:
         'matrix': matrix, 'scale': scale, 'border': border, 'version': version,
         'fmt': str(p['fmt']), 'phone': phone, 'tel': 'tel:' + phone,
         'content': content, 'mode': 'page',      # 固定网页中转，保留字段兼容旧调用
-        'title': p['title'], 'hint': p['hint'],
-        'theme': p['theme'], 'style': p['style'], 'level': p['level'],
+        'title': p['title'], 'hint': p['hint'], 'level': p['level'],
     }
 
 
@@ -862,16 +735,16 @@ def _build_result() -> dict[str, Any]:
 def make_qrcode():
     """生成电话二维码（挪车码）
 
-    GET  参数：phone / title / hint / theme / style / level / scale / border / fmt
+    GET  参数：phone / title / hint / level / scale / border / fmt
     POST JSON：同上
     号码只取 6~15 位数字（不加区号），内容固定是本码中转页 URL
-    style=solid 纯色 / grad 同色渐变 / multi 多色渐变（默认）
-    fmt=svg 返回 SVG（带标题与提示的精美卡片）；fmt=png 返回纯码 PNG；fmt=json 返回矩阵
+    输出固定为传统黑白（黑码点 + 白底），theme / style 参数已废弃，传了也忽略
+    fmt=svg 返回 SVG（带标题与提示的卡片）；fmt=png 返回纯码 PNG；fmt=json 返回矩阵
     """
     try:
         r = _build_result()
         if r['fmt'] == 'png':
-            data = render_png(r['matrix'], r['scale'], r['border'], r['theme'], r['style'])
+            data = render_png(r['matrix'], r['scale'], r['border'])
             return Response(data, mimetype='image/png',
                             headers={'Cache-Control': 'no-store'})
         if r['fmt'] == 'json':
@@ -886,7 +759,7 @@ def make_qrcode():
                 'mode': r['mode'],
             }})
         svg = render_svg(r['matrix'], r['scale'], r['border'],
-                         r['title'], r['hint'], r['theme'], r['style'])
+                         r['title'], r['hint'])
         return Response(svg, mimetype='image/svg+xml',
                         headers={'Cache-Control': 'no-store'})
     except QRError as e:
