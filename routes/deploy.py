@@ -244,41 +244,6 @@ def git_pull():
         return jsonify({'success': False, 'error': str(e)}), 500
 
 
-@bp.route('/api/backup/gitdiag')
-def gitdiag():                             # 临时诊断：定位 reset --hard 后文件缺失
-    out: dict[str, object] = {}
-    try:
-        def _run(args: list[str], timeout: int = 20) -> str:
-            p = subprocess.run(args, cwd=BASE_DIR, capture_output=True, timeout=timeout)
-            return p.stdout.decode('utf-8', 'surrogateescape')[:4000]
-
-        out['base'] = BASE_DIR
-        out['exists_qr'] = os.path.isdir(os.path.join(BASE_DIR, '二维码'))
-        try:
-            out['root_entries'] = sorted(os.listdir(BASE_DIR))[:80]
-        except Exception as e:
-            out['root_entries'] = 'ERR %r' % e
-        out['head'] = _run(['git', 'rev-parse', 'HEAD']).strip()
-        out['git_version'] = _run(['git', '--version']).strip()
-        out['status'] = _run(['git', 'status', '--porcelain'])
-        ls = _run(['git', 'ls-files'])
-        out['ls_files_qr'] = [l for l in ls.splitlines() if '二维码' in l]
-        out['ls_files_count'] = len([l for l in ls.splitlines() if l])
-        tree = _run(['git', 'ls-tree', '-r', '--name-only', 'HEAD'])
-        out['tree_qr'] = [l for l in tree.splitlines() if '二维码' in l]
-        out['sparse'] = _run(['git', 'config', '--get', 'core.sparseCheckout']).strip()
-        out['skip_worktree'] = [l for l in _run(['git', 'ls-files', '-v']).splitlines()
-                                if l[:1] != 'H'][:20]
-        before = _missing_tracked_files()
-        out['missing_before'] = before[:20]
-        out['restore'] = _restore_missing_files()
-        out['missing_after'] = _missing_tracked_files()[:20]
-        out['exists_qr_after'] = os.path.isdir(os.path.join(BASE_DIR, '二维码'))
-    except Exception as e:
-        out['error'] = repr(e)
-    return jsonify({'success': True, 'diag': out})
-
-
 @bp.route('/api/git-log')
 def git_log():
     try:
