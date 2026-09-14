@@ -6,15 +6,16 @@
 设计说明：
 - 不依赖任何第三方库：PythonAnywhere 免费版无法保证 pip 安装成功，
   因此 QR 编码、Reed-Solomon 纠错、PNG(zlib/struct) 全部自行实现。
-- 只生成电话二维码（挪车码）。**扫码内容有三种模式**（参数 mode，默认 page）：
-  * page（默认）：本站中转页 `/qrcode/call/<号码>`，微信 / 相机 / 浏览器都能打开，
-    页面立即唤起拨号（也有大按钮兜底），是目前唯一各扫码器都稳的方案。
-  * tel：直接 `tel:+86…`，只有 iOS 相机等少数扫码器会拨号，微信里只当文本显示。
-  * vcard：`BEGIN:VCARD…` 联系人名片，扫码后显示为名片、需再点一次「呼叫」，
-    部分扫码器识别不稳定，仅作备选。
+- 只生成电话二维码（挪车码）。**扫码内容固定为本站中转页** `/qrcode/call/<号码>`：
+  微信 / 相机 / 浏览器都能打开，页面立即唤起拨号（也有大按钮兜底）。
+  曾尝试过 `tel:`（微信里只当文本）与 vCard 名片（要再点一次「呼叫」），都不稳，已移除。
+- 号码不做国际区号处理：用户输入几位就用几位（6~15 位数字），不再自动补 +86。
 - SVG 支持标题（如「扫描挪车」）与底部提示行，并做圆角码点、圆角定位点与渐变
   标题条美化；**二维码下方不再印号码**（扫码即可拨号，印出来反而泄露隐私）。
-- PNG 为纯码（标准库无法渲染中文，带文字的 PNG 由前端 Canvas 合成导出）。
+- **二维码本身是彩色的**：码点与定位点取主题深色对角渐变（5 套配色：绿 / 蓝 /
+  紫 / 橙 / 墨黑），卡片底为同色系浅渐变，定位点白环与静区保持纯白。渐变两端
+  都必须是深色（亮度 ≤ 120），否则彩色码扫不出来——见 THEMES 注释与测试断言。
+- PNG 同样彩色（逐模块按对角位置取渐变色，与 SVG 一致），仍为纯码无文字。
 - 无数据库：本模块是纯转换工具，不落库、不上传用户输入内容。
 """
 import os
@@ -41,15 +42,25 @@ MAX_PIXELS = 1600         # 输出图片边长上限，超出自动缩小 scale
 MAX_TITLE_CHARS = 12      # 标题字数上限
 MAX_NOTE_CHARS = 24       # 提示行字数上限
 LEVELS = ('L', 'M', 'Q', 'H')
-MODES = ('page', 'tel', 'vcard')   # 扫码后的动作：网页中转（默认）/ 直拨 / 名片
 MIN_VERSION, MAX_VERSION = 1, 10
 
-# 主题：渐变标题条（起/止色）与码点颜色（均用深色，保证扫码对比度）
+# 主题：彩色渐变配色。from/to = 标题条渐变，dot1/dot2 = 码点渐变（两端都必须深色），
+# bg1/bg2 = 背景渐变（必须接近纯白），ink = 提示文字色。
+# ⚠ 新增/改配色必须满足：码点渐变两端亮度 ≤ 120、背景两端亮度 ≥ 235
+#   （tests 里 test_theme_contrast 会断言，否则彩色码会扫不出来）
 THEMES: dict[str, dict[str, str]] = {
-    'green': {'from': '#34d399', 'to': '#059669', 'dot': '#064e3b'},
-    'blue': {'from': '#60a5fa', 'to': '#2563eb', 'dot': '#1e3a8a'},
-    'dark': {'from': '#475569', 'to': '#0f172a', 'dot': '#0f172a'},
+    'green': {'from': '#34d399', 'to': '#059669', 'dot1': '#065f46', 'dot2': '#0f766e',
+              'bg1': '#f0fdf4', 'bg2': '#ffffff', 'ink': '#5f8d80'},
+    'blue': {'from': '#60a5fa', 'to': '#2563eb', 'dot1': '#1e3a8a', 'dot2': '#1d4ed8',
+             'bg1': '#eff6ff', 'bg2': '#ffffff', 'ink': '#6b86c4'},
+    'purple': {'from': '#a78bfa', 'to': '#7c3aed', 'dot1': '#4c1d95', 'dot2': '#7e22ce',
+               'bg1': '#faf5ff', 'bg2': '#ffffff', 'ink': '#8a72b8'},
+    'orange': {'from': '#fb923c', 'to': '#ea580c', 'dot1': '#7c2d12', 'dot2': '#c2410c',
+               'bg1': '#fff7ed', 'bg2': '#ffffff', 'ink': '#c07a4e'},
+    'dark': {'from': '#475569', 'to': '#0f172a', 'dot1': '#0f172a', 'dot2': '#334155',
+             'bg1': '#f8fafc', 'bg2': '#ffffff', 'ink': '#94a3b8'},
 }
+THEME_ORDER = ('green', 'blue', 'purple', 'orange', 'dark')   # 前端按钮顺序
 _FONT = "'PingFang SC','Microsoft YaHei','Helvetica Neue',Arial,sans-serif"
 
 # 美化参数（改动后必须重新跑解码验证：码点之间一旦留缝，识别率会明显下降，
@@ -515,12 +526,57 @@ def _in_finder(r: int, c: int, size: int) -> bool:
     return False
 
 
+def _rgb(color: str) -> tuple[int, int, int]:
+    """#rrggbb → (r, g, b)"""
+    h = (color or '#000000').lstrip('#')
+    if len(h) == 3:
+        h = ''.join(c * 2 for c in h)
+    return int(h[0:2], 16), int(h[2:4], 16), int(h[4:6], 16)
+
+
+def luminance(color: str) -> int:
+    """感知亮度 0~255：配色自检用（码点必须足够暗、背景必须足够亮）"""
+    r, g, b = _rgb(color)
+    return round(0.299 * r + 0.587 * g + 0.114 * b)
+
+
+def mix_color(c1: str, c2: str, t: float) -> tuple[int, int, int]:
+    """在 c1 → c2 的渐变上取色（PNG 逐模块上色用，t=0 取 c1）"""
+    r1, g1, b1 = _rgb(c1)
+    r2, g2, b2 = _rgb(c2)
+    t = 0.0 if t < 0 else (1.0 if t > 1 else t)
+    return (round(r1 + (r2 - r1) * t), round(g1 + (g2 - g1) * t), round(b1 + (b2 - b1) * t))
+
+
+def _defs(gid: str, t: dict[str, str], x1: float, y1: float, x2: float, y2: float) -> str:
+    """码点 / 背景 / 标题条三套渐变
+
+    码点与背景用 userSpaceOnUse + 码区坐标：整块码呈一个连续的对角渐变，
+    而不是每个小方块各自渐变（后者会让相邻码点明暗不一，降低识别稳定性）。
+    """
+    return (
+        f'<defs>'
+        f'<linearGradient id="{gid}d" gradientUnits="userSpaceOnUse" '
+        f'x1="{x1:.2f}" y1="{y1:.2f}" x2="{x2:.2f}" y2="{y2:.2f}">'
+        f'<stop offset="0%" stop-color="{t["dot1"]}"/>'
+        f'<stop offset="100%" stop-color="{t["dot2"]}"/></linearGradient>'
+        f'<linearGradient id="{gid}b" gradientUnits="userSpaceOnUse" '
+        f'x1="{x1:.2f}" y1="{y1:.2f}" x2="{x2:.2f}" y2="{y2:.2f}">'
+        f'<stop offset="0%" stop-color="{t["bg1"]}"/>'
+        f'<stop offset="100%" stop-color="{t["bg2"]}"/></linearGradient>'
+        f'<linearGradient id="{gid}t" x1="0" y1="0" x2="1" y2="1">'
+        f'<stop offset="0%" stop-color="{t["from"]}"/>'
+        f'<stop offset="100%" stop-color="{t["to"]}"/></linearGradient>'
+        f'</defs>'
+    )
+
+
 def render_svg(matrix: list[list[int]], scale: int = 8, border: int = 4,
                title: str = '', hint: str = '', theme: str = 'green') -> str:
-    """渲染 SVG
+    """渲染彩色 SVG
 
-    title / hint 均为空时输出「纯码」方形 SVG（体积小、兼容性最好）；
-    任一非空时输出带渐变标题条与提示文字的精美卡片。
+    码点与定位点用主题深色渐变（userSpaceOnUse 对角渐变），定位点白环与静区保持
+    纯白以保证识别；title / hint 均为空时输出「纯码」方形 SVG（只有码，无文字）。
     """
     size = len(matrix)
     n = size + border * 2
@@ -543,11 +599,13 @@ def render_svg(matrix: list[list[int]], scale: int = 8, border: int = 4,
                 else:
                     x += 1
         size_px = n * scale
+        gid = f'qrg{uuid.uuid4().hex[:8]}'
         return (
             f'<svg xmlns="http://www.w3.org/2000/svg" width="{size_px}" height="{size_px}" '
             f'viewBox="0 0 {n} {n}" shape-rendering="crispEdges">'
-            f'<rect width="{n}" height="{n}" fill="#ffffff"/>'
-            f'<path d="{"".join(path)}" fill="#000000"/></svg>'
+            + _defs(gid, t, border, border, border + size, border + size)
+            + f'<rect width="{n}" height="{n}" fill="url(#{gid}b)"/>'
+            f'<path d="{"".join(path)}" fill="url(#{gid}d)"/></svg>'
         )
 
     # ---- 精美卡片 ----
@@ -559,7 +617,7 @@ def render_svg(matrix: list[list[int]], scale: int = 8, border: int = 4,
     ox, oy = pad + border, pad + top_h + border  # 二维码左上角（模块坐标，含静区）
 
     gid = f'qrg{uuid.uuid4().hex[:8]}'          # 避免同页多个 SVG 的渐变 id 冲突
-    dot = t['dot']
+    dot = f'url(#{gid}d)'                       # 码点 / 定位点：主题深色渐变
     body: list[str] = []
     # 定位图案：外框 → 白环 → 圆心，三层圆角矩形
     fr_outer, fr_ring, fr_core = _FINDER_RX
@@ -582,7 +640,7 @@ def render_svg(matrix: list[list[int]], scale: int = 8, border: int = 4,
         # 顶部渐变圆角条（只圆上方两角）
         rr = 3.0
         texts.append(f'<path d="M0 {rr} a{rr} {rr} 0 0 1 {rr} -{rr} h{W - 2 * rr:.2f} '
-                     f'a{rr} {rr} 0 0 1 {rr} {rr} v{top_h - rr:.2f} h-{W:.2f} z" fill="url(#{gid})"/>')
+                     f'a{rr} {rr} 0 0 1 {rr} {rr} v{top_h - rr:.2f} h-{W:.2f} z" fill="url(#{gid}t)"/>')
         fs = 3.0
         texts.append(f'<text x="{W / 2:.2f}" y="{top_h * 0.68:.2f}" text-anchor="middle" '
                      f'font-family="{_FONT}" font-size="{fs}" font-weight="700" '
@@ -592,15 +650,16 @@ def render_svg(matrix: list[list[int]], scale: int = 8, border: int = 4,
         fs = 1.7
         top = base + 0.6
         texts.append(f'<text x="{W / 2:.2f}" y="{top + fs * 0.9:.2f}" text-anchor="middle" '
-                     f'font-family="{_FONT}" font-size="{fs}" fill="#94a3b8">{_esc(hint)}</text>')
+                     f'font-family="{_FONT}" font-size="{fs}" fill="{t["ink"]}">{_esc(hint)}</text>')
 
     svg = (
         f'<svg xmlns="http://www.w3.org/2000/svg" width="{W * scale:.0f}" height="{H * scale:.0f}" '
         f'viewBox="0 0 {W:.2f} {H:.2f}">'
-        f'<defs><linearGradient id="{gid}" x1="0" y1="0" x2="1" y2="1">'
-        f'<stop offset="0%" stop-color="{t["from"]}"/>'
-        f'<stop offset="100%" stop-color="{t["to"]}"/></linearGradient></defs>'
-        f'<rect x="0" y="0" width="{W:.2f}" height="{H:.2f}" rx="3.2" fill="#ffffff"/>'
+        + _defs(gid, t, ox, oy, ox + size, oy + size)
+        # 卡片底：主题浅色渐变；码区另铺一层纯白，静区保持最大对比
+        + f'<rect x="0" y="0" width="{W:.2f}" height="{H:.2f}" rx="3.2" fill="url(#{gid}b)"/>'
+        f'<rect x="{ox - border:.2f}" y="{oy - border:.2f}" width="{n}" height="{n}" '
+        f'rx="1.2" fill="#ffffff"/>'
         + ''.join(body)
         + ''.join(texts)
         + '</svg>'
@@ -608,17 +667,25 @@ def render_svg(matrix: list[list[int]], scale: int = 8, border: int = 4,
     return svg
 
 
-def render_png(matrix: list[list[int]], scale: int = 8, border: int = 4) -> bytes:
-    n = len(matrix) + border * 2
+def render_png(matrix: list[list[int]], scale: int = 8, border: int = 4,
+               theme: str = 'green') -> bytes:
+    """输出彩色 PNG：按模块位置在主题的深色渐变上取色（与 SVG 的对角渐变一致）"""
+    t = THEMES.get(theme, THEMES['green'])
+    size = len(matrix)
+    n = size + border * 2
+    span = max(1, 2 * (size - 1))
     raw = bytearray()
     for y in range(n):
-        my = y - border
-        source = matrix[my] if 0 <= my < len(matrix) else None
+        my = min(max(y - border, 0), size - 1)
+        source = matrix[y - border] if 0 <= y - border < size else None
         line = bytearray(b'\x00')          # filter type 0
         for x in range(n):
-            mx = x - border
-            dark = bool(source and 0 <= mx < len(source) and source[mx])
-            line += (b'\x00\x00\x00' if dark else b'\xff\xff\xff') * scale
+            mx = min(max(x - border, 0), size - 1)
+            dark = bool(source and 0 <= x - border < size and source[x - border])
+            k = (mx + my) / span           # 对角渐变位置
+            r, g, b = (mix_color(t['dot1'], t['dot2'], k) if dark
+                       else mix_color(t['bg1'], t['bg2'], k))
+            line += bytes((r, g, b)) * scale
         for _ in range(scale):             # 每个模块纵向放大
             raw += line
 
@@ -635,26 +702,17 @@ def render_png(matrix: list[list[int]], scale: int = 8, border: int = 4) -> byte
 
 # ==================== 参数解析 ====================
 
-def normalize_phone(raw: str, intl: bool = True) -> str:
-    """把用户输入的号码规范为带国际区号的 E.164 形式
+def normalize_phone(raw: str) -> str:
+    """把用户输入的号码规范为纯数字（不加国际区号）
 
-    intl=True 时，11 位且以 1 开头的国内手机号自动补 +86；已含 + 或 86 前缀的
-    按原样保留。intl=False 时只用用户输入的数字（不加区号）。
+    挪车码只在国内用，加 +86 反而让号码变长、码点变密，统一按用户输入的数字处理。
     """
-    p = re.sub(r'[^\d+]', '', raw or '')
-    if not p:
+    digits = re.sub(r'\D', '', raw or '')
+    if not digits:
         raise QRError('请输入手机号码')
-    if p.startswith('+'):
-        digits = p[1:]
-    else:
-        digits = p
-        if intl and len(digits) == 11 and digits.startswith('1'):
-            digits = '86' + digits
-    if not digits.isdigit():
-        raise QRError('手机号只能包含数字')
     if not 6 <= len(digits) <= 15:
         raise QRError('请输入正确的手机号码')
-    return '+' + digits
+    return digits
 
 
 def _text_param(src: Any, key: str, limit: int) -> str:
@@ -674,24 +732,9 @@ def mask_phone(phone: str) -> str:
     return d or phone
 
 
-_VCARD_NAME = '挪车'          # 名片显示名：固定短名，避免内容变长导致码点过密
-
-
-def build_content(mode: str, phone: str) -> str:
-    """按扫码模式生成二维码内容（默认 page）
-
-    page ：本站中转页 URL，微信 / 相机 / 浏览器都能打开，页面再触发拨号；
-    tel  ：直接 tel: 链接，仅部分扫码器可直接拨号；
-    vcard：联系人名片，扫码后显示为名片、需再点「呼叫」。
-    """
-    if mode == 'tel':
-        return 'tel:' + phone
-    if mode == 'page':
-        return f'{request.host_url}qrcode/call/{phone.lstrip("+")}'
-    n = _VCARD_NAME
-    return ('BEGIN:VCARD\nVERSION:3.0\n'
-            f'N:;{n}\nFN:{n}\n'
-            f'TEL;TYPE=CELL:{phone}\nEND:VCARD')
+def build_content(phone: str) -> str:
+    """二维码内容：本站中转页 URL（微信 / 相机 / 浏览器都能打开，页面再触发拨号）"""
+    return f'{request.host_url}qrcode/call/{phone}'
 
 
 def _read_params() -> dict[str, Any]:
@@ -702,12 +745,9 @@ def _read_params() -> dict[str, Any]:
     if not phone:
         raw_text = str(src.get('text') or '').strip()
         phone = re.sub(r'^tel:', '', raw_text, flags=re.I)
-    intl_raw = str(src.get('intl') if src.get('intl') is not None else '1').strip().lower()
     return {
         'phone': phone,
-        'intl': intl_raw not in ('0', 'false', 'no', 'off'),
         'title': _text_param(src, 'title', MAX_TITLE_CHARS),
-        'mode': (str(src.get('mode') or 'page')).strip().lower(),
         'hint': _text_param(src, 'hint', MAX_NOTE_CHARS),
         'theme': (str(src.get('theme') or 'green')).strip().lower(),
         'level': (str(src.get('level') or 'M')).strip().upper(),
@@ -736,18 +776,16 @@ def _build_result() -> dict[str, Any]:
     content / mode / title / hint / theme / level
     """
     p = _read_params()
-    phone = normalize_phone(p['phone'], bool(p['intl']))
+    phone = normalize_phone(p['phone'])
     if p['level'] not in LEVELS:
         raise QRError('纠错等级只能是 L / M / Q / H')
     if p['fmt'] not in ('svg', 'png', 'json'):
         raise QRError('输出格式只能是 svg / png / json')
-    if p['mode'] not in MODES:
-        raise QRError('扫码方式只能是 vcard / tel / page')
 
     scale = _int_param(p['scale'], 8, 1, MAX_SCALE, '缩放')
     border = _int_param(p['border'], 4, 0, MAX_BORDER, '静区')
 
-    content = build_content(p['mode'], phone)
+    content = build_content(phone)
     if len(content) > MAX_TEXT_CHARS:
         raise QRError('号码过长')
     matrix, version, _mask = encode(content, p['level'])
@@ -757,7 +795,7 @@ def _build_result() -> dict[str, Any]:
     return {
         'matrix': matrix, 'scale': scale, 'border': border, 'version': version,
         'fmt': str(p['fmt']), 'phone': phone, 'tel': 'tel:' + phone,
-        'content': content, 'mode': p['mode'],
+        'content': content, 'mode': 'page',      # 固定网页中转，保留字段兼容旧调用
         'title': p['title'], 'hint': p['hint'],
         'theme': p['theme'], 'level': p['level'],
     }
@@ -769,15 +807,15 @@ def _build_result() -> dict[str, Any]:
 def make_qrcode():
     """生成电话二维码（挪车码）
 
-    GET  参数：phone / title / hint / theme / level / scale / border / fmt / mode
+    GET  参数：phone / title / hint / theme / level / scale / border / fmt
     POST JSON：同上
-    mode=page（默认，网页中转后再拨号）/ tel（直接拨号）/ vcard（联系人名片）
+    号码只取 6~15 位数字（不加区号），内容固定是本码中转页 URL
     fmt=svg 返回 SVG（带标题与提示的精美卡片）；fmt=png 返回纯码 PNG；fmt=json 返回矩阵
     """
     try:
         r = _build_result()
         if r['fmt'] == 'png':
-            data = render_png(r['matrix'], r['scale'], r['border'])
+            data = render_png(r['matrix'], r['scale'], r['border'], r['theme'])
             return Response(data, mimetype='image/png',
                             headers={'Cache-Control': 'no-store'})
         if r['fmt'] == 'json':
@@ -868,7 +906,7 @@ def call_page(digits: str):
     d = re.sub(r'\D', '', digits or '')
     if not 6 <= len(d) <= 15:
         return Response('号码无效', status=400, mimetype='text/plain; charset=utf-8')
-    tel = 'tel:+' + d
+    tel = 'tel:' + d                           # 不加区号：号码就是用户填的那串数字
     html = (_CALL_PAGE.replace('{TEL}', tel).replace('{MASK}', _esc(mask_phone(d))))
     return Response(html, mimetype='text/html; charset=utf-8',
                     headers={'Cache-Control': 'no-store'})

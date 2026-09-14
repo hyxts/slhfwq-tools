@@ -9,9 +9,11 @@
 """
 import sys
 import os
+import struct
 import unittest
 import tempfile
 import sqlite3
+import zlib
 from typing import override
 
 # 将项目根目录加入路径
@@ -22,6 +24,7 @@ from flask.testing import FlaskClient
 
 import app as app_mod
 import routes.ledger as ledger_mod
+import routes.qr as qr_mod
 from routes.utils import make_db
 
 # ledger 模块真实的 DB 连接工厂（扩展测试替换后需要恢复）
@@ -539,6 +542,29 @@ class TestLedgerExtAPI(unittest.TestCase):
         self.assertIsInstance(d.get('data'), list)
 
 
+def _png_colors(png: bytes) -> set[tuple[int, int, int]]:
+    """解析自写 PNG（color type 2、filter 0）取所有像素颜色：验证是否真的上了色"""
+    pos, idat, w, h = 8, bytearray(), 0, 0
+    while pos < len(png):
+        ln: int = struct.unpack('>I', png[pos:pos + 4])[0]
+        tag = png[pos + 4:pos + 8]
+        data = png[pos + 8:pos + 8 + ln]
+        if tag == b'IHDR':
+            w, h, _depth, ctype = struct.unpack('>IIBB', data[:10])
+            assert ctype == 2, f'期望 RGB，实际 color type={ctype}'
+        elif tag == b'IDAT':
+            idat += data
+        pos += 12 + ln
+    raw = zlib.decompress(bytes(idat))
+    stride = w * 3 + 1
+    colors: set[tuple[int, int, int]] = set()
+    for y in range(h):
+        line = raw[y * stride + 1:(y + 1) * stride]
+        for x in range(w):
+            colors.add((line[x * 3], line[x * 3 + 1], line[x * 3 + 2]))
+    return colors
+
+
 class TestQRCode(unittest.TestCase):
     """二维码生成模块测试（需要登录会话）"""
 
@@ -551,6 +577,17 @@ class TestQRCode(unittest.TestCase):
         app.config['TESTING'] = True
         with cls.client.session_transaction() as sess:  # type: ignore[attr-defined]
             sess['auth'] = True
+        # 本类用例较多（多主题 / 多格式），放开全局限流，否则跑到一半开始 429
+        cls._rate_json: int = app_mod.RATE_LIMIT_MAX_JSON
+        cls._rate_html: int = app_mod.RATE_LIMIT_MAX_HTML
+        app_mod.RATE_LIMIT_MAX_JSON = 100000
+        app_mod.RATE_LIMIT_MAX_HTML = 100000
+
+    @classmethod
+    @override
+    def tearDownClass(cls) -> None:
+        app_mod.RATE_LIMIT_MAX_JSON = cls._rate_json
+        app_mod.RATE_LIMIT_MAX_HTML = cls._rate_html
 
     def test_page_accessible(self) -> None:
         r = self.client.get('/qrcode')
@@ -587,41 +624,70 @@ class TestQRCode(unittest.TestCase):
         self.assertTrue(svg.endswith('</svg>'))
 
     def test_svg_plain_without_text(self) -> None:
-        """无文案时仍是纯码（体积小、兼容性好）"""
+        """无文案时只输出码本身（无文字），但同样是彩色的"""
         r = self.client.post('/api/qrcode', json={'phone': '13800138000', 'fmt': 'svg'})
         svg = r.get_data(as_text=True)
-        self.assertNotIn('linearGradient', svg)
+        self.assertNotIn('<text', svg)
         self.assertIn('shape-rendering="crispEdges"', svg)
+        self.assertIn('linearGradient', svg)      # 彩色渐变
 
-    def test_mode_page_default(self) -> None:
-        """默认为网页中转：任何扫码器打开页面后都能拨号"""
+    def test_svg_colored_by_theme(self) -> None:
+        """码点是主题深色渐变填充，不同主题颜色不同"""
+        seen: set[str] = set()
+        for theme in ('green', 'blue', 'purple', 'orange', 'dark'):
+            r = self.client.post('/api/qrcode', json={
+                'phone': '13800138000', 'title': '扫描挪车', 'theme': theme, 'fmt': 'svg'})
+            self.assertEqual(r.status_code, 200, theme)
+            svg = r.get_data(as_text=True)
+            t = qr_mod.THEMES[theme]
+            self.assertIn(t['dot1'], svg, theme)          # 码点渐变起始色
+            self.assertIn(t['dot2'], svg, theme)          # 码点渐变结束色
+            self.assertIn(f'fill="url(#', svg, theme)     # 码点引用渐变
+            self.assertNotIn('fill="#000000"', svg, theme)
+            seen.add(t['dot1'])
+        self.assertEqual(len(seen), 5)                    # 5 套配色互不相同
+
+    def test_theme_contrast(self) -> None:
+        """配色自检：码点必须足够暗、背景必须足够亮，否则彩色码扫不出来"""
+        for name, t in qr_mod.THEMES.items():
+            for key in ('dot1', 'dot2'):
+                self.assertLessEqual(qr_mod.luminance(t[key]), 120, f'{name}.{key}')
+            for key in ('bg1', 'bg2'):
+                self.assertGreaterEqual(qr_mod.luminance(t[key]), 235, f'{name}.{key}')
+
+    def test_png_colored(self) -> None:
+        """后端 PNG 同样是彩色：像素不止黑白两色"""
+        r = self.client.post('/api/qrcode',
+                             json={'phone': '13800138000', 'theme': 'blue', 'fmt': 'png'})
+        png: bytes = r.get_data()
+        self.assertTrue(png.startswith(b'\x89PNG'))
+        colors = _png_colors(png)
+        self.assertGreater(len(colors), 4, 'PNG 仍是纯黑白，未上色')
+
+    def test_content_is_call_page(self) -> None:
+        """内容固定是网页中转页：任何扫码器打开后都能拨号"""
         r = self.client.post('/api/qrcode', json={'phone': '13800138000', 'fmt': 'json'})
         d: dict = r.get_json()['data']
         self.assertEqual(d['mode'], 'page')
-        self.assertTrue(d['content'].endswith('/qrcode/call/8613800138000'))
+        self.assertTrue(d['content'].endswith('/qrcode/call/13800138000'))
 
-    def test_mode_tel_and_vcard(self) -> None:
-        r = self.client.post('/api/qrcode',
-                             json={'phone': '13800138000', 'mode': 'tel', 'fmt': 'json'})
-        self.assertEqual(r.get_json()['data']['content'], 'tel:+8613800138000')
-        r = self.client.post('/api/qrcode',
-                             json={'phone': '13800138000', 'mode': 'vcard', 'fmt': 'json'})
-        d: dict = r.get_json()['data']
-        self.assertIn('BEGIN:VCARD', d['content'])
-        self.assertIn('TEL;TYPE=CELL:+8613800138000', d['content'])
-
-    def test_invalid_mode(self) -> None:
-        r = self.client.post('/api/qrcode',
-                             json={'phone': '13800138000', 'mode': 'sms', 'fmt': 'json'})
-        self.assertEqual(r.status_code, 400)
+    def test_mode_param_ignored(self) -> None:
+        """名片与直拨已移除：再传 mode 也一律按网页中转处理"""
+        for mode in ('tel', 'vcard', 'sms'):
+            r = self.client.post('/api/qrcode', json={
+                'phone': '13800138000', 'mode': mode, 'fmt': 'json'})
+            self.assertEqual(r.status_code, 200, mode)
+            d: dict = r.get_json()['data']
+            self.assertTrue(d['content'].endswith('/qrcode/call/13800138000'))
+            self.assertNotIn('BEGIN:VCARD', d['content'])
 
     def test_call_page_public(self) -> None:
-        """中转拨号页免登录，且内容为可点击的 tel: 链接"""
+        """中转拨号页免登录，且内容为可点击的 tel: 链接（不带区号）"""
         anon = app.test_client()
-        r = anon.get('/qrcode/call/8613800138000')
+        r = anon.get('/qrcode/call/13800138000')
         self.assertEqual(r.status_code, 200)
         html = r.get_data(as_text=True)
-        self.assertIn('tel:+8613800138000', html)
+        self.assertIn('tel:13800138000', html)
         self.assertIn('138 **** 8000', html)
         self.assertEqual(anon.get('/qrcode/call/12').status_code, 400)
 
@@ -631,16 +697,19 @@ class TestQRCode(unittest.TestCase):
         self.assertTrue(r.get_data().startswith(b'\x89PNG'))
 
     def test_phone_normalized(self) -> None:
-        """11 位手机号自动补 +86，内容必须是 tel: 开头（扫码直接拨号）"""
-        r = self.client.post('/api/qrcode', json={'phone': '13800138000', 'fmt': 'json'})
+        """号码只保留数字、不加区号"""
+        r = self.client.post('/api/qrcode', json={'phone': '138-0013 8000', 'fmt': 'json'})
         data: dict = r.get_json()['data']
-        self.assertEqual(data['tel'], 'tel:+8613800138000')
+        self.assertEqual(data['phone'], '13800138000')
+        self.assertEqual(data['tel'], 'tel:13800138000')
+        self.assertNotIn('86', data['tel'][:6])
         self.assertEqual(len(data['matrix']), data['size'])
 
-    def test_intl_off(self) -> None:
+    def test_intl_param_ignored(self) -> None:
+        """不再有区号开关：intl 参数无效果，号码始终是纯数字"""
         r = self.client.post('/api/qrcode',
-                             json={'phone': '13800138000', 'intl': 0, 'fmt': 'json'})
-        self.assertEqual(r.get_json()['data']['tel'], 'tel:+13800138000')
+                             json={'phone': '13800138000', 'intl': 1, 'fmt': 'json'})
+        self.assertEqual(r.get_json()['data']['tel'], 'tel:13800138000')
 
     def test_get_params(self) -> None:
         r = self.client.get('/api/qrcode?phone=13800138000&fmt=svg&level=H&theme=blue')

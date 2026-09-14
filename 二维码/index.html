@@ -89,17 +89,15 @@ input:focus,select:focus{outline:none;border-color:var(--primary);box-shadow:0 0
     <div class="err" id="errBox"></div>
     <div class="acts">
       <button class="btn-primary" id="btnPng">保存图片</button>
-      <button id="btnSvg">下载 SVG</button>
-      <button id="btnCopy">复制号码</button>
     </div>
-    <div class="tip">微信 / 相机扫一扫，识别为联系人名片后点「呼叫」即可拨通；二维码下方不印号码，避免被拍照滥用。</div>
+    <div class="tip">微信 / 相机扫一扫，打开页面后自动呼出拨号；二维码下方不印号码，避免被拍照滥用。</div>
   </section>
 
   <section class="card">
     <div class="ttl2">号码与文案</div>
     <label for="phoneInput">手机号码</label>
     <input id="phoneInput" type="tel" inputmode="numeric" maxlength="16" placeholder="如 13800138000" autocomplete="off">
-    <div class="check"><input type="checkbox" id="intlChk" checked><label for="intlChk" style="margin:0">自动添加 +86 区号</label></div>
+    <div class="hint">号码只取数字，不会加 +86 区号。</div>
 
     <label for="titleInput">二维码标题</label>
     <input id="titleInput" type="text" maxlength="12" placeholder="如 扫描挪车" autocomplete="off">
@@ -120,23 +118,16 @@ input:focus,select:focus{outline:none;border-color:var(--primary);box-shadow:0 0
   </section>
 
   <section class="card">
-    <div class="ttl2">扫码后做什么</div>
-    <div class="seg" id="callSeg">
-      <button data-m="page" class="on">网页中转（推荐）</button>
-      <button data-m="tel">直接拨号</button>
-      <button data-m="vcard">联系人名片</button>
-    </div>
-    <div class="hint" id="callHint"></div>
-  </section>
-
-  <section class="card">
     <div class="ttl2">外观与参数</div>
     <label>配色</label>
     <div class="seg" id="themeSeg">
       <button data-c="green" class="on">清新绿</button>
       <button data-c="blue">沉稳蓝</button>
+      <button data-c="purple">活力紫</button>
+      <button data-c="orange">暖阳橙</button>
       <button data-c="dark">墨黑</button>
     </div>
+    <div class="hint">码点与定位点是同色系深色渐变，静区与定位点白环保持纯白，保证扫码识别率。</div>
     <label for="levelSel">纠错等级</label>
     <select id="levelSel">
       <option value="M">M — 约 15%（推荐）</option>
@@ -161,30 +152,16 @@ input:focus,select:focus{outline:none;border-color:var(--primary);box-shadow:0 0
 
 <script>
 var $ = function(id){ return document.getElementById(id); };
-var state = { level:'H', scale:10, border:4, theme:'green', intl:true, call:'page', svg:'', phone:'', tel:'' };
-var HIST_KEY = 'qrcode_phone_history_v2';
-var PREF_KEY = 'qrcode_phone_pref_v3';
-var CALL_HINT = {
-  page:'扫码后先打开本站中转页，页面立刻唤起拨号（没弹出来就点页面上的大按钮）。微信、相机、浏览器都支持，唯一要求是扫码时联网。',
-  tel:'直接写入 tel: 链接，只有 iOS 相机等少数扫码器会拨号；微信里通常只显示一串文字，不能拨号。',
-  vcard:'把号码写成联系人名片，扫码后显示为一张名片，还要再点一次「呼叫」，部分扫码器识别不稳定；内容也更长、码点更密。'
-};
-var CALL_LABEL = { page:'网页中转', tel:'tel: 链接', vcard:'联系人名片' };
-/* 旧版本默认过名片，历史/偏好里存到的 vcard 一律按网页中转处理 */
-function fixCall(c){ return (!c || c === 'vcard') ? 'page' : c; }
+var state = { level:'H', scale:10, border:4, theme:'green', svg:'', phone:'', tel:'' };
+var HIST_KEY = 'qrcode_phone_history_v3';
+var PREF_KEY = 'qrcode_phone_pref_v4';
 
 /* ---------- 号码处理 ---------- */
 function rawPhone(){
-  return ($('phoneInput').value || '').replace(/[^\d+]/g, '');
+  return ($('phoneInput').value || '').replace(/\D/g, '');
 }
-function normPhone(){
-  var p = rawPhone();
-  if (!p) return '';
-  var d;
-  if (p.indexOf('+') === 0) d = p.slice(1);
-  else if (state.intl && /^1\d{10}$/.test(p)) d = '86' + p;
-  else d = p;
-  return '+' + d;
+function normPhone(){                 /* 不加区号：就是输入框里的数字 */
+  return rawPhone();
 }
 function digits11(p){
   var d = (p || '').replace(/\D/g, '');
@@ -195,10 +172,7 @@ function fmtMask(p){
   return d.length === 11 ? d.slice(0,3) + ' **** ' + d.slice(7) : p;
 }
 function validPhone(){
-  var p = rawPhone();
-  if (!p) return false;
-  var d = p.indexOf('+') === 0 ? p.slice(1) : p;
-  return /^\d{6,15}$/.test(d);
+  return /^\d{6,15}$/.test(rawPhone());
 }
 
 /* ---------- 生成 ---------- */
@@ -219,8 +193,7 @@ async function render(){
     return;
   }
   var body = {
-    phone:p, intl:state.intl ? 1 : 0, level:state.level, scale:state.scale, border:state.border, fmt:'svg',
-    mode:state.call,
+    phone:p, level:state.level, scale:state.scale, border:state.border, fmt:'svg',
     title:($('titleInput').value || '').trim(),
     hint:($('hintInput').value || '').trim(),
     theme:state.theme
@@ -243,7 +216,7 @@ async function render(){
     state.tel = 'tel:' + normPhone();
     $('errBox').textContent = '';
     $('metaBox').style.display = 'flex';
-    $('metaTel').textContent = '拨打 ' + state.tel + '（' + CALL_LABEL[state.call] + '）';
+    $('metaTel').textContent = '拨打 ' + state.tel;
     $('metaInfo').textContent = '纠错等级 ' + state.level;
   }catch(e){
     $('errBox').textContent = '网络异常，请重试';
@@ -298,7 +271,7 @@ async function savePng(){
         method:'POST',
         headers:{'Content-Type':'application/json'},
         body:JSON.stringify({ phone:state.phone, level:state.level, scale:state.scale,
-                              border:state.border, mode:state.call, fmt:'png' })
+                              border:state.border, fmt:'png' })
       });
       if (!res.ok) throw new Error('png');
       saveBlob(await res.blob(), 'nuoche-' + state.phone + '.png');
@@ -306,25 +279,6 @@ async function savePng(){
     }catch(e2){ alert('保存失败，请重试'); }
   }
 }
-function saveSvg(){
-  if (!state.svg){ alert('请先填写手机号'); return; }
-  saveBlob(new Blob([state.svg], { type:'image/svg+xml' }), 'nuoche-' + state.phone + '.svg');
-  pushHistory();
-}
-function copyPhone(){
-  var p = normPhone();
-  if (!p){ alert('请先填写手机号'); return; }
-  if (navigator.clipboard && window.isSecureContext){
-    navigator.clipboard.writeText(p).then(function(){ alert('已复制：' + p); });
-    return;
-  }
-  var ta = document.createElement('textarea');
-  ta.value = p; document.body.appendChild(ta); ta.select();
-  try{ document.execCommand('copy'); alert('已复制：' + p); }
-  catch(e){ alert('复制失败，请手动选择复制'); }
-  document.body.removeChild(ta);
-}
-
 /* ---------- 历史记录 ---------- */
 function getHist(){
   try{ return JSON.parse(localStorage.getItem(HIST_KEY) || '[]'); }
@@ -336,8 +290,8 @@ function setHist(list){
 function pushHistory(){
   if (!state.phone) return;
   var item = { phone:state.phone, title:($('titleInput').value || '').trim(),
-               hint:($('hintInput').value || '').trim(), call:state.call,
-               theme:state.theme, level:state.level, intl:state.intl, ts:Date.now() };
+               hint:($('hintInput').value || '').trim(),
+               theme:state.theme, level:state.level, ts:Date.now() };
   var list = getHist().filter(function(x){ return x.phone !== item.phone || x.title !== item.title; });
   list.unshift(item);
   setHist(list);
@@ -355,8 +309,7 @@ function renderHist(){
     l.className = 'l';
     var n = document.createElement('div');
     n.className = 'n';
-    n.textContent = (item.title || '电话二维码') + ' · ' + fmtMask('+' + item.phone.replace(/\D/g, ''))
-                    + ' · ' + (CALL_LABEL[fixCall(item.call)] || CALL_LABEL.page);
+    n.textContent = (item.title || '电话二维码') + ' · ' + fmtMask(item.phone);
     var s = document.createElement('div');
     s.className = 's';
     var d = new Date(item.ts);
@@ -379,11 +332,8 @@ function applyHist(item){
   $('phoneInput').value = item.phone || '';
   $('titleInput').value = item.title || '';
   $('hintInput').value = item.hint || '';
-  var c = fixCall(item.call);
-  setSeg('callSeg', c); state.call = c; showCallHint();
   if (item.theme) setSeg('themeSeg', item.theme);
   if (item.level){ state.level = item.level; $('levelSel').value = item.level; }
-  if (typeof item.intl === 'boolean'){ state.intl = item.intl; $('intlChk').checked = item.intl; }
   savePref();
   render();
 }
@@ -393,22 +343,22 @@ function bindSeg(id, onPick){
   var btns = $(id).getElementsByTagName('button');
   for (var i = 0; i < btns.length; i++){
     btns[i].addEventListener('click', function(){
-      setSeg(id, this.getAttribute('data-m') || this.getAttribute('data-c'));
-      onPick(this.getAttribute('data-m') || this.getAttribute('data-c'));
+      var c = this.getAttribute('data-c');
+      setSeg(id, c);
+      onPick(c);
     });
   }
 }
 function setSeg(id, val){
   var btns = $(id).getElementsByTagName('button');
   for (var i = 0; i < btns.length; i++){
-    var v = btns[i].getAttribute('data-m') || btns[i].getAttribute('data-c');
-    btns[i].className = v === val ? 'on' : '';
+    btns[i].className = btns[i].getAttribute('data-c') === val ? 'on' : '';
   }
 }
 function curSeg(id){
   var btns = $(id).getElementsByTagName('button');
   for (var i = 0; i < btns.length; i++){
-    if (btns[i].className === 'on') return btns[i].getAttribute('data-m') || btns[i].getAttribute('data-c');
+    if (btns[i].className === 'on') return btns[i].getAttribute('data-c');
   }
   return '';
 }
@@ -417,8 +367,8 @@ function curSeg(id){
 function savePref(){
   try{
     localStorage.setItem(PREF_KEY, JSON.stringify({
-      level:state.level, scale:state.scale, intl:state.intl,
-      call:curSeg('callSeg'), theme:curSeg('themeSeg'),
+      level:state.level, scale:state.scale,
+      theme:curSeg('themeSeg'),
       title:($('titleInput').value || '').trim(),
       hint:($('hintInput').value || '').trim()
     }));
@@ -430,27 +380,18 @@ function loadPref(){
   if (!p) return;
   if (p.level){ state.level = p.level; $('levelSel').value = p.level; }
   if (p.scale){ state.scale = parseInt(p.scale, 10) || 10; $('scaleSel').value = String(state.scale); }
-  if (typeof p.intl === 'boolean'){ state.intl = p.intl; $('intlChk').checked = p.intl; }
-  if (p.call){ var c = fixCall(p.call); setSeg('callSeg', c); state.call = c; }
   if (p.theme){ setSeg('themeSeg', p.theme); state.theme = p.theme; }
   if (p.title) $('titleInput').value = p.title;
   if (p.hint) $('hintInput').value = p.hint;
-}
-function showCallHint(){
-  $('callHint').textContent = CALL_HINT[state.call] || CALL_HINT.page;
 }
 
 /* ---------- 事件绑定 ---------- */
 $('phoneInput').addEventListener('input', schedule);
 $('titleInput').addEventListener('input', schedule);
 $('hintInput').addEventListener('input', schedule);
-$('intlChk').addEventListener('change', function(){ state.intl = this.checked; savePref(); schedule(); });
 $('levelSel').addEventListener('change', function(){ state.level = this.value; savePref(); render(); });
 $('scaleSel').addEventListener('change', function(){ state.scale = parseInt(this.value, 10) || 10; savePref(); render(); });
 $('btnPng').addEventListener('click', savePng);
-$('btnSvg').addEventListener('click', saveSvg);
-$('btnCopy').addEventListener('click', copyPhone);
-bindSeg('callSeg', function(v){ state.call = v; showCallHint(); savePref(); render(); });
 bindSeg('themeSeg', function(v){ state.theme = v; savePref(); render(); });
 var chips = $('titleChips').getElementsByTagName('button');
 for (var i = 0; i < chips.length; i++){
@@ -468,9 +409,7 @@ for (var j = 0; j < hchips.length; j++){
 }
 
 loadPref();
-state.call = fixCall(curSeg('callSeg'));
 if (!$('hintInput').value) $('hintInput').value = '扫我呼叫车主';
-showCallHint();
 renderHist();
 </script>
 </body>
