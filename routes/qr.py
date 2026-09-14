@@ -10,12 +10,12 @@
   微信 / 相机 / 浏览器都能打开，页面立即唤起拨号（也有大按钮兜底）。
   曾尝试过 `tel:`（微信里只当文本）与 vCard 名片（要再点一次「呼叫」），都不稳，已移除。
 - 号码不做国际区号处理：用户输入几位就用几位（6~15 位数字），不再自动补 +86。
-- SVG 支持标题（如「扫描挪车」）与底部提示行，并做圆角码点、圆角定位点与深色
-  标题条美化；**二维码下方不再印号码**（扫码即可拨号，印出来反而泄露隐私）。
-- **二维码是传统黑白**：码点与定位点纯黑、背景与定位点白环纯白——对比度最大、
-  识别最稳，打印过塑与旧扫码器都不挑。曾做过 6 套主题渐变 + 三种码点样式的彩色
-  方案，因部分扫码器识别率下降且用户更认黑白，已整体回退（见开发规范 7.45）。
-- PNG 同样黑白（纯码无文字，逐模块上色时与 SVG 一致）。
+- SVG 支持标题（如「扫描挪车」）与底部提示行；**二维码下方不再印号码**
+  （扫码即可拨号，印出来反而泄露隐私）。
+- **二维码就是传统样式**：码点与定位点是纯黑的标准方块，背景纯白——不加圆角、
+  不留缝、定位点也不单独美化。曾做过彩色渐变、圆角码点与圆角定位点等美化，
+  识别虽能过但属于多余装饰（且部分扫码器识别率下降），已整体回退（开发规范 7.45）。
+- PNG 同样是传统黑白（纯码无文字）。
 - 无数据库：本模块是纯转换工具，不落库、不上传用户输入内容。
 """
 import os
@@ -51,12 +51,6 @@ PAPER = '#ffffff'        # 背景与定位点白环
 BAR_INK = '#111827'      # 卡片顶部标题条
 HINT_INK = '#6b7280'     # 卡片底部提示行
 _FONT = "'PingFang SC','Microsoft YaHei','Helvetica Neue',Arial,sans-serif"
-
-# 美化参数（改动后必须重新跑解码验证：码点之间一旦留缝，识别率会明显下降，
-# 实测 inset=0 时圆角半径 0.25~0.4、定位点外框 ≤1.6 均可稳定解码）
-_DOT_INSET = 0.0        # 码点四周留缝（模块单位，必须保持 0，保证码点相连）
-_DOT_RX = 0.32          # 码点圆角半径
-_FINDER_RX = (1.0, 0.6, 0.4)   # 定位点：外框 / 白环 / 圆心的圆角半径（外框 >1.2 会掉识别率）
 
 
 class QRError(ValueError):
@@ -503,51 +497,49 @@ def _esc(text: str) -> str:
                 .replace('>', '&gt;').replace('"', '&quot;'))
 
 
-def _finder_boxes(size: int) -> list[tuple[int, int]]:
-    """三个定位图案的左上角坐标（7x7 区域）"""
-    return [(0, 0), (0, size - 7), (size - 7, 0)]
+def _dots_path(matrix: list[list[int]], x0: float, y0: float) -> str:
+    """把所有黑模块合成一条 path：同一行里连续的黑块并成一个矩形。
 
-
-def _in_finder(r: int, c: int, size: int) -> bool:
-    for fr, fc in _finder_boxes(size):
-        if fr <= r < fr + 7 and fc <= c < fc + 7:
-            return True
-    return False
+    标准方块码——不画圆角、不留缝、定位点也不单独美化（曾做过圆角码点与圆角
+    定位点，识别虽能过但属于多余的美化，已随彩色方案一起回退，见开发规范 7.45）。
+    整行合并后元素最少，SVG 体积小、渲染快。
+    """
+    parts: list[str] = []
+    for y, row in enumerate(matrix):
+        x = 0
+        while x < len(row):
+            if row[x]:
+                x2 = x
+                while x2 < len(row) and row[x2]:
+                    x2 += 1
+                parts.append(f'M{x + x0:g} {y + y0:g}h{x2 - x}v1h-{x2 - x}z')
+                x = x2
+            else:
+                x += 1
+    return ''.join(parts)
 
 
 def render_svg(matrix: list[list[int]], scale: int = 8, border: int = 4,
                title: str = '', hint: str = '') -> str:
     """渲染传统黑白 SVG
 
-    码点与定位点是纯黑，背景与定位点白环是纯白（对比度最大，识别最稳）。
+    码点与定位点是纯黑的标准方块，背景是纯白（对比度最大，识别最稳）。
     title / hint 均为空时输出「纯码」方形 SVG（只有码，无文字）；
-    否则输出带标题条的卡片（卡片本身也是白底黑字，只是多了圆角与标题条）。
+    否则输出带标题条与提示行的卡片（卡片只是外框装饰，码本身不变）。
     """
     size = len(matrix)
     n = size + border * 2
     title = (title or '').strip()
     hint = (hint or '').strip()
 
-    # ---- 纯码：沿用整行合并的 path，元素最少 ----
+    # ---- 纯码 ----
     if not title and not hint:
-        path: list[str] = []
-        for y, row in enumerate(matrix):
-            x = 0
-            while x < len(row):
-                if row[x]:
-                    x2 = x
-                    while x2 < len(row) and row[x2]:
-                        x2 += 1
-                    path.append(f'M{x + border} {y + border}h{x2 - x}v1h-{x2 - x}z')
-                    x = x2
-                else:
-                    x += 1
         size_px = n * scale
         return (
             f'<svg xmlns="http://www.w3.org/2000/svg" width="{size_px}" height="{size_px}" '
             f'viewBox="0 0 {n} {n}" shape-rendering="crispEdges">'
             f'<rect width="{n}" height="{n}" fill="{PAPER}"/>'
-            f'<path d="{"".join(path)}" fill="{INK}"/></svg>'
+            f'<path d="{_dots_path(matrix, border, border)}" fill="{INK}"/></svg>'
         )
 
     # ---- 卡片：白底黑码 + 深色标题条 ----
@@ -558,24 +550,8 @@ def render_svg(matrix: list[list[int]], scale: int = 8, border: int = 4,
     H = pad + top_h + n + hint_h + pad
     ox, oy = pad + border, pad + top_h + border  # 二维码左上角（模块坐标，含静区）
 
-    dot = INK                                   # 码点 / 定位点：纯黑
-    body: list[str] = []
-    # 定位图案：外框 → 白环 → 圆心，三层圆角矩形
-    fr_outer, fr_ring, fr_core = _FINDER_RX
-    for fr, fc in _finder_boxes(size):
-        x, y = ox + fc, oy + fr
-        body.append(f'<rect x="{x:.2f}" y="{y:.2f}" width="7" height="7" rx="{fr_outer}" fill="{dot}"/>')
-        body.append(f'<rect x="{x + 1:.2f}" y="{y + 1:.2f}" width="5" height="5" '
-                    f'rx="{fr_ring}" fill="{PAPER}"/>')
-        body.append(f'<rect x="{x + 2:.2f}" y="{y + 2:.2f}" width="3" height="3" rx="{fr_core}" fill="{dot}"/>')
-    # 数据码点：圆角小方块（略留缝隙 + 小圆角，形成精致的点阵质感）
-    side = 1 - _DOT_INSET * 2
-    for r in range(size):
-        row = matrix[r]
-        for c in range(size):
-            if row[c] and not _in_finder(r, c, size):
-                body.append(f'<rect x="{ox + c + _DOT_INSET:.2f}" y="{oy + r + _DOT_INSET:.2f}" '
-                            f'width="{side:.2f}" height="{side:.2f}" rx="{_DOT_RX}" fill="{dot}"/>')
+    body = (f'<path d="{_dots_path(matrix, ox, oy)}" fill="{INK}" '
+            f'shape-rendering="crispEdges"/>')
 
     texts: list[str] = []
     if title:

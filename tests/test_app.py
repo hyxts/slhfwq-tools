@@ -9,6 +9,7 @@
 """
 import sys
 import os
+import re
 import struct
 import unittest
 import tempfile
@@ -640,6 +641,18 @@ class TestQRCode(unittest.TestCase):
             self.assertIn('fill="#000000"', svg, str(payload))
             self.assertNotIn('linearGradient', svg, str(payload))
             self.assertNotIn('fill="url(#', svg, str(payload))
+
+    def test_dots_are_plain_squares(self) -> None:
+        """回归传统：码点是标准方块——没有圆角、留缝、定位点美化这些常量"""
+        for name in ('_DOT_RX', '_FINDER_RX', '_DOT_INSET'):
+            self.assertFalse(hasattr(qr_mod, name), name)
+        for payload in ({'phone': '13800138000', 'fmt': 'svg'},
+                        {'phone': '13800138000', 'title': '扫描挪车',
+                         'hint': '扫我呼叫车主', 'fmt': 'svg'}):
+            svg = self.client.post('/api/qrcode', json=payload).get_data(as_text=True)
+            radii = [float(v) for v in re.findall(r'rx="([\d.]+)"', svg)]
+            self.assertTrue(all(r >= 3 for r in radii), f'{radii} 只允许卡片外框圆角')
+            self.assertIn('shape-rendering="crispEdges"', svg, str(payload))
 
     def test_theme_and_style_params_ignored(self) -> None:
         """配色与码点样式已废弃：旧请求带 theme/style 仍能正常出码（不报错、不生效）"""
