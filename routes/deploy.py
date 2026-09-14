@@ -85,6 +85,34 @@ def _trigger_pa_reload():
     return '重载脚本未找到'
 
 
+def _restore_missing_files() -> str:
+    """恢复工作区中缺失的受版本控制文件
+
+    现象：部分环境下 `git reset --hard` 不会重建被删除/未落盘的跟踪文件
+    （新增的中文路径目录尤其明显），表现为线上静态资源 404、目录不存在。
+    处理：用 `git status --porcelain -z` 找出工作区缺失的文件并显式检出。
+    """
+    try:
+        st = subprocess.run(['git', 'status', '--porcelain', '-z'], cwd=BASE_DIR,
+                            capture_output=True, timeout=20)
+        raw = st.stdout.decode('utf-8', 'surrogateescape')
+        missing = [e[3:] for e in raw.split('\0') if e.startswith(' D ')]
+        if not missing:
+            return ''
+        subprocess.run(['git', 'checkout', '--'] + missing, cwd=BASE_DIR,
+                       capture_output=True, timeout=60)
+        again = subprocess.run(['git', 'status', '--porcelain', '-z'], cwd=BASE_DIR,
+                               capture_output=True, timeout=20)
+        left = [e[3:] for e in again.stdout.decode('utf-8', 'surrogateescape').split('\0')
+                if e.startswith(' D ')]
+        msg = f'已恢复{len(missing) - len(left)}个缺失文件'
+        if left:
+            msg += f'，仍有{len(left)}个未恢复'
+        return msg
+    except Exception as e:
+        return f'缺失文件检查异常: {e}'
+
+
 @bp.route('/api/git-pull', methods=['POST'])
 def git_pull():
     reload_msg = ''
@@ -112,6 +140,9 @@ def git_pull():
             r = subprocess.run(['git', 'reset', '--hard', 'origin/master'], cwd=BASE_DIR, capture_output=True, text=True, timeout=30)
         else:
             r = subprocess.run(['git', 'pull'], cwd=BASE_DIR, capture_output=True, text=True, timeout=30)
+
+        # 确保工作区文件完整（部分环境下 reset 不会重建缺失的跟踪文件）
+        restore_msg = _restore_missing_files()
 
         if r.returncode == 0 and 'Already up to date' not in r.stdout:
             # 检查变更文件列表，智能决定是否需要重载
@@ -192,6 +223,7 @@ def git_pull():
             'stdout': r.stdout.strip(),
             'stderr': r.stderr.strip(),
             'cleanup': cleanup_msg if force else '',
+            'restore': restore_msg,
             'reload': reload_msg or ('执行失败' if r.returncode != 0 else ''),
             'changed_files': changed_files,
         })
