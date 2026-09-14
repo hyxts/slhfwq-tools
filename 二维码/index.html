@@ -126,8 +126,15 @@ input:focus,select:focus{outline:none;border-color:var(--primary);box-shadow:0 0
       <button data-c="purple">活力紫</button>
       <button data-c="orange">暖阳橙</button>
       <button data-c="dark">墨黑</button>
+      <button data-c="rainbow">流光</button>
     </div>
-    <div class="hint">码点与定位点是同色系深色渐变，静区与定位点白环保持纯白，保证扫码识别率。</div>
+    <label>码点样式</label>
+    <div class="seg" id="styleSeg">
+      <button data-c="multi" class="on">多色渐变</button>
+      <button data-c="grad">同色渐变</button>
+      <button data-c="solid">纯色</button>
+    </div>
+    <div class="hint">多色渐变是四种深色（如深蓝→深紫→深玫红→深青）沿对角过渡；纯色最保守、识别最稳。静区与定位点白环始终是纯白。</div>
     <label for="levelSel">纠错等级</label>
     <select id="levelSel">
       <option value="M">M — 约 15%（推荐）</option>
@@ -152,9 +159,9 @@ input:focus,select:focus{outline:none;border-color:var(--primary);box-shadow:0 0
 
 <script>
 var $ = function(id){ return document.getElementById(id); };
-var state = { level:'H', scale:10, border:4, theme:'green', svg:'', phone:'', tel:'' };
-var HIST_KEY = 'qrcode_phone_history_v3';
-var PREF_KEY = 'qrcode_phone_pref_v4';
+var state = { level:'H', scale:10, border:4, theme:'green', style:'multi', svg:'', phone:'', tel:'' };
+var HIST_KEY = 'qrcode_phone_history_v4';
+var PREF_KEY = 'qrcode_phone_pref_v5';
 
 /* ---------- 号码处理 ---------- */
 function rawPhone(){
@@ -196,7 +203,7 @@ async function render(){
     phone:p, level:state.level, scale:state.scale, border:state.border, fmt:'svg',
     title:($('titleInput').value || '').trim(),
     hint:($('hintInput').value || '').trim(),
-    theme:state.theme
+    theme:state.theme, style:state.style
   };
   try{
     var res = await fetch('/api/qrcode', {
@@ -271,7 +278,8 @@ async function savePng(){
         method:'POST',
         headers:{'Content-Type':'application/json'},
         body:JSON.stringify({ phone:state.phone, level:state.level, scale:state.scale,
-                              border:state.border, fmt:'png' })
+                              border:state.border, theme:state.theme, style:state.style,
+                              fmt:'png' })
       });
       if (!res.ok) throw new Error('png');
       saveBlob(await res.blob(), 'nuoche-' + state.phone + '.png');
@@ -291,7 +299,7 @@ function pushHistory(){
   if (!state.phone) return;
   var item = { phone:state.phone, title:($('titleInput').value || '').trim(),
                hint:($('hintInput').value || '').trim(),
-               theme:state.theme, level:state.level, ts:Date.now() };
+               theme:state.theme, style:state.style, level:state.level, ts:Date.now() };
   var list = getHist().filter(function(x){ return x.phone !== item.phone || x.title !== item.title; });
   list.unshift(item);
   setHist(list);
@@ -333,6 +341,9 @@ function applyHist(item){
   $('titleInput').value = item.title || '';
   $('hintInput').value = item.hint || '';
   if (item.theme) setSeg('themeSeg', item.theme);
+  if (item.style) setSeg('styleSeg', item.style);
+  if (item.theme) state.theme = item.theme;
+  if (item.style) state.style = item.style;
   if (item.level){ state.level = item.level; $('levelSel').value = item.level; }
   savePref();
   render();
@@ -368,7 +379,7 @@ function savePref(){
   try{
     localStorage.setItem(PREF_KEY, JSON.stringify({
       level:state.level, scale:state.scale,
-      theme:curSeg('themeSeg'),
+      theme:curSeg('themeSeg'), style:curSeg('styleSeg'),
       title:($('titleInput').value || '').trim(),
       hint:($('hintInput').value || '').trim()
     }));
@@ -381,6 +392,7 @@ function loadPref(){
   if (p.level){ state.level = p.level; $('levelSel').value = p.level; }
   if (p.scale){ state.scale = parseInt(p.scale, 10) || 10; $('scaleSel').value = String(state.scale); }
   if (p.theme){ setSeg('themeSeg', p.theme); state.theme = p.theme; }
+  if (p.style){ setSeg('styleSeg', p.style); state.style = p.style; }
   if (p.title) $('titleInput').value = p.title;
   if (p.hint) $('hintInput').value = p.hint;
 }
@@ -393,6 +405,7 @@ $('levelSel').addEventListener('change', function(){ state.level = this.value; s
 $('scaleSel').addEventListener('change', function(){ state.scale = parseInt(this.value, 10) || 10; savePref(); render(); });
 $('btnPng').addEventListener('click', savePng);
 bindSeg('themeSeg', function(v){ state.theme = v; savePref(); render(); });
+bindSeg('styleSeg', function(v){ state.style = v; savePref(); render(); });
 var chips = $('titleChips').getElementsByTagName('button');
 for (var i = 0; i < chips.length; i++){
   chips[i].addEventListener('click', function(){

@@ -631,26 +631,58 @@ class TestQRCode(unittest.TestCase):
         self.assertIn('shape-rendering="crispEdges"', svg)
         self.assertIn('linearGradient', svg)      # 彩色渐变
 
+    def _svg(self, theme: str, style: str) -> str:
+        r = self.client.post('/api/qrcode', json={
+            'phone': '13800138000', 'title': '扫描挪车',
+            'theme': theme, 'style': style, 'fmt': 'svg'})
+        self.assertEqual(r.status_code, 200, f'{theme}/{style}')
+        return r.get_data(as_text=True)
+
     def test_svg_colored_by_theme(self) -> None:
-        """码点是主题深色渐变填充，不同主题颜色不同"""
+        """码点是主题多色渐变填充，不同主题颜色不同"""
         seen: set[str] = set()
-        for theme in ('green', 'blue', 'purple', 'orange', 'dark'):
-            r = self.client.post('/api/qrcode', json={
-                'phone': '13800138000', 'title': '扫描挪车', 'theme': theme, 'fmt': 'svg'})
-            self.assertEqual(r.status_code, 200, theme)
-            svg = r.get_data(as_text=True)
+        for theme in qr_mod.THEME_ORDER:
+            svg = self._svg(theme, 'multi')
             t = qr_mod.THEMES[theme]
-            self.assertIn(t['dot1'], svg, theme)          # 码点渐变起始色
-            self.assertIn(t['dot2'], svg, theme)          # 码点渐变结束色
-            self.assertIn(f'fill="url(#', svg, theme)     # 码点引用渐变
+            for key in qr_mod._DOT_KEYS:          # 默认多色：四个色停都要出现
+                self.assertIn(t[key], svg, f'{theme}.{key}')
+            self.assertIn('fill="url(#', svg, theme)     # 码点引用渐变
             self.assertNotIn('fill="#000000"', svg, theme)
             seen.add(t['dot1'])
-        self.assertEqual(len(seen), 5)                    # 5 套配色互不相同
+        self.assertEqual(len(seen), len(qr_mod.THEME_ORDER))   # 各套配色互不相同
+
+    def test_styles_switch_dot_colors(self) -> None:
+        """码点样式：多色用四个色停，同色渐变只用两端，纯色只有一色"""
+        for theme in ('green', 'rainbow'):
+            t = qr_mod.THEMES[theme]
+            multi, grad, solid = (self._svg(theme, s) for s in ('multi', 'grad', 'solid'))
+            for key in qr_mod._DOT_KEYS:
+                self.assertIn(t[key], multi, f'{theme}.multi.{key}')
+            self.assertIn(t['dot1'], grad, theme)
+            self.assertIn(t['dot2'], grad, theme)
+            self.assertNotIn(t['m1'], grad, theme)             # 同色渐变不带中间色
+            self.assertIn(t['dot1'], solid, theme)
+            self.assertNotIn(t['dot2'], solid, theme)
+            self.assertNotIn(t['m1'], solid, theme)
+
+    def test_dot_color_matches_stops(self) -> None:
+        """PNG 取色与 SVG 渐变同源：两端是 dot1/dot2，中间取到 m1/m2"""
+        for theme in qr_mod.THEME_ORDER:
+            t = qr_mod.THEMES[theme]
+            self.assertEqual(qr_mod.dot_color(t, 'solid', 0.0),
+                             qr_mod.dot_color(t, 'solid', 1.0), theme)
+            self.assertEqual(qr_mod.dot_color(t, 'solid', 0.5), qr_mod._rgb(t['dot1']), theme)
+            self.assertEqual(qr_mod.dot_color(t, 'grad', 0.0), qr_mod._rgb(t['dot1']), theme)
+            self.assertEqual(qr_mod.dot_color(t, 'grad', 1.0), qr_mod._rgb(t['dot2']), theme)
+            self.assertEqual(qr_mod.dot_color(t, 'multi', 0.0), qr_mod._rgb(t['dot1']), theme)
+            self.assertEqual(qr_mod.dot_color(t, 'multi', 1 / 3), qr_mod._rgb(t['m1']), theme)
+            self.assertEqual(qr_mod.dot_color(t, 'multi', 2 / 3), qr_mod._rgb(t['m2']), theme)
+            self.assertEqual(qr_mod.dot_color(t, 'multi', 1.0), qr_mod._rgb(t['dot2']), theme)
 
     def test_theme_contrast(self) -> None:
-        """配色自检：码点必须足够暗、背景必须足够亮，否则彩色码扫不出来"""
+        """配色自检：码点每个色停都要足够暗、背景足够亮，否则彩色码扫不出来"""
         for name, t in qr_mod.THEMES.items():
-            for key in ('dot1', 'dot2'):
+            for key in qr_mod._DOT_KEYS:
                 self.assertLessEqual(qr_mod.luminance(t[key]), 120, f'{name}.{key}')
             for key in ('bg1', 'bg2'):
                 self.assertGreaterEqual(qr_mod.luminance(t[key]), 235, f'{name}.{key}')
@@ -723,6 +755,7 @@ class TestQRCode(unittest.TestCase):
             {'phone': '13800138000', 'level': 'Z'},
             {'phone': '13800138000', 'fmt': 'gif'},
             {'phone': '13800138000', 'scale': 999},
+            {'phone': '13800138000', 'style': 'rainbow'},
             {'phone': '13800138000', 'title': 'x' * 20},
         ]
         for payload in cases:
