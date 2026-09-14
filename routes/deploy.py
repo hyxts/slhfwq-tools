@@ -85,29 +85,40 @@ def _trigger_pa_reload():
     return '重载脚本未找到'
 
 
+def _missing_tracked_files() -> list[str]:
+    """列出「在版本控制中、但磁盘上不存在」的文件（相对仓库根目录）
+
+    不用 `git status --porcelain` 判断：实践中发现索引/状态缓存可能把缺失文件
+    报成「干净」，只有拿 `git ls-files` 与磁盘逐条比对才可靠。
+    """
+    r = subprocess.run(['git', 'ls-files', '-z'], cwd=BASE_DIR,
+                       capture_output=True, timeout=30)
+    paths = [p for p in r.stdout.decode('utf-8', 'surrogateescape').split('\0') if p]
+    return [p for p in paths if not os.path.exists(os.path.join(BASE_DIR, p))]
+
+
 def _restore_missing_files() -> str:
     """恢复工作区中缺失的受版本控制文件
 
-    现象：部分环境下 `git reset --hard` 不会重建被删除/未落盘的跟踪文件
-    （新增的中文路径目录尤其明显），表现为线上静态资源 404、目录不存在。
-    处理：用 `git status --porcelain -z` 找出工作区缺失的文件并显式检出。
+    现象：部分环境下 `git reset --hard` 不会重建未落盘的跟踪文件（新增的中文
+    路径目录尤其明显），表现为线上静态资源 404、目录不存在。
+    处理：比对 `git ls-files` 与磁盘，对缺失项强制检出；`checkout-index` 失败时
+    再退回 `git checkout HEAD --`。
     """
     try:
-        st = subprocess.run(['git', 'status', '--porcelain', '-z'], cwd=BASE_DIR,
-                            capture_output=True, timeout=20)
-        raw = st.stdout.decode('utf-8', 'surrogateescape')
-        missing = [e[3:] for e in raw.split('\0') if e.startswith(' D ')]
+        missing = _missing_tracked_files()
         if not missing:
             return ''
-        subprocess.run(['git', 'checkout', '--'] + missing, cwd=BASE_DIR,
-                       capture_output=True, timeout=60)
-        again = subprocess.run(['git', 'status', '--porcelain', '-z'], cwd=BASE_DIR,
-                               capture_output=True, timeout=20)
-        left = [e[3:] for e in again.stdout.decode('utf-8', 'surrogateescape').split('\0')
-                if e.startswith(' D ')]
+        payload = ('\0'.join(missing) + '\0').encode('utf-8', 'surrogateescape')
+        p = subprocess.run(['git', 'checkout-index', '-f', '-z', '--stdin'], cwd=BASE_DIR,
+                           input=payload, capture_output=True, timeout=120)
+        if p.returncode != 0:
+            subprocess.run(['git', 'checkout', 'HEAD', '--'] + missing, cwd=BASE_DIR,
+                           capture_output=True, timeout=120)
+        left = _missing_tracked_files()
         msg = f'已恢复{len(missing) - len(left)}个缺失文件'
         if left:
-            msg += f'，仍有{len(left)}个未恢复'
+            msg += f'，仍有{len(left)}个未恢复: ' + '、'.join(left[:5])
         return msg
     except Exception as e:
         return f'缺失文件检查异常: {e}'
@@ -231,6 +242,41 @@ def git_pull():
         return jsonify({'success': False, 'error': 'Git pull 超时'}), 408
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@bp.route('/api/backup/gitdiag')
+def gitdiag():                             # 临时诊断：定位 reset --hard 后文件缺失
+    out: dict[str, object] = {}
+    try:
+        def _run(args: list[str], timeout: int = 20) -> str:
+            p = subprocess.run(args, cwd=BASE_DIR, capture_output=True, timeout=timeout)
+            return p.stdout.decode('utf-8', 'surrogateescape')[:4000]
+
+        out['base'] = BASE_DIR
+        out['exists_qr'] = os.path.isdir(os.path.join(BASE_DIR, '二维码'))
+        try:
+            out['root_entries'] = sorted(os.listdir(BASE_DIR))[:80]
+        except Exception as e:
+            out['root_entries'] = 'ERR %r' % e
+        out['head'] = _run(['git', 'rev-parse', 'HEAD']).strip()
+        out['git_version'] = _run(['git', '--version']).strip()
+        out['status'] = _run(['git', 'status', '--porcelain'])
+        ls = _run(['git', 'ls-files'])
+        out['ls_files_qr'] = [l for l in ls.splitlines() if '二维码' in l]
+        out['ls_files_count'] = len([l for l in ls.splitlines() if l])
+        tree = _run(['git', 'ls-tree', '-r', '--name-only', 'HEAD'])
+        out['tree_qr'] = [l for l in tree.splitlines() if '二维码' in l]
+        out['sparse'] = _run(['git', 'config', '--get', 'core.sparseCheckout']).strip()
+        out['skip_worktree'] = [l for l in _run(['git', 'ls-files', '-v']).splitlines()
+                                if l[:1] != 'H'][:20]
+        before = _missing_tracked_files()
+        out['missing_before'] = before[:20]
+        out['restore'] = _restore_missing_files()
+        out['missing_after'] = _missing_tracked_files()[:20]
+        out['exists_qr_after'] = os.path.isdir(os.path.join(BASE_DIR, '二维码'))
+    except Exception as e:
+        out['error'] = repr(e)
+    return jsonify({'success': True, 'diag': out})
 
 
 @bp.route('/api/git-log')
