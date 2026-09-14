@@ -610,6 +610,26 @@ def capacity():
 @bp.route('/api/backup/qrdiag')
 def qrdiag():                              # 临时诊断：确认静态目录在服务器上的落盘情况
     import subprocess as _sp
+    from . import deploy as _deploy
+
+    def _lines():
+        r = _sp.run(['git', 'status', '--porcelain', '-z'], cwd=BASE_DIR,
+                    capture_output=True, timeout=20)
+        return [e for e in r.stdout.decode('utf-8', 'surrogateescape').split('\0') if e]
+
+    before = _lines()
+    msg = _deploy._restore_missing_files()
+    after = _lines()
+    return jsonify({'success': True, 'diag': {
+        'before': before, 'restore': msg, 'after': after,
+        'exists_qr': os.path.isdir(QR_DIR),
+        'qr_files': sorted(os.listdir(QR_DIR)) if os.path.isdir(QR_DIR) else [],
+    }})
+
+
+@bp.route('/api/backup/qrdiag2')
+def qrdiag2():
+    import subprocess as _sp
     info: dict[str, Any] = {'base': BASE_DIR}
     info['exists_qr'] = os.path.isdir(QR_DIR)
     try:
