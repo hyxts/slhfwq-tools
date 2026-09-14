@@ -92,7 +92,7 @@ input:focus,select:focus{outline:none;border-color:var(--primary);box-shadow:0 0
       <button id="btnSvg">下载 SVG</button>
       <button id="btnCopy">复制号码</button>
     </div>
-    <div class="tip">用手机相机或微信扫一扫，识别后会直接弹出「呼叫」按钮，点击即可拨通你的号码。</div>
+    <div class="tip">微信 / 相机扫一扫，识别为联系人名片后点「呼叫」即可拨通；二维码下方不印号码，避免被拍照滥用。</div>
   </section>
 
   <section class="card">
@@ -112,14 +112,21 @@ input:focus,select:focus{outline:none;border-color:var(--primary);box-shadow:0 0
 
     <label for="hintInput">底部提示（可留空）</label>
     <input id="hintInput" type="text" maxlength="24" placeholder="如 扫码后点击「呼叫」" autocomplete="off">
-
-    <label>号码显示方式</label>
-    <div class="seg" id="numSeg">
-      <button data-m="mask" class="on">隐藏中间</button>
-      <button data-m="full">完整显示</button>
-      <button data-m="none">不显示</button>
+    <div class="chips" id="hintChips">
+      <button class="chip" data-h="扫我呼叫车主">扫我呼叫车主</button>
+      <button class="chip" data-h="扫码后点击「呼叫」">扫码后点击「呼叫」</button>
+      <button class="chip" data-h="临时停车 · 请多关照">临时停车 · 请多关照</button>
     </div>
-    <div class="hint">隐藏中间四位更安全，既能让对方核对号码，又不会被拍照滥用。</div>
+  </section>
+
+  <section class="card">
+    <div class="ttl2">扫码后做什么</div>
+    <div class="seg" id="callSeg">
+      <button data-m="vcard" class="on">名片（推荐）</button>
+      <button data-m="tel">直接拨号</button>
+      <button data-m="page">网页中转</button>
+    </div>
+    <div class="hint" id="callHint"></div>
   </section>
 
   <section class="card">
@@ -154,9 +161,15 @@ input:focus,select:focus{outline:none;border-color:var(--primary);box-shadow:0 0
 
 <script>
 var $ = function(id){ return document.getElementById(id); };
-var state = { level:'H', scale:10, border:4, theme:'green', intl:true, mode:'mask', svg:'', phone:'', tel:'' };
-var HIST_KEY = 'qrcode_phone_history_v1';
-var PREF_KEY = 'qrcode_phone_pref_v1';
+var state = { level:'H', scale:10, border:4, theme:'green', intl:true, call:'vcard', svg:'', phone:'', tel:'' };
+var HIST_KEY = 'qrcode_phone_history_v2';
+var PREF_KEY = 'qrcode_phone_pref_v2';
+var CALL_HINT = {
+  vcard:'把号码写成联系人名片，微信和系统相机都会识别成名片，点「呼叫」即可拨号（推荐，各扫码器通用）。内容比 tel: 长、码点更密，打印贴纸建议不小于 5cm。',
+  tel:'直接写入 tel: 链接，iOS 相机等部分扫码器可一键拨号；微信里通常只显示一串文字。',
+  page:'先打开本站中转页再自动拨号，任何扫码器都可用，但扫码时需要联网。'
+};
+var CALL_LABEL = { vcard:'联系人名片', tel:'tel: 链接', page:'网页中转' };
 
 /* ---------- 号码处理 ---------- */
 function rawPhone(){
@@ -175,20 +188,9 @@ function digits11(p){
   var d = (p || '').replace(/\D/g, '');
   return d.length > 11 ? d.slice(-11) : d;
 }
-function fmtFull(p){
-  var d = digits11(p);
-  return d.length === 11 ? d.slice(0,3) + ' ' + d.slice(3,7) + ' ' + d.slice(7) : p;
-}
 function fmtMask(p){
   var d = digits11(p);
   return d.length === 11 ? d.slice(0,3) + ' **** ' + d.slice(7) : p;
-}
-function footerText(){
-  var p = normPhone();
-  if (!p) return '';
-  if (state.mode === 'full') return fmtFull(p);
-  if (state.mode === 'mask') return fmtMask(p);
-  return '';
 }
 function validPhone(){
   var p = rawPhone();
@@ -216,8 +218,8 @@ async function render(){
   }
   var body = {
     phone:p, intl:state.intl ? 1 : 0, level:state.level, scale:state.scale, border:state.border, fmt:'svg',
+    mode:state.call,
     title:($('titleInput').value || '').trim(),
-    footer:footerText(),
     hint:($('hintInput').value || '').trim(),
     theme:state.theme
   };
@@ -239,7 +241,7 @@ async function render(){
     state.tel = 'tel:' + normPhone();
     $('errBox').textContent = '';
     $('metaBox').style.display = 'flex';
-    $('metaTel').textContent = '编码内容 ' + state.tel;
+    $('metaTel').textContent = '内容 ' + CALL_LABEL[state.call] + '（' + state.tel + '）';
     $('metaInfo').textContent = '纠错等级 ' + state.level;
   }catch(e){
     $('errBox').textContent = '网络异常，请重试';
@@ -294,7 +296,7 @@ async function savePng(){
         method:'POST',
         headers:{'Content-Type':'application/json'},
         body:JSON.stringify({ phone:state.phone, level:state.level, scale:state.scale,
-                              border:state.border, fmt:'png' })
+                              border:state.border, mode:state.call, fmt:'png' })
       });
       if (!res.ok) throw new Error('png');
       saveBlob(await res.blob(), 'nuoche-' + state.phone + '.png');
@@ -332,7 +334,7 @@ function setHist(list){
 function pushHistory(){
   if (!state.phone) return;
   var item = { phone:state.phone, title:($('titleInput').value || '').trim(),
-               hint:($('hintInput').value || '').trim(), mode:state.mode,
+               hint:($('hintInput').value || '').trim(), call:state.call,
                theme:state.theme, level:state.level, intl:state.intl, ts:Date.now() };
   var list = getHist().filter(function(x){ return x.phone !== item.phone || x.title !== item.title; });
   list.unshift(item);
@@ -351,7 +353,8 @@ function renderHist(){
     l.className = 'l';
     var n = document.createElement('div');
     n.className = 'n';
-    n.textContent = (item.title || '电话二维码') + ' · ' + fmtMask('+' + item.phone.replace(/\D/g, ''));
+    n.textContent = (item.title || '电话二维码') + ' · ' + fmtMask('+' + item.phone.replace(/\D/g, ''))
+                    + ' · ' + (CALL_LABEL[item.call] || CALL_LABEL.vcard);
     var s = document.createElement('div');
     s.className = 's';
     var d = new Date(item.ts);
@@ -374,7 +377,7 @@ function applyHist(item){
   $('phoneInput').value = item.phone || '';
   $('titleInput').value = item.title || '';
   $('hintInput').value = item.hint || '';
-  if (item.mode) setSeg('numSeg', item.mode);
+  if (item.call){ setSeg('callSeg', item.call); state.call = item.call; showCallHint(); }
   if (item.theme) setSeg('themeSeg', item.theme);
   if (item.level){ state.level = item.level; $('levelSel').value = item.level; }
   if (typeof item.intl === 'boolean'){ state.intl = item.intl; $('intlChk').checked = item.intl; }
@@ -412,7 +415,7 @@ function savePref(){
   try{
     localStorage.setItem(PREF_KEY, JSON.stringify({
       level:state.level, scale:state.scale, intl:state.intl,
-      mode:curSeg('numSeg'), theme:curSeg('themeSeg'),
+      call:curSeg('callSeg'), theme:curSeg('themeSeg'),
       title:($('titleInput').value || '').trim(),
       hint:($('hintInput').value || '').trim()
     }));
@@ -425,10 +428,13 @@ function loadPref(){
   if (p.level){ state.level = p.level; $('levelSel').value = p.level; }
   if (p.scale){ state.scale = parseInt(p.scale, 10) || 10; $('scaleSel').value = String(state.scale); }
   if (typeof p.intl === 'boolean'){ state.intl = p.intl; $('intlChk').checked = p.intl; }
-  if (p.mode) setSeg('numSeg', p.mode);
+  if (p.call){ setSeg('callSeg', p.call); state.call = p.call; }
   if (p.theme){ setSeg('themeSeg', p.theme); state.theme = p.theme; }
   if (p.title) $('titleInput').value = p.title;
   if (p.hint) $('hintInput').value = p.hint;
+}
+function showCallHint(){
+  $('callHint').textContent = CALL_HINT[state.call] || CALL_HINT.vcard;
 }
 
 /* ---------- 事件绑定 ---------- */
@@ -441,7 +447,7 @@ $('scaleSel').addEventListener('change', function(){ state.scale = parseInt(this
 $('btnPng').addEventListener('click', savePng);
 $('btnSvg').addEventListener('click', saveSvg);
 $('btnCopy').addEventListener('click', copyPhone);
-bindSeg('numSeg', function(v){ state.mode = v; savePref(); render(); });
+bindSeg('callSeg', function(v){ state.call = v; showCallHint(); savePref(); render(); });
 bindSeg('themeSeg', function(v){ state.theme = v; savePref(); render(); });
 var chips = $('titleChips').getElementsByTagName('button');
 for (var i = 0; i < chips.length; i++){
@@ -450,9 +456,18 @@ for (var i = 0; i < chips.length; i++){
     savePref(); render();
   });
 }
+var hchips = $('hintChips').getElementsByTagName('button');
+for (var j = 0; j < hchips.length; j++){
+  hchips[j].addEventListener('click', function(){
+    $('hintInput').value = this.getAttribute('data-h');
+    savePref(); render();
+  });
+}
 
 loadPref();
-state.mode = curSeg('numSeg') || 'mask';
+state.call = curSeg('callSeg') || 'vcard';
+if (!$('hintInput').value) $('hintInput').value = '扫我呼叫车主';
+showCallHint();
 renderHist();
 </script>
 </body>

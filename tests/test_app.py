@@ -575,14 +575,14 @@ class TestQRCode(unittest.TestCase):
         self.assertEqual(r.status_code, 200)
         self.assertTrue(r.get_data(as_text=True).startswith('<svg'))
 
-    def test_svg_card_has_title_and_footer(self) -> None:
-        """带标题/号码时输出精美卡片：渐变条 + 标题 + 号码行"""
+    def test_svg_card_has_title_and_hint(self) -> None:
+        """带标题/提示时输出精美卡片：渐变条 + 标题 + 提示行（不再印号码）"""
         r = self.client.post('/api/qrcode', json={
             'phone': '13800138000', 'title': '扫描挪车',
-            'footer': '138 **** 8000', 'hint': '扫码后点击「呼叫」', 'fmt': 'svg'})
+            'hint': '扫我呼叫车主', 'fmt': 'svg'})
         svg = r.get_data(as_text=True)
         self.assertEqual(r.status_code, 200)
-        for frag in ('linearGradient', '扫描挪车', '138 **** 8000', '扫码后点击'):
+        for frag in ('linearGradient', '扫描挪车', '扫我呼叫车主'):
             self.assertIn(frag, svg)
         self.assertTrue(svg.endswith('</svg>'))
 
@@ -592,6 +592,37 @@ class TestQRCode(unittest.TestCase):
         svg = r.get_data(as_text=True)
         self.assertNotIn('linearGradient', svg)
         self.assertIn('shape-rendering="crispEdges"', svg)
+
+    def test_mode_vcard_default(self) -> None:
+        """默认写入 vCard 名片：微信/系统扫码器识别为联系人后可点呼叫"""
+        r = self.client.post('/api/qrcode', json={'phone': '13800138000', 'fmt': 'json'})
+        d: dict = r.get_json()['data']
+        self.assertEqual(d['mode'], 'vcard')
+        self.assertIn('BEGIN:VCARD', d['content'])
+        self.assertIn('TEL;TYPE=CELL:+8613800138000', d['content'])
+
+    def test_mode_tel_and_page(self) -> None:
+        r = self.client.post('/api/qrcode',
+                             json={'phone': '13800138000', 'mode': 'tel', 'fmt': 'json'})
+        self.assertEqual(r.get_json()['data']['content'], 'tel:+8613800138000')
+        r = self.client.post('/api/qrcode',
+                             json={'phone': '13800138000', 'mode': 'page', 'fmt': 'json'})
+        self.assertTrue(r.get_json()['data']['content'].endswith('/qrcode/call/8613800138000'))
+
+    def test_invalid_mode(self) -> None:
+        r = self.client.post('/api/qrcode',
+                             json={'phone': '13800138000', 'mode': 'sms', 'fmt': 'json'})
+        self.assertEqual(r.status_code, 400)
+
+    def test_call_page_public(self) -> None:
+        """中转拨号页免登录，且内容为可点击的 tel: 链接"""
+        anon = app.test_client()
+        r = anon.get('/qrcode/call/8613800138000')
+        self.assertEqual(r.status_code, 200)
+        html = r.get_data(as_text=True)
+        self.assertIn('tel:+8613800138000', html)
+        self.assertIn('138 **** 8000', html)
+        self.assertEqual(anon.get('/qrcode/call/12').status_code, 400)
 
     def test_png_output(self) -> None:
         r = self.client.post('/api/qrcode', json={'phone': '13800138000', 'fmt': 'png'})

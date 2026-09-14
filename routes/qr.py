@@ -6,10 +6,14 @@
 设计说明：
 - 不依赖任何第三方库：PythonAnywhere 免费版无法保证 pip 安装成功，
   因此 QR 编码、Reed-Solomon 纠错、PNG(zlib/struct) 全部自行实现。
-- 只生成电话二维码，内容为 `tel:+86…`：微信/相机扫码后系统直接弹出拨号。
-- SVG 支持标题（如「扫描挪车」）、号码行、提示行，并做圆角码点、圆角定位点
-  与渐变标题条美化；PNG 为纯码（标准库无法渲染中文，带文字的 PNG 由前端
-  Canvas 合成导出）。
+- 只生成电话二维码（挪车码）。**扫码内容有三种模式**（参数 mode）：
+  * vcard（默认）：`BEGIN:VCARD…` 联系人名片，微信/系统扫码器都识别成名片并
+    给出「呼叫」按钮——`tel:` 在微信里只会被当成一段文本显示，无法直接拨号。
+  * tel：直接 `tel:+86…`，iOS 相机等部分扫码器可直接拨号。
+  * page：本站中转页 `/qrcode/call/<号码>`，任何扫码器都能打开，页面自动/点击拨号。
+- SVG 支持标题（如「扫描挪车」）与底部提示行，并做圆角码点、圆角定位点与渐变
+  标题条美化；**二维码下方不再印号码**（扫码即可拨号，印出来反而泄露隐私）。
+- PNG 为纯码（标准库无法渲染中文，带文字的 PNG 由前端 Canvas 合成导出）。
 - 无数据库：本模块是纯转换工具，不落库、不上传用户输入内容。
 """
 import os
@@ -34,8 +38,9 @@ MAX_SCALE = 40            # 每个模块的像素上限
 MAX_BORDER = 10           # 静区（模块数）上限
 MAX_PIXELS = 1600         # 输出图片边长上限，超出自动缩小 scale
 MAX_TITLE_CHARS = 12      # 标题字数上限
-MAX_NOTE_CHARS = 24       # 号码行 / 提示行字数上限
+MAX_NOTE_CHARS = 24       # 提示行字数上限
 LEVELS = ('L', 'M', 'Q', 'H')
+MODES = ('vcard', 'tel', 'page')   # 扫码后的动作：名片 / 直拨 / 网页中转
 MIN_VERSION, MAX_VERSION = 1, 10
 
 # 主题：渐变标题条（起/止色）与码点颜色（均用深色，保证扫码对比度）
@@ -510,22 +515,20 @@ def _in_finder(r: int, c: int, size: int) -> bool:
 
 
 def render_svg(matrix: list[list[int]], scale: int = 8, border: int = 4,
-               title: str = '', footer: str = '', hint: str = '',
-               theme: str = 'green') -> str:
+               title: str = '', hint: str = '', theme: str = 'green') -> str:
     """渲染 SVG
 
-    title / footer / hint 均为空时输出「纯码」方形 SVG（体积小、兼容性最好）；
-    任一非空时输出带渐变标题条与文字的精美卡片。
+    title / hint 均为空时输出「纯码」方形 SVG（体积小、兼容性最好）；
+    任一非空时输出带渐变标题条与提示文字的精美卡片。
     """
     size = len(matrix)
     n = size + border * 2
     title = (title or '').strip()
-    footer = (footer or '').strip()
     hint = (hint or '').strip()
     t = THEMES.get(theme, THEMES['green'])
 
     # ---- 纯码：沿用整行合并的 path，元素最少 ----
-    if not title and not footer and not hint:
+    if not title and not hint:
         path: list[str] = []
         for y, row in enumerate(matrix):
             x = 0
@@ -549,10 +552,9 @@ def render_svg(matrix: list[list[int]], scale: int = 8, border: int = 4,
     # ---- 精美卡片 ----
     pad = 1.8                                   # 卡片内边距（模块单位）
     top_h = 5.4 if title else 0.0               # 渐变标题条高度
-    foot_h = 3.4 if footer else 0.0             # 号码行高度
     hint_h = 3.0 if hint else 0.0               # 提示行高度
     W = n + pad * 2
-    H = pad + top_h + n + foot_h + hint_h + pad
+    H = pad + top_h + n + hint_h + pad
     ox, oy = pad + border, pad + top_h + border  # 二维码左上角（模块坐标，含静区）
 
     gid = f'qrg{uuid.uuid4().hex[:8]}'          # 避免同页多个 SVG 的渐变 id 冲突
@@ -585,14 +587,9 @@ def render_svg(matrix: list[list[int]], scale: int = 8, border: int = 4,
                      f'font-family="{_FONT}" font-size="{fs}" font-weight="700" '
                      f'letter-spacing="0.4" fill="#ffffff">{_esc(title)}</text>')
     base = pad + top_h + n                      # 二维码底边
-    if footer:
-        fs = 2.3
-        texts.append(f'<text x="{W / 2:.2f}" y="{base + 0.9 + fs * 0.75:.2f}" text-anchor="middle" '
-                     f'font-family="{_FONT}" font-size="{fs}" font-weight="700" '
-                     f'letter-spacing="0.6" fill="#334155">{_esc(footer)}</text>')
     if hint:
         fs = 1.7
-        top = base + (foot_h if footer else 0.6)
+        top = base + 0.6
         texts.append(f'<text x="{W / 2:.2f}" y="{top + fs * 0.9:.2f}" text-anchor="middle" '
                      f'font-family="{_FONT}" font-size="{fs}" fill="#94a3b8">{_esc(hint)}</text>')
 
@@ -666,6 +663,36 @@ def _text_param(src: Any, key: str, limit: int) -> str:
     return val
 
 
+def mask_phone(phone: str) -> str:
+    """号码掩码显示：138 **** 8000（中转页与前端提示用）"""
+    d = re.sub(r'\D', '', phone or '')
+    if len(d) > 11:                            # 带区号的号码只按后 11 位掩码
+        d = d[-11:]
+    if len(d) >= 8:
+        return d[:3] + ' **** ' + d[-4:]
+    return d or phone
+
+
+_VCARD_NAME = '挪车'          # 名片显示名：固定短名，避免内容变长导致码点过密
+
+
+def build_content(mode: str, phone: str) -> str:
+    """按扫码模式生成二维码内容
+
+    vcard：联系人名片，微信/系统扫码器识别为名片并给出「呼叫」按钮；
+    tel  ：直接 tel: 链接，部分手机相机可直接拨号；
+    page ：本站中转页 URL，任何扫码器都能打开，页面再触发拨号。
+    """
+    if mode == 'tel':
+        return 'tel:' + phone
+    if mode == 'page':
+        return f'{request.host_url}qrcode/call/{phone.lstrip("+")}'
+    n = _VCARD_NAME
+    return ('BEGIN:VCARD\nVERSION:3.0\n'
+            f'N:;{n}\nFN:{n}\n'
+            f'TEL;TYPE=CELL:{phone}\nEND:VCARD')
+
+
 def _read_params() -> dict[str, Any]:
     src: Any = request.get_json(silent=True) if request.method == 'POST' else None
     src = src if isinstance(src, dict) else request.args
@@ -679,7 +706,7 @@ def _read_params() -> dict[str, Any]:
         'phone': phone,
         'intl': intl_raw not in ('0', 'false', 'no', 'off'),
         'title': _text_param(src, 'title', MAX_TITLE_CHARS),
-        'footer': _text_param(src, 'footer', MAX_NOTE_CHARS),
+        'mode': (str(src.get('mode') or 'vcard')).strip().lower(),
         'hint': _text_param(src, 'hint', MAX_NOTE_CHARS),
         'theme': (str(src.get('theme') or 'green')).strip().lower(),
         'level': (str(src.get('level') or 'M')).strip().upper(),
@@ -705,7 +732,7 @@ def _build_result() -> dict[str, Any]:
     """解析校验参数并生成矩阵
 
     返回 dict：matrix / scale / border / version / fmt / phone / tel /
-    title / footer / hint / theme / level
+    content / mode / title / hint / theme / level
     """
     p = _read_params()
     phone = normalize_phone(p['phone'], bool(p['intl']))
@@ -713,21 +740,24 @@ def _build_result() -> dict[str, Any]:
         raise QRError('纠错等级只能是 L / M / Q / H')
     if p['fmt'] not in ('svg', 'png', 'json'):
         raise QRError('输出格式只能是 svg / png / json')
+    if p['mode'] not in MODES:
+        raise QRError('扫码方式只能是 vcard / tel / page')
 
     scale = _int_param(p['scale'], 8, 1, MAX_SCALE, '缩放')
     border = _int_param(p['border'], 4, 0, MAX_BORDER, '静区')
 
-    tel = 'tel:' + phone
-    if len(tel) > MAX_TEXT_CHARS:
+    content = build_content(p['mode'], phone)
+    if len(content) > MAX_TEXT_CHARS:
         raise QRError('号码过长')
-    matrix, version, _mask = encode(tel, p['level'])
+    matrix, version, _mask = encode(content, p['level'])
     n = len(matrix) + border * 2
     if n * scale > MAX_PIXELS:                 # 限制输出尺寸，避免超大图片
         scale = max(1, MAX_PIXELS // n)
     return {
         'matrix': matrix, 'scale': scale, 'border': border, 'version': version,
-        'fmt': str(p['fmt']), 'phone': phone, 'tel': tel,
-        'title': p['title'], 'footer': p['footer'], 'hint': p['hint'],
+        'fmt': str(p['fmt']), 'phone': phone, 'tel': 'tel:' + phone,
+        'content': content, 'mode': p['mode'],
+        'title': p['title'], 'hint': p['hint'],
         'theme': p['theme'], 'level': p['level'],
     }
 
@@ -738,9 +768,10 @@ def _build_result() -> dict[str, Any]:
 def make_qrcode():
     """生成电话二维码（挪车码）
 
-    GET  参数：phone / title / footer / hint / theme / level / scale / border / fmt
+    GET  参数：phone / title / hint / theme / level / scale / border / fmt / mode
     POST JSON：同上
-    fmt=svg 返回 SVG（带标题与号码的精美卡片）；fmt=png 返回纯码 PNG；fmt=json 返回矩阵
+    mode=vcard（默认，扫码识别为名片）/ tel（直接拨号）/ page（网页中转）
+    fmt=svg 返回 SVG（带标题与提示的精美卡片）；fmt=png 返回纯码 PNG；fmt=json 返回矩阵
     """
     try:
         r = _build_result()
@@ -756,9 +787,11 @@ def make_qrcode():
                 'level': r['level'],
                 'phone': r['phone'],
                 'tel': r['tel'],
+                'content': r['content'],
+                'mode': r['mode'],
             }})
         svg = render_svg(r['matrix'], r['scale'], r['border'],
-                         r['title'], r['footer'], r['hint'], r['theme'])
+                         r['title'], r['hint'], r['theme'])
         return Response(svg, mimetype='image/svg+xml',
                         headers={'Cache-Control': 'no-store'})
     except QRError as e:
@@ -774,3 +807,67 @@ def capacity():
     return jsonify({'success': True, 'data': {
         lv: version_capacity(MAX_VERSION, lv) for lv in LEVELS
     }, 'max_chars': MAX_TEXT_CHARS})
+
+
+# ==================== 网页中转拨号页（免登录，扫码后打开） ====================
+
+# 用占位符替换而非 f-string，避免 CSS 花括号转义麻烦
+_CALL_PAGE = """<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>呼叫车主</title>
+<meta http-equiv="refresh" content="0; url={TEL}">
+<meta name="robots" content="noindex">
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{min-height:100vh;display:flex;align-items:center;justify-content:center;
+     background:#f0f2f5;color:#1e293b;padding:24px;
+     font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif}
+.box{width:100%;max-width:360px;background:#fff;border-radius:16px;padding:28px 20px;text-align:center;
+     box-shadow:0 2px 12px rgba(0,0,0,.08)}
+.ico{width:64px;height:64px;margin:0 auto 14px;border-radius:50%;background:#ecfdf5;color:#059669;
+     font-size:30px;line-height:64px}
+.t{font-size:19px;font-weight:600;margin-bottom:6px}
+.n{font-size:22px;font-weight:700;letter-spacing:1px;color:#059669;margin:14px 0 4px}
+.s{font-size:13px;color:#64748b;line-height:1.7}
+.btn{display:block;margin-top:20px;padding:14px;border-radius:12px;background:#059669;color:#fff;
+     font-size:17px;font-weight:600;text-decoration:none}
+.btn:active{opacity:.85}
+.alt{display:block;margin-top:12px;font-size:14px;color:#059669;text-decoration:none}
+</style>
+</head>
+<body>
+<div class="box">
+  <div class="ico">&#9990;</div>
+  <div class="t">车主临时停车</div>
+  <div class="n">{MASK}</div>
+  <div class="s">若没有自动弹出拨号，请点击下面的按钮</div>
+  <a class="btn" href="{TEL}">呼叫 {MASK}</a>
+  <a class="alt" href="{TEL}" id="again">再次拨号</a>
+</div>
+<script>
+var TEL = '{TEL}';
+window.addEventListener('load', function(){
+  setTimeout(function(){ window.location.href = TEL; }, 400);
+});
+document.getElementById('again').addEventListener('click', function(){
+  window.location.href = TEL;
+});
+</script>
+</body>
+</html>
+"""
+
+
+@bp.route('/qrcode/call/<path:digits>')
+def call_page(digits: str):
+    """扫码中转页：打开后自动触发拨号（兼容只把 tel: 当文本显示的扫码器）"""
+    d = re.sub(r'\D', '', digits or '')
+    if not 6 <= len(d) <= 15:
+        return Response('号码无效', status=400, mimetype='text/plain; charset=utf-8')
+    tel = 'tel:+' + d
+    html = (_CALL_PAGE.replace('{TEL}', tel).replace('{MASK}', _esc(mask_phone(d))))
+    return Response(html, mimetype='text/html; charset=utf-8',
+                    headers={'Cache-Control': 'no-store'})
