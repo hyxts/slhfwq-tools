@@ -1,0 +1,31 @@
+删除二维码（挪车码）模块
+
+用户不再需要这个功能，整体删除，不留残留引用。
+
+1) 文件
+- git rm -r：routes/qr.py、二维码/（index.html、manifest.json、icon-192.svg、
+  icon-512.svg）。
+
+2) app.py
+- 移除模块注册 ('routes.qr', 'qr')、qr_bp 变量与赋值分支、_LOADED_MODULES 里的 qr。
+- 移除 /qrcode、/qrcode/、/qrcode/manifest.json、/qrcode/icon-192.svg、
+  /qrcode/icon-512.svg 五个静态路由。
+- PUBLIC_PREFIXES 去掉 /qrcode/manifest、/qrcode/icon、/qrcode/call 三条。
+
+3) 其它引用
+- routes/utils.py：KNOWN_MODULE_DIRS 去掉 '二维码'（备份清理会按白名单扫目录，
+  留着只是维护一个不存在的目录）。
+- 导航/index.html：删除「挪车电话码」入口卡片。
+- tests/test_app.py：删除 TestQRCode（20 条）与仅它使用的 _png_colors() 辅助函数，
+  以及随之不再需要的 re / struct / zlib 三个 import。
+- 开发规范.md：目录树去掉 routes/qr.py 与 二维码/；删除二维码专属坑点 7.40
+  （PNG 双向放大）、7.43（留缝/大圆角扫不出）、7.44（tel: 在微信不拨号）、
+  7.45（彩色回退黑白）；7.41 保留（新模块目录必须登记白名单，示例改为泛指）、
+  7.42 保留（dulwich 推送，与二维码无关）；维护记录追加本次删除说明。
+
+4) 验证
+- py_compile app.py / routes/utils.py / tests/test_app.py 通过。
+- 全量测试：改动前 60 条 / 16 失败，改动后 40 条 / 16 失败（少的 20 条即
+  TestQRCode），失败集合完全一致——用 git stash 对比基线确认，未引入新失败
+  （这 16 条是登录拦截导致的历史遗留）。
+- 全库检索 qrcode / 二维码 / 挪车 / routes.qr / qr_bp 已无残留。

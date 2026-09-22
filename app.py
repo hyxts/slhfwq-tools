@@ -189,7 +189,7 @@ def check_auth():
     if _rate_limits[rate_key] > limit:
         return jsonify({'success': False, 'error': '请求过于频繁'}), 429
     # 免登录路径
-    PUBLIC_PREFIXES: tuple[str, ...] = ('/static', '/countdown', '/accounting', '/hsgrades/icon', '/hsgrades/manifest', '/gpa/icon', '/gpa/manifest', '/renqing/manifest', '/renqing/icon', '/deploy/manifest', '/deploy/icon', '/nav/manifest', '/nav/icon', '/api/accounting', '/api/countdown', '/api/pa/', '/api/status', '/track/manifest', '/track/icon', '/qrcode/manifest', '/qrcode/icon', '/qrcode/call')
+    PUBLIC_PREFIXES: tuple[str, ...] = ('/static', '/countdown', '/accounting', '/hsgrades/icon', '/hsgrades/manifest', '/gpa/icon', '/gpa/manifest', '/renqing/manifest', '/renqing/icon', '/deploy/manifest', '/deploy/icon', '/nav/manifest', '/nav/icon', '/api/accounting', '/api/countdown', '/api/pa/', '/api/status', '/track/manifest', '/track/icon')
     if request.path in ('/login', '/setup', '/api/ping') or any(request.path.startswith(p) for p in PUBLIC_PREFIXES):
         return
     if session.get('auth'):
@@ -247,7 +247,6 @@ MODULES = [
     ('routes.ledger', 'ledger'),
     ('routes.nav', 'nav'),
     ('routes.track', 'track'),
-    ('routes.qr', 'qr'),
 ]
 
 # 先导入 deploy（独立容错），确保部署 API 最优先可用
@@ -258,7 +257,7 @@ if deploy_bp:
     app.register_blueprint(deploy_bp)
 
 renqing_bp = gpa_bp = hsgrades_bp = None
-backup_bp = pa_bp = countdown_bp = accounting_bp = ledger_bp = nav_bp = track_bp = qr_bp = None
+backup_bp = pa_bp = countdown_bp = accounting_bp = ledger_bp = nav_bp = track_bp = None
 init_renqing_db = init_gpa_db = init_hsgrades_db = None
 init_pa_db = init_countdown_db = init_accounting_db = init_ledger_db = init_track_db = None
 start_auto_backup = start_auto_clean = start_auto_renew = None
@@ -291,8 +290,6 @@ for mod_name, key in MODULES:
         nav_bp = bp_obj
     elif key == 'track':
         track_bp, init_track_db = bp_obj, init_fn
-    elif key == 'qr':
-        qr_bp = bp_obj
     if bp_obj:
         app.register_blueprint(bp_obj)
 
@@ -303,7 +300,6 @@ _LOADED_MODULES = [name for name, bp in [
     ('ledger', ledger_bp),
     ('nav', nav_bp),
     ('track', track_bp),
-    ('qr', qr_bp),
 ] if bp]
 
 # ==================== 全局错误处理 ====================
@@ -447,23 +443,6 @@ def accounting_icon_192():
 @app.route('/accounting/icon-512.svg')
 def accounting_icon_512():
     return send_from_directory('记账', 'icon-512.svg')
-
-@app.route('/qrcode')
-@app.route('/qrcode/')
-def qrcode_index():
-    return send_from_directory('二维码', 'index.html')
-
-@app.route('/qrcode/manifest.json')
-def qrcode_manifest():
-    return send_from_directory('二维码', 'manifest.json')
-
-@app.route('/qrcode/icon-192.svg')
-def qrcode_icon_192():
-    return send_from_directory('二维码', 'icon-192.svg')
-
-@app.route('/qrcode/icon-512.svg')
-def qrcode_icon_512():
-    return send_from_directory('二维码', 'icon-512.svg')
 
 # ==================== 启动 ====================
 

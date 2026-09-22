@@ -9,12 +9,9 @@
 """
 import sys
 import os
-import re
-import struct
 import unittest
 import tempfile
 import sqlite3
-import zlib
 from typing import override
 
 # 将项目根目录加入路径
@@ -25,7 +22,6 @@ from flask.testing import FlaskClient
 
 import app as app_mod
 import routes.ledger as ledger_mod
-import routes.qr as qr_mod
 from routes.utils import make_db
 
 # ledger 模块真实的 DB 连接工厂（扩展测试替换后需要恢复）
@@ -541,209 +537,6 @@ class TestLedgerExtAPI(unittest.TestCase):
         self.assertEqual(sc, 200)
         self.assertEqual(d['success'], True)
         self.assertIsInstance(d.get('data'), list)
-
-
-def _png_colors(png: bytes) -> set[tuple[int, int, int]]:
-    """解析自写 PNG（color type 2、filter 0）取所有像素颜色：验证是否真的上了色"""
-    pos, idat, w, h = 8, bytearray(), 0, 0
-    while pos < len(png):
-        ln: int = struct.unpack('>I', png[pos:pos + 4])[0]
-        tag = png[pos + 4:pos + 8]
-        data = png[pos + 8:pos + 8 + ln]
-        if tag == b'IHDR':
-            w, h, _depth, ctype = struct.unpack('>IIBB', data[:10])
-            assert ctype == 2, f'期望 RGB，实际 color type={ctype}'
-        elif tag == b'IDAT':
-            idat += data
-        pos += 12 + ln
-    raw = zlib.decompress(bytes(idat))
-    stride = w * 3 + 1
-    colors: set[tuple[int, int, int]] = set()
-    for y in range(h):
-        line = raw[y * stride + 1:(y + 1) * stride]
-        for x in range(w):
-            colors.add((line[x * 3], line[x * 3 + 1], line[x * 3 + 2]))
-    return colors
-
-
-class TestQRCode(unittest.TestCase):
-    """二维码生成模块测试（需要登录会话）"""
-
-    client: FlaskClient = None
-
-    @classmethod
-    @override
-    def setUpClass(cls) -> None:
-        cls.client = app.test_client()
-        app.config['TESTING'] = True
-        with cls.client.session_transaction() as sess:  # type: ignore[attr-defined]
-            sess['auth'] = True
-        # 本类用例较多（多主题 / 多格式），放开全局限流，否则跑到一半开始 429
-        cls._rate_json: int = app_mod.RATE_LIMIT_MAX_JSON
-        cls._rate_html: int = app_mod.RATE_LIMIT_MAX_HTML
-        app_mod.RATE_LIMIT_MAX_JSON = 100000
-        app_mod.RATE_LIMIT_MAX_HTML = 100000
-
-    @classmethod
-    @override
-    def tearDownClass(cls) -> None:
-        app_mod.RATE_LIMIT_MAX_JSON = cls._rate_json
-        app_mod.RATE_LIMIT_MAX_HTML = cls._rate_html
-
-    def test_page_accessible(self) -> None:
-        r = self.client.get('/qrcode')
-        self.assertEqual(r.status_code, 200)
-        self.assertIn('挪车', r.get_data(as_text=True))
-
-    def test_manifest(self) -> None:
-        r = self.client.get('/qrcode/manifest.json')
-        self.assertEqual(r.status_code, 200)
-        data: dict = r.get_json()
-        self.assertEqual(data.get('short_name'), '挪车码')
-
-    def test_icons(self) -> None:
-        for name in ('icon-192.svg', 'icon-512.svg'):
-            r = self.client.get('/qrcode/' + name)
-            self.assertEqual(r.status_code, 200)
-            self.assertTrue(r.get_data().startswith(b'<svg'))
-
-    def test_svg_output(self) -> None:
-        r = self.client.post('/api/qrcode',
-                             json={'phone': '13800138000', 'level': 'M', 'fmt': 'svg'})
-        self.assertEqual(r.status_code, 200)
-        self.assertTrue(r.get_data(as_text=True).startswith('<svg'))
-
-    def test_svg_card_has_title_and_hint(self) -> None:
-        """带标题/提示时输出卡片：标题条 + 标题 + 提示行（不再印号码）"""
-        r = self.client.post('/api/qrcode', json={
-            'phone': '13800138000', 'title': '扫描挪车',
-            'hint': '扫我呼叫车主', 'fmt': 'svg'})
-        svg = r.get_data(as_text=True)
-        self.assertEqual(r.status_code, 200)
-        for frag in ('扫描挪车', '扫我呼叫车主'):
-            self.assertIn(frag, svg)
-        self.assertTrue(svg.endswith('</svg>'))
-        self.assertNotIn('13800138000', svg)
-
-    def test_svg_plain_without_text(self) -> None:
-        """无文案时只输出码本身（无文字）"""
-        r = self.client.post('/api/qrcode', json={'phone': '13800138000', 'fmt': 'svg'})
-        svg = r.get_data(as_text=True)
-        self.assertNotIn('<text', svg)
-        self.assertIn('shape-rendering="crispEdges"', svg)
-
-    def test_svg_is_black_white(self) -> None:
-        """传统样式：码点纯黑、背景纯白，不再有任何渐变配色"""
-        for payload in ({'phone': '13800138000', 'fmt': 'svg'},
-                        {'phone': '13800138000', 'title': '扫描挪车',
-                         'hint': '扫我呼叫车主', 'fmt': 'svg'}):
-            svg = self.client.post('/api/qrcode', json=payload).get_data(as_text=True)
-            self.assertIn('fill="#000000"', svg, str(payload))
-            self.assertNotIn('linearGradient', svg, str(payload))
-            self.assertNotIn('fill="url(#', svg, str(payload))
-
-    def test_dots_are_plain_squares(self) -> None:
-        """回归传统：码点是标准方块——没有圆角、留缝、定位点美化这些常量"""
-        for name in ('_DOT_RX', '_FINDER_RX', '_DOT_INSET'):
-            self.assertFalse(hasattr(qr_mod, name), name)
-        for payload in ({'phone': '13800138000', 'fmt': 'svg'},
-                        {'phone': '13800138000', 'title': '扫描挪车',
-                         'hint': '扫我呼叫车主', 'fmt': 'svg'}):
-            svg = self.client.post('/api/qrcode', json=payload).get_data(as_text=True)
-            radii = [float(v) for v in re.findall(r'rx="([\d.]+)"', svg)]
-            self.assertTrue(all(r >= 3 for r in radii), f'{radii} 只允许卡片外框圆角')
-            self.assertIn('shape-rendering="crispEdges"', svg, str(payload))
-
-    def test_theme_and_style_params_ignored(self) -> None:
-        """配色与码点样式已废弃：旧请求带 theme/style 仍能正常出码（不报错、不生效）"""
-        r = self.client.post('/api/qrcode', json={
-            'phone': '13800138000', 'theme': 'rainbow', 'style': 'multi', 'fmt': 'svg'})
-        self.assertEqual(r.status_code, 200)
-        self.assertIn('fill="#000000"', r.get_data(as_text=True))
-
-    def test_png_black_white(self) -> None:
-        """后端 PNG 是黑白：像素只有纯黑与纯白两色"""
-        r = self.client.post('/api/qrcode',
-                             json={'phone': '13800138000', 'theme': 'blue', 'fmt': 'png'})
-        png: bytes = r.get_data()
-        self.assertTrue(png.startswith(b'\x89PNG'))
-        self.assertEqual(_png_colors(png), {(0, 0, 0), (255, 255, 255)})
-
-    def test_content_is_call_page(self) -> None:
-        """内容固定是网页中转页：任何扫码器打开后都能拨号"""
-        r = self.client.post('/api/qrcode', json={'phone': '13800138000', 'fmt': 'json'})
-        d: dict = r.get_json()['data']
-        self.assertEqual(d['mode'], 'page')
-        self.assertTrue(d['content'].endswith('/qrcode/call/13800138000'))
-
-    def test_mode_param_ignored(self) -> None:
-        """名片与直拨已移除：再传 mode 也一律按网页中转处理"""
-        for mode in ('tel', 'vcard', 'sms'):
-            r = self.client.post('/api/qrcode', json={
-                'phone': '13800138000', 'mode': mode, 'fmt': 'json'})
-            self.assertEqual(r.status_code, 200, mode)
-            d: dict = r.get_json()['data']
-            self.assertTrue(d['content'].endswith('/qrcode/call/13800138000'))
-            self.assertNotIn('BEGIN:VCARD', d['content'])
-
-    def test_call_page_public(self) -> None:
-        """中转拨号页免登录，且内容为可点击的 tel: 链接（不带区号）"""
-        anon = app.test_client()
-        r = anon.get('/qrcode/call/13800138000')
-        self.assertEqual(r.status_code, 200)
-        html = r.get_data(as_text=True)
-        self.assertIn('tel:13800138000', html)
-        self.assertIn('138 **** 8000', html)
-        self.assertEqual(anon.get('/qrcode/call/12').status_code, 400)
-
-    def test_png_output(self) -> None:
-        r = self.client.post('/api/qrcode', json={'phone': '13800138000', 'fmt': 'png'})
-        self.assertEqual(r.status_code, 200)
-        self.assertTrue(r.get_data().startswith(b'\x89PNG'))
-
-    def test_phone_normalized(self) -> None:
-        """号码只保留数字、不加区号"""
-        r = self.client.post('/api/qrcode', json={'phone': '138-0013 8000', 'fmt': 'json'})
-        data: dict = r.get_json()['data']
-        self.assertEqual(data['phone'], '13800138000')
-        self.assertEqual(data['tel'], 'tel:13800138000')
-        self.assertNotIn('86', data['tel'][:6])
-        self.assertEqual(len(data['matrix']), data['size'])
-
-    def test_intl_param_ignored(self) -> None:
-        """不再有区号开关：intl 参数无效果，号码始终是纯数字"""
-        r = self.client.post('/api/qrcode',
-                             json={'phone': '13800138000', 'intl': 1, 'fmt': 'json'})
-        self.assertEqual(r.get_json()['data']['tel'], 'tel:13800138000')
-
-    def test_get_params(self) -> None:
-        r = self.client.get('/api/qrcode?phone=13800138000&fmt=svg&level=H&theme=blue')
-        self.assertEqual(r.status_code, 200)
-
-    def test_invalid_params(self) -> None:
-        cases: list[dict] = [
-            {'phone': '   '},
-            {'phone': 'abc'},
-            {'phone': '123'},
-            {'phone': '13800138000', 'level': 'Z'},
-            {'phone': '13800138000', 'fmt': 'gif'},
-            {'phone': '13800138000', 'scale': 999},
-            {'phone': '13800138000', 'title': 'x' * 20},
-        ]
-        for payload in cases:
-            r = self.client.post('/api/qrcode', json=payload)
-            self.assertEqual(r.status_code, 400, str(payload))
-            self.assertFalse(r.get_json()['success'])
-
-    def test_capacity_api(self) -> None:
-        r = self.client.get('/api/qrcode/capacity')
-        self.assertEqual(r.status_code, 200)
-        self.assertIn('L', r.get_json()['data'])
-
-    def test_anonymous_blocked(self) -> None:
-        anon = app.test_client()
-        self.assertNotEqual(anon.post('/api/qrcode', json={'phone': '13800138000'}).status_code, 200)
-        self.assertEqual(anon.get('/qrcode/manifest.json').status_code, 200)
 
 
 class TestRateLimiting(unittest.TestCase):
