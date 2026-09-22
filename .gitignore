@@ -31,6 +31,9 @@ venv/
 .DS_Store
 Thumbs.db
 
+# 临时提交信息草稿（写完即删，不入库）
+_commit_msg.txt
+
 # PA配置文件
 pa_config.json
 
