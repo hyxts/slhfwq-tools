@@ -189,7 +189,7 @@ def check_auth():
     if _rate_limits[rate_key] > limit:
         return jsonify({'success': False, 'error': '请求过于频繁'}), 429
     # 免登录路径
-    PUBLIC_PREFIXES: tuple[str, ...] = ('/static', '/countdown', '/accounting', '/hsgrades/icon', '/hsgrades/manifest', '/gpa/icon', '/gpa/manifest', '/renqing/manifest', '/renqing/icon', '/deploy/manifest', '/deploy/icon', '/nav/manifest', '/nav/icon', '/api/accounting', '/api/countdown', '/api/pa/', '/api/status', '/track/manifest', '/track/icon')
+    PUBLIC_PREFIXES: tuple[str, ...] = ('/static', '/countdown', '/accounting', '/hsgrades/icon', '/hsgrades/manifest', '/gpa/icon', '/gpa/manifest', '/renqing/manifest', '/renqing/icon', '/deploy/manifest', '/deploy/icon', '/nav/manifest', '/nav/icon', '/api/accounting', '/api/countdown', '/api/pa/', '/api/status')
     if request.path in ('/login', '/setup', '/api/ping') or any(request.path.startswith(p) for p in PUBLIC_PREFIXES):
         return
     if session.get('auth'):
@@ -246,7 +246,6 @@ MODULES = [
     ('routes.accounting', 'accounting'),
     ('routes.ledger', 'ledger'),
     ('routes.nav', 'nav'),
-    ('routes.track', 'track'),
 ]
 
 # 先导入 deploy（独立容错），确保部署 API 最优先可用
@@ -257,9 +256,9 @@ if deploy_bp:
     app.register_blueprint(deploy_bp)
 
 renqing_bp = gpa_bp = hsgrades_bp = None
-backup_bp = pa_bp = countdown_bp = accounting_bp = ledger_bp = nav_bp = track_bp = None
+backup_bp = pa_bp = countdown_bp = accounting_bp = ledger_bp = nav_bp = None
 init_renqing_db = init_gpa_db = init_hsgrades_db = None
-init_pa_db = init_countdown_db = init_accounting_db = init_ledger_db = init_track_db = None
+init_pa_db = init_countdown_db = init_accounting_db = init_ledger_db = None
 start_auto_backup = start_auto_clean = start_auto_renew = None
 
 for mod_name, key in MODULES:
@@ -288,8 +287,6 @@ for mod_name, key in MODULES:
         ledger_bp, init_ledger_db = bp_obj, init_fn
     elif key == 'nav':
         nav_bp = bp_obj
-    elif key == 'track':
-        track_bp, init_track_db = bp_obj, init_fn
     if bp_obj:
         app.register_blueprint(bp_obj)
 
@@ -299,7 +296,6 @@ _LOADED_MODULES = [name for name, bp in [
     ('countdown', countdown_bp), ('accounting', accounting_bp),
     ('ledger', ledger_bp),
     ('nav', nav_bp),
-    ('track', track_bp),
 ] if bp]
 
 # ==================== 全局错误处理 ====================
@@ -455,7 +451,6 @@ _SAFE_INITS = [
     ('countdown', init_countdown_db),
     ('accounting', init_accounting_db),
     ('ledger', init_ledger_db),
-    ('track', init_track_db),
 ]
 for _name, _fn in _SAFE_INITS:
     if _fn:

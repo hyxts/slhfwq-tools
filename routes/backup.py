@@ -40,7 +40,6 @@ DB_PATHS = [
     ('countdown.db', os.path.join(BASE_DIR, '倒计时', 'countdown.db')),
     ('accounting.db', os.path.join(BASE_DIR, '记账', 'accounting.db')),
     ('ledger.db', os.path.join(BASE_DIR, '会计', 'ledger.db')),
-    ('track.db', os.path.join(BASE_DIR, '轨迹', 'track.db')),
     ('pa.db', os.path.join(BASE_DIR, '服务器', 'pa.db')),
 ]
 
@@ -401,7 +400,6 @@ def restore_backup(filename: str):
             'countdown.db': os.path.join(BASE_DIR, '倒计时', 'countdown.db'),
             'accounting.db': os.path.join(BASE_DIR, '记账', 'accounting.db'),
             'ledger.db': os.path.join(BASE_DIR, '会计', 'ledger.db'),
-            'track.db': os.path.join(BASE_DIR, '轨迹', 'track.db'),
             'pa.db': os.path.join(BASE_DIR, '服务器', 'pa.db'),
         }
         with zipfile.ZipFile(filepath, 'r') as zf:
