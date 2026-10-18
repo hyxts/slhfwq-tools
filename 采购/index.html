@@ -583,7 +583,6 @@ function downloadTemplate(){ window.open('/api/purchase/template', '_blank'); }
 function uploadImport(input){
   var f = input.files && input.files[0];
   if (!f) return;
-  if (!/\\.xlsx$/i.test(f.name)) { alert('只支持 .xlsx（Excel 2007 及以后）；老版 .xls 请另存为 .xlsx'); input.value=''; return; }
   if (!confirm('导入「' + f.name + '」？\n\n重复的单据号会自动跳过，不会覆盖已有记录。')) { input.value=''; return; }
   var fd = new FormData();
   fd.append('file', f);
@@ -709,7 +708,6 @@ function doImportSuppliers(){ $('importSupplierFile').click(); }
 function uploadSuppliers(input){
   var f = input.files && input.files[0];
   if (!f) return;
-  if (!/\.xlsx$/i.test(f.name)) { alert('只支持 .xlsx；老版 .xls 请另存为 .xlsx'); input.value=''; return; }
   var mode = $('sImportMode').checked ? 'update' : 'skip';
   if (mode === 'update' && !confirm('「覆盖」会用表格里的内容更新同名供应商（联系人/电话/品类/票种/备注），启用状态不变。继续？')) { input.value=''; return; }
   var fd = new FormData();

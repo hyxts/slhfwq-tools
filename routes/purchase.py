@@ -24,12 +24,16 @@ try:
     from openpyxl import Workbook, load_workbook
     from openpyxl.styles import Alignment, Font, PatternFill
     from openpyxl.utils import get_column_letter
+    from openpyxl.utils.exceptions import InvalidFileException
     EXCEL_OK = True
     EXCEL_ERR = ''
 except Exception as _e:                      # pragma: no cover - 依赖缺失时
     EXCEL_OK = False
     EXCEL_ERR = str(_e)
     Workbook = load_workbook = None          # type: ignore[assignment]
+
+    class InvalidFileException(Exception):   # type: ignore[no-redef]
+        """openpyxl 缺失时的占位，仅为让后续 import 判断能跑通"""
 from flask import Blueprint, Response, jsonify, request, send_from_directory
 
 from .utils import make_db, make_logger
@@ -97,6 +101,41 @@ _COL_ALIASES: dict[str, tuple[str, ...]] = {
     'paid_amount': ('已付金额', '已付', '付款金额', 'paid_amount'),
     'pay_account': ('付款账户', '账户', '付款方式', 'pay_account'),
 }
+
+
+_OLE2_MAGIC = b'\xd0\xcf\x11\xe0\xa1\xb1\x1a\xe1'    # 老版 .xls/.et/.doc 的二进制头
+
+
+def _read_uploaded_workbook(f):
+    """读上传的 Excel：先看**文件内容**，不靠后缀（返回 (workbook, error)）
+
+    用户常遇到「明明是 xlsx 却被拒」——多数是这几类：文件名末尾有空格、
+    大写 .XLSX、启用宏的 .xlsm、或老 .xls 被直接改了后缀。所以只要内容是
+    标准 xlsx（zip 头 PK）就收，后缀只用来在失败时给更有针对性的提示。
+    """
+    raw = f.read() or b''
+    name = (f.filename or '').strip().lower()
+    if not raw:
+        return None, '文件内容是空的，换个文件试试'
+    if raw[:2] == b'PK':                                  # xlsx/xlsm 本质是 zip
+        try:
+            return load_workbook(io.BytesIO(raw), data_only=True, read_only=True), ''
+        except InvalidFileException:
+            return None, (f'「{name}」后缀是 Excel，但里面不是 Excel 工作簿'
+                          '（常见于是 .xls 直接把后缀改成了 .xlsx）。'
+                          '请用 Excel/WPS 打开后另存为「Excel 工作簿(*.xlsx)」再导入')
+        except Exception as e:
+            return None, f'文件解析失败：{e}'
+    if raw[:8] == _OLE2_MAGIC or name.endswith(('.xls', '.xlt', '.et')):
+        return None, ('这是老版 Excel 格式（.xls / .et，二进制），本系统只认 .xlsx。'
+                      '请用 Excel 或 WPS 打开它，再「文件 → 另存为 → '
+                      '保存类型：Excel 工作簿(*.xlsx)」，然后导入新存的文件')
+    if name.endswith('.xlsb'):
+        return None, '这是二进制工作簿 .xlsb，请另存为 .xlsx 再导入'
+    if name.endswith('.csv'):
+        return None, '这是 CSV，请先用 Excel 打开并另存为 .xlsx 再导入'
+    return None, (f'「{name}」读不出 Excel 内容：多半是文件被改过后缀、已损坏或加了密码。'
+                  '请用 Excel/WPS 打开后另存为「Excel 工作簿(*.xlsx)」再导入')
 
 
 def _xlsx_response(wb, filename: str):
@@ -948,15 +987,10 @@ def import_suppliers():
                             'error': f'服务器缺少 openpyxl，无法导入 Excel：{EXCEL_ERR}'}), 500
         f = request.files.get('file')
         if f is None or not f.filename:
-            return jsonify({'success': False, 'error': '请选择要导入的 .xlsx 文件'}), 400
-        if not f.filename.lower().endswith('.xlsx'):
-            return jsonify({'success': False,
-                            'error': '只支持 .xlsx（Excel 2007 及以后）；老版 .xls 请先另存为 .xlsx'}), 400
-        try:
-            wb = load_workbook(io.BytesIO(f.read()), data_only=True, read_only=True)
-        except Exception:
-            return jsonify({'success': False,
-                            'error': '文件解析失败，请下载导入模板按格式填写'}), 400
+            return jsonify({'success': False, 'error': '请选择要导入的 Excel 文件（.xlsx）'}), 400
+        wb, err = _read_uploaded_workbook(f)
+        if wb is None:
+            return jsonify({'success': False, 'error': err}), 400
         rows = [tuple(r) for r in wb.active.iter_rows(values_only=True)][:5001]
         head_idx, colmap = _find_header(rows, _SUPPLIER_ALIASES, ('name',))
         if head_idx < 0:
@@ -1200,15 +1234,10 @@ def import_excel():
                             'error': f'服务器缺少 openpyxl，无法导入 Excel：{EXCEL_ERR}'}), 500
         f = request.files.get('file')
         if f is None or not f.filename:
-            return jsonify({'success': False, 'error': '请选择要导入的 .xlsx 文件'}), 400
-        if not f.filename.lower().endswith('.xlsx'):
-            return jsonify({'success': False,
-                            'error': '只支持 .xlsx（Excel 2007 及以后）；老版 .xls 请先另存为 .xlsx'}), 400
-        try:
-            wb = load_workbook(io.BytesIO(f.read()), data_only=True, read_only=True)
-        except Exception:
-            return jsonify({'success': False,
-                            'error': '文件解析失败，请下载导入模板按格式填写'}), 400
+            return jsonify({'success': False, 'error': '请选择要导入的 Excel 文件（.xlsx）'}), 400
+        wb, err = _read_uploaded_workbook(f)
+        if wb is None:
+            return jsonify({'success': False, 'error': err}), 400
         ws = wb.active
         rows = [tuple(r) for r in ws.iter_rows(values_only=True)][:5001]
         head_idx, colmap = _find_header(rows)

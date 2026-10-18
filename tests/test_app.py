@@ -1155,6 +1155,35 @@ class TestPurchaseExcel(unittest.TestCase):
         self.assertEqual(d2['imported'], 0)
         self.assertEqual(d2['skipped'], 2)
 
+    def test_import_judges_by_content_not_suffix(self) -> None:
+        """内容是真的 xlsx 就该收：大写后缀 / .xlsm / 文件名末尾有空格 / .csv 后缀"""
+        for i, name in enumerate(('Book.XLSX', 'book.xlsm', 'book.xlsx ', 'book.csv')):
+            xlsx = self._xlsx([
+                ['日期', '供应商名称', '采购总金额', '单据号'],
+                ['2026-10-08', '导入测试供应商D', 10, f'IMP-SFX-{i}'],
+            ])
+            r = self._upload(xlsx, name)
+            self.assertEqual(r.status_code, 200, f'{name} 被拒：{r.get_json().get("error")}')
+            d = r.get_json()['data']
+            self.assertEqual(d['imported'], 1, f'{name} 没导进去：{d}')
+            type(self)._record_ids.extend(d['imported_ids'])
+
+    def test_import_rejects_real_xls_and_corrupt(self) -> None:
+        """老版 .xls（OLE2 头）、空文件、假 xlsx（普通 zip）都要给明确提示"""
+        import zipfile
+        r = self._upload(b'\xd0\xcf\x11\xe0\xa1\xb1\x1a\xe1' + b'\x00' * 64, 'legacy.xls')
+        self.assertEqual(r.status_code, 400)
+        self.assertIn('另存为', r.get_json()['error'])
+
+        r = self._upload(b'', 'empty.xlsx')
+        self.assertEqual(r.status_code, 400)
+
+        buf = io.BytesIO()
+        with zipfile.ZipFile(buf, 'w') as z:
+            z.writestr('hello.txt', 'hi')
+        r = self._upload(buf.getvalue(), 'fake.xlsx')     # zip 头对，但不是工作簿
+        self.assertEqual(r.status_code, 400)
+
     def test_import_template_has_no_sample_rows(self) -> None:
         """模板自带的示例行不能被当成真实数据导入"""
         r = self._upload(self.client.get('/api/purchase/template').get_data(),
