@@ -831,6 +831,143 @@ class TestPurchaseConfig(unittest.TestCase):
             anon.get('/api/purchase/suppliers').status_code, 200)
 
 
+class TestPurchaseStatsAndReconcile(unittest.TestCase):
+    """统计维度（年/月/日/供应商）与对账报表（需要登录会话）"""
+
+    client: FlaskClient = None
+    _record_ids: list[int] = []
+
+    @classmethod
+    @override
+    def setUpClass(cls) -> None:
+        cls.client = app.test_client()
+        app.config['TESTING'] = True
+        with cls.client.session_transaction() as sess:  # type: ignore[attr-defined]
+            sess['auth'] = True
+        cls._rate_json: int = app_mod.RATE_LIMIT_MAX_JSON
+        cls._rate_html: int = app_mod.RATE_LIMIT_MAX_HTML
+        app_mod.RATE_LIMIT_MAX_JSON = 100000
+        app_mod.RATE_LIMIT_MAX_HTML = 100000
+        cls._clean_leftovers()
+        # 三笔：两笔在 10 月（其中一笔部分付款），一笔在 9 月（用于验证「累计未付」）
+        for payload in ({'date': '2026-10-05', 'supplier': '对账测试供应商',
+                         'category': '对账测试品类', 'invoice_type': '专票',
+                         'total_amount': 100, 'input_tax': 9, 'paid_amount': 60},
+                        {'date': '2026-10-20', 'supplier': '对账测试供应商',
+                         'invoice_type': '无票(不抵)', 'total_amount': 50},
+                        {'date': '2026-09-30', 'supplier': '对账测试供应商',
+                         'invoice_type': '普票', 'total_amount': 30}):
+            r = cls.client.post('/api/purchase/records', json=payload)
+            cls._record_ids.append(r.get_json()['data']['id'])
+
+    @classmethod
+    def _clean_leftovers(cls) -> None:
+        from urllib.parse import quote
+        for r in cls.client.get(
+                '/api/purchase/records?search=' + quote('对账测试供应商')).get_json()['data']:
+            cls.client.delete(f'/api/purchase/records/{r["id"]}')
+
+    @classmethod
+    @override
+    def tearDownClass(cls) -> None:
+        # 先清数据再恢复限流（规范 7.43）
+        for rid in cls._record_ids:
+            cls.client.delete(f'/api/purchase/records/{rid}')
+        app_mod.RATE_LIMIT_MAX_JSON = cls._rate_json
+        app_mod.RATE_LIMIT_MAX_HTML = cls._rate_html
+
+    def test_trends_by_month_year_day(self) -> None:
+        base = 'supplier=' + '对账测试供应商'
+        r = self.client.get('/api/purchase/trends?group=month&' + base)
+        self.assertEqual(r.status_code, 200)
+        d = r.get_json()['data']
+        self.assertEqual(d['group'], 'month')
+        rows = {x['period']: x for x in d['rows']}
+        self.assertEqual(rows['2026-10']['total'], 150.0)
+        self.assertEqual(rows['2026-10']['cnt'], 2)
+        self.assertEqual(rows['2026-10']['paid'], 60.0)
+        self.assertEqual(rows['2026-10']['unpaid'], 90.0)
+        self.assertEqual(rows['2026-09']['total'], 30.0)
+
+        r = self.client.get('/api/purchase/trends?group=year&' + base)
+        rows = {x['period']: x for x in r.get_json()['data']['rows']}
+        self.assertEqual(rows['2026']['total'], 180.0)
+        self.assertEqual(rows['2026']['cnt'], 3)
+
+        r = self.client.get('/api/purchase/trends?group=day&start=2026-10-01&end=2026-10-31&' + base)
+        rows = {x['period']: x for x in r.get_json()['data']['rows']}
+        self.assertEqual(sorted(rows), ['2026-10-05', '2026-10-20'])
+        self.assertEqual(rows['2026-10-05']['total'], 100.0)
+
+        r = self.client.get('/api/purchase/trends?group=week')
+        self.assertEqual(r.status_code, 400)
+
+    def test_stats_supplier_has_full_fields(self) -> None:
+        s = self.client.get('/api/purchase/stats?supplier=对账测试供应商').get_json()['data']
+        row = s['by_supplier'][0]
+        self.assertEqual(row['total'], 180.0)
+        self.assertEqual(row['tax'], 9.0)
+        self.assertEqual(row['net_cost'], 171.0)
+        self.assertEqual(row['paid'], 60.0)
+        self.assertEqual(row['unpaid'], 120.0)
+
+    def test_reconcile_summary_and_outstanding(self) -> None:
+        r = self.client.get('/api/purchase/reconcile?supplier=对账测试供应商'
+                            '&start=2026-10-01&end=2026-10-31')
+        self.assertEqual(r.status_code, 200)
+        d = r.get_json()['data']
+        self.assertEqual(d['supplier'], '对账测试供应商')
+        self.assertEqual(len(d['items']), 2)
+        s = d['summary']
+        self.assertEqual(s['count'], 2)
+        self.assertEqual(s['total'], 150.0)
+        self.assertEqual(s['tax'], 9.0)
+        self.assertEqual(s['net_cost'], 141.0)
+        self.assertEqual(s['invoiced'], 0.0)
+        self.assertEqual(s['uninvoiced'], 150.0)     # 待开票
+        self.assertEqual(s['paid'], 60.0)
+        self.assertEqual(s['unpaid'], 90.0)
+        self.assertEqual(s['recon_cnt'], 0)
+        self.assertEqual(s['unrecon_cnt'], 2)
+        # 累计未付看全部历史，不只本期间
+        self.assertEqual(d['outstanding']['count'], 3)
+        self.assertEqual(d['outstanding']['unpaid'], 120.0)
+        self.assertEqual(d['by_month'][0]['period'], '2026-10')
+        self.assertEqual(d['by_month'][0]['total'], 150.0)
+        self.assertEqual(len(d['by_invoice']), 2)
+
+    def test_reconcile_mark_and_export(self) -> None:
+        d = self.client.get('/api/purchase/reconcile?supplier=对账测试供应商'
+                            '&start=2026-10-01&end=2026-10-31').get_json()['data']
+        rid = d['items'][0]['id']
+        r = self.client.post(f'/api/purchase/records/{rid}/reconcile', json={'reconciled': 1})
+        self.assertEqual(r.status_code, 200)
+        self.assertTrue(r.get_json()['data']['reconciled'])
+
+        d2 = self.client.get('/api/purchase/reconcile?supplier=对账测试供应商'
+                             '&start=2026-10-01&end=2026-10-31').get_json()['data']
+        self.assertEqual(d2['summary']['recon_cnt'], 1)
+        self.assertEqual(d2['summary']['unrecon_cnt'], 1)
+
+        # 撤销
+        r = self.client.post(f'/api/purchase/records/{rid}/reconcile', json={'reconciled': 0})
+        self.assertFalse(r.get_json()['data']['reconciled'])
+
+        csv_bytes = self.client.get('/api/purchase/reconcile/export?supplier=对账测试供应商'
+                                    '&start=2026-10-01&end=2026-10-31').get_data()
+        self.assertIn('对账单'.encode('utf-8'), csv_bytes)
+        self.assertIn('对账测试供应商'.encode('utf-8'), csv_bytes)
+        self.assertIn('合计'.encode('utf-8'), csv_bytes)
+
+        r = self.client.post('/api/purchase/records/999999/reconcile', json={'reconciled': 1})
+        self.assertEqual(r.status_code, 404)
+
+    def test_stats_anonymous_blocked(self) -> None:
+        anon = app.test_client()
+        self.assertNotEqual(anon.get('/api/purchase/trends?group=month').status_code, 200)
+        self.assertNotEqual(anon.get('/api/purchase/reconcile').status_code, 200)
+
+
 class TestRateLimiting(unittest.TestCase):
     """速率限制测试"""
 

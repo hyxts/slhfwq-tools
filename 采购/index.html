@@ -64,6 +64,33 @@ td.wrap { white-space:normal; word-break:break-all; min-width:110px; }
 .sum-row { display:flex; align-items:center; gap:8px; padding:6px 10px; background:var(--card-bg); border-radius:8px; margin-bottom:5px; box-shadow:0 1px 3px rgba(0,0,0,.04); font-size:12.5px; cursor:pointer; }
 .sum-row .name { flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; word-break:break-all; }
 .sum-row .val { font-weight:600; white-space:nowrap; }
+/* 统计表 */
+.stat-wrap { overflow-x:auto; }
+.stat-tbl { width:100%; border-collapse:collapse; font-size:12.5px; min-width:640px; }
+.stat-tbl th { text-align:left; padding:6px 8px; border-bottom:1px solid var(--border); color:var(--text-secondary); font-weight:600; white-space:nowrap; }
+.stat-tbl td { padding:6px 8px; border-bottom:1px solid #f1f5f9; white-space:nowrap; }
+.stat-tbl td.num, .stat-tbl th.num { text-align:right; font-variant-numeric:tabular-nums; }
+.stat-tbl tfoot td { font-weight:700; border-top:1px solid var(--border); border-bottom:none; }
+.bar-mini { display:inline-block; height:6px; background:var(--primary); border-radius:3px; vertical-align:middle; min-width:2px; }
+/* 对账单 */
+.recon-head { display:flex; flex-wrap:wrap; gap:10px 18px; align-items:baseline; margin-bottom:10px; font-size:13px; }
+.recon-head .t { font-size:16px; font-weight:700; }
+.recon-cards { display:grid; grid-template-columns:repeat(auto-fit,minmax(120px,1fr)); gap:8px; margin-bottom:10px; }
+.recon-tbl { width:100%; border-collapse:collapse; font-size:12.5px; }
+.recon-tbl th { text-align:left; padding:6px 8px; background:#f1f5f9; white-space:nowrap; }
+.recon-tbl td { padding:6px 8px; border-bottom:1px solid #f1f5f9; white-space:nowrap; }
+.recon-tbl td.num { text-align:right; font-variant-numeric:tabular-nums; }
+.recon-tbl tfoot td { font-weight:700; border-top:2px solid var(--border); }
+.tag-recon { font-size:10.5px; background:#dcfce7; color:#16a34a; border-radius:8px; padding:1px 6px; }
+.tag-unrecon { font-size:10.5px; background:#fef3c7; color:#b45309; border-radius:8px; padding:1px 6px; }
+@media print {
+    body > header, .container, #cfgModal, #toast, .filter-bar, .modal-actions { display:none !important; }
+    .modal-overlay { position:static !important; display:block !important; background:#fff !important; padding:0 !important; }
+    .modal { max-width:none !important; box-shadow:none !important; padding:0 !important; max-height:none !important; overflow:visible !important; }
+    #reconArea { max-height:none !important; overflow:visible !important; }
+    .recon-tbl th { background:#e2e8f0 !important; -webkit-print-color-adjust:exact; print-color-adjust:exact; }
+}
+
 /* 配置面板 */
 .cfg-tabs { display:flex; gap:6px; margin-bottom:12px; }
 .cfg-tab { padding:8px 14px; border-radius:9px; font-size:13px; font-weight:600; border:1px solid var(--border); background:#fff; color:var(--text-secondary); cursor:pointer; min-height:44px; }
@@ -117,6 +144,7 @@ td.wrap { white-space:normal; word-break:break-all; min-width:110px; }
     <h1>采购台账</h1>
   </div>
   <div style="display:flex;gap:8px">
+    <button class="btn-outline btn-sm" style="min-height:36px" onclick="openRecon()">对账报表</button>
     <button class="btn-outline btn-sm" style="min-height:36px" onclick="openConfig()">⚙ 配置</button>
     <button class="btn-outline btn-sm" style="min-height:36px" onclick="doExport()">导出CSV</button>
     <button class="btn-primary btn-sm" style="min-height:36px" onclick="openModal()">+ 新增采购</button>
@@ -153,10 +181,35 @@ td.wrap { white-space:normal; word-break:break-all; min-width:110px; }
     </div>
   </div>
 
-  <div class="sum-sec">
-    <div class="card" style="margin:0"><h4>按供应商汇总（前 20）</h4><div id="sumSupplier"></div></div>
-    <div class="card" style="margin:0"><h4>按品类汇总</h4><div id="sumCategory"></div></div>
-    <div class="card" style="margin:0"><h4>按发票类型汇总</h4><div id="sumInvoice"></div></div>
+  <div class="card">
+    <div class="cfg-tabs" style="margin-bottom:10px;flex-wrap:wrap">
+      <button class="cfg-tab on" id="dimMonth" onclick="setDim('month')">按月</button>
+      <button class="cfg-tab" id="dimYear" onclick="setDim('year')">按年</button>
+      <button class="cfg-tab" id="dimDay" onclick="setDim('day')">按日</button>
+      <button class="cfg-tab" id="dimSupplier" onclick="setDim('supplier')">按供应商</button>
+      <button class="cfg-tab" id="dimCategory" onclick="setDim('category')">按品类</button>
+      <button class="cfg-tab" id="dimInvoice" onclick="setDim('invoice')">按发票类型</button>
+    </div>
+    <div id="statTable"></div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="reconModal">
+  <div class="modal" style="max-width:900px">
+    <h4>对账报表</h4>
+    <div class="filter-bar" style="margin-bottom:10px">
+      <select id="rSupplier" style="min-width:150px"><option value="">全部供应商</option></select>
+      <input type="date" id="rStart">
+      <span style="color:var(--text-secondary);font-size:12px">至</span>
+      <input type="date" id="rEnd">
+      <button class="btn-primary btn-sm" style="min-height:44px" onclick="runRecon()">生成对账单</button>
+    </div>
+    <div class="modal-actions" style="margin-bottom:10px">
+      <button class="btn-outline" style="flex:1" onclick="printRecon()">打印 / 存为PDF</button>
+      <button class="btn-outline" style="flex:1" onclick="exportRecon()">导出CSV</button>
+      <button class="btn-outline" style="flex:1" onclick="closeRecon()">关闭</button>
+    </div>
+    <div id="reconArea" class="cfg-list" style="max-height:60vh"></div>
   </div>
 </div>
 
@@ -325,8 +378,76 @@ function reload(){
   });
   fetch('/api/purchase/stats?' + qs).then(function(r){ return r.json(); }).then(function(d){
     if (!d.success) return;
+    lastStats = d.data;
     renderStats(d.data);
+    renderStatView();
   });
+}
+
+/* ==================== 统计：按年/月/日/供应商/品类/发票类型 ==================== */
+var statDim = 'month';
+var lastStats = null;
+var DIM_LABEL = { year: '年份', month: '月份', day: '日期',
+                  supplier: '供应商', category: '品类', invoice: '发票类型' };
+
+function isTimeDim(d){ return d === 'year' || d === 'month' || d === 'day'; }
+function setDim(dim){
+  statDim = dim;
+  ['month','year','day','supplier','category','invoice'].forEach(function(d){
+    $('dim' + d.charAt(0).toUpperCase() + d.slice(1)).classList.toggle('on', d === dim);
+  });
+  renderStatView();
+}
+function renderStatView(){
+  if (isTimeDim(statDim)) { fetchTrends(); return; }
+  if (!lastStats) return;
+  var map = { supplier: ['by_supplier', 'supplier'],
+              category: ['by_category', 'category'],
+              invoice: ['by_invoice', 'invoice_type'] }[statDim];
+  var rows = (lastStats[map[0]] || []).map(function(r){
+    return { name: r[map[1]] || '（未填）', cnt: r.cnt, total: r.total,
+             tax: r.tax || 0, net: r.net_cost || ((r.total || 0) - (r.tax || 0)),
+             paid: r.paid || 0, unpaid: r.unpaid || 0 };
+  });
+  renderStatTable(rows, DIM_LABEL[statDim], lastStats.total || 0);
+}
+function fetchTrends(){
+  var qs = queryParams();
+  fetch('/api/purchase/trends?group=' + statDim + '&' + qs).then(function(r){ return r.json(); }).then(function(d){
+    if (!d.success) return;
+    var rows = (d.data.rows || []).map(function(r){
+      return { name: r.period, cnt: r.cnt, total: r.total, tax: r.tax || 0,
+               net: r.net_cost || 0, paid: r.paid || 0, unpaid: r.unpaid || 0 };
+    });
+    renderStatTable(rows, DIM_LABEL[statDim], d.data.total || 0);
+  });
+}
+function renderStatTable(rows, nameLabel, grandTotal){
+  if (!rows.length) { $('statTable').innerHTML = '<div class="empty">当前筛选下没有数据</div>'; return; }
+  var clickable = statDim === 'supplier';
+  var body = rows.map(function(r){
+    var pct = grandTotal > 0 ? (r.total / grandTotal * 100) : 0;
+    var nm = clickable
+      ? '<span style="color:var(--primary);cursor:pointer" onclick="pickSupplier(\'' + esc(String(r.name)).replace(/'/g, "\\'") + '\')">' + esc(r.name) + '</span>'
+      : esc(r.name);
+    return '<tr><td>' + nm + '</td><td class="num">' + r.cnt + '</td><td class="num">' + fmt(r.total)
+      + '</td><td class="num">' + fmt(r.tax) + '</td><td class="num">' + fmt(r.net)
+      + '</td><td class="num">' + fmt(r.paid) + '</td><td class="num">' + fmt(r.unpaid)
+      + '</td><td><span class="bar-mini" style="width:' + Math.max(2, pct * 0.9).toFixed(1) + 'px"></span> '
+      + pct.toFixed(1) + '%</td></tr>';
+  }).join('');
+  var sum = rows.reduce(function(a, r){ return {
+    cnt: a.cnt + r.cnt, total: a.total + r.total, tax: a.tax + r.tax,
+    net: a.net + r.net, paid: a.paid + r.paid, unpaid: a.unpaid + r.unpaid }; },
+    { cnt: 0, total: 0, tax: 0, net: 0, paid: 0, unpaid: 0 });
+  $('statTable').innerHTML = '<div class="stat-wrap"><table class="stat-tbl"><thead><tr>'
+    + '<th>' + nameLabel + '</th><th class="num">笔数</th><th class="num">采购额</th>'
+    + '<th class="num">进项税</th><th class="num">不含税</th><th class="num">已付</th>'
+    + '<th class="num">未付</th><th>占比</th></tr></thead><tbody>' + body + '</tbody><tfoot><tr>'
+    + '<td>合计</td><td class="num">' + sum.cnt + '</td><td class="num">' + fmt(sum.total)
+    + '</td><td class="num">' + fmt(sum.tax) + '</td><td class="num">' + fmt(sum.net)
+    + '</td><td class="num">' + fmt(sum.paid) + '</td><td class="num">' + fmt(sum.unpaid)
+    + '</td><td></td></tr></tfoot></table></div>';
 }
 function renderStats(s){
   var cards = [
@@ -340,15 +461,6 @@ function renderStats(s){
   $('statCards').innerHTML = cards.map(function(c){
     return '<div class="stat-card"><div class="s-label">'+c[0]+'</div><div class="s-value '+c[2]+'">'+c[1]+'</div></div>';
   }).join('');
-  $('sumSupplier').innerHTML = s.by_supplier.length ? s.by_supplier.map(function(r){
-    return '<div class="sum-row" onclick="pickSupplier(\'' + esc(r.supplier).replace(/'/g,"\\'") + '\')"><span class="name">'+esc(r.supplier)+'</span><span class="val">'+fmt(r.total)+'<span style="color:var(--text-secondary);font-weight:400"> / '+r.cnt+'笔</span></span></div>';
-  }).join('') : '<div class="empty">无数据</div>';
-  $('sumCategory').innerHTML = s.by_category.length ? s.by_category.map(function(r){
-    return '<div class="sum-row"><span class="name">'+esc(r.category || '（未填）')+'</span><span class="val">'+fmt(r.total)+' / '+r.cnt+'笔</span></div>';
-  }).join('') : '<div class="empty">无数据</div>';
-  $('sumInvoice').innerHTML = s.by_invoice.length ? s.by_invoice.map(function(r){
-    return '<div class="sum-row"><span class="name">'+esc(r.invoice_type)+'</span><span class="val">'+fmt(r.total)+' / '+r.cnt+'笔</span></div>';
-  }).join('') : '<div class="empty">无数据</div>';
 }
 function pickSupplier(name){ $('fSupplier').value = name; reload(); }
 
@@ -595,6 +707,91 @@ function delDict(id){
 
 // 采购表单里选供应商时带出默认设置
 document.addEventListener('input', function(e){ if (e.target.id === 'mSupplier') applySupplierPreset(); });
+
+/* ==================== 对账报表 ==================== */
+function reconQs(){
+  var p = new URLSearchParams();
+  if ($('rSupplier').value) p.set('supplier', $('rSupplier').value);
+  if ($('rStart').value) p.set('start', $('rStart').value);
+  if ($('rEnd').value) p.set('end', $('rEnd').value);
+  return p.toString();
+}
+function openRecon(){
+  $('reconModal').classList.add('show');
+  fillSelect($('rSupplier'), (opts.suppliers || []), '全部供应商');
+  if (!$('rStart').value && !$('rEnd').value) {
+    var now = new Date();
+    $('rStart').value = now.getFullYear() + '-' + String(now.getMonth() + 1).padStart(2, '0') + '-01';
+    $('rEnd').value = now.toISOString().slice(0, 10);
+  }
+  runRecon();
+}
+function closeRecon(){ $('reconModal').classList.remove('show'); }
+function printRecon(){ if (!$('reconArea').innerHTML.trim()) { toast('先生成对账单'); return; } window.print(); }
+function exportRecon(){ window.open('/api/purchase/reconcile/export?' + reconQs(), '_blank'); }
+function runRecon(){
+  fetch('/api/purchase/reconcile?' + reconQs()).then(function(r){ return r.json(); }).then(function(d){
+    if (!d.success) { $('reconArea').innerHTML = '<div class="empty">' + esc(d.error || '生成失败') + '</div>'; return; }
+    renderRecon(d.data);
+  });
+}
+function renderRecon(d){
+  var s = d.summary, o = d.outstanding;
+  var prof = d.profile;
+  var head = '<div class="recon-head">'
+    + '<span class="t">采购对账单</span>'
+    + '<span>供应商：<b>' + esc(d.supplier || '全部供应商') + '</b></span>'
+    + (prof && prof.contact ? '<span>联系人：' + esc(prof.contact) + '</span>' : '')
+    + (prof && prof.phone ? '<span>电话：' + esc(prof.phone) + '</span>' : '')
+    + '<span>期间：' + esc((d.start || '最早') + ' 至 ' + (d.end || '最新')) + '</span>'
+    + '<span style="color:var(--text-secondary)">生成时间：' + esc(d.generated_at) + '</span></div>';
+  var cards = [['笔数', s.count], ['采购总额', fmt(s.total)], ['进项税额', fmt(s.tax)],
+               ['不含税成本', fmt(s.net_cost)], ['已开票', fmt(s.invoiced)],
+               ['待开票', fmt(s.uninvoiced)], ['已付', fmt(s.paid)],
+               ['本期未付', fmt(s.unpaid)],
+               ['对账进度', s.recon_cnt + '/' + s.count]]
+    .map(function(c){ return '<div class="stat-card"><div class="s-label">' + c[0] + '</div><div class="s-value">' + c[1] + '</div></div>'; }).join('');
+  var rows = (d.items || []).map(function(r){
+    return '<tr><td>' + esc(r.date) + '</td><td>' + esc(r.bill_no) + '</td>'
+      + '<td>' + esc(r.category) + '</td><td>' + esc(r.summary) + '</td>'
+      + '<td>' + esc(r.invoice_type) + '</td><td class="num">' + fmt(r.total_amount) + '</td>'
+      + '<td class="num">' + fmt(r.input_tax) + '</td><td class="num">' + fmt(r.invoiced_amount) + '</td>'
+      + '<td class="num">' + fmt(r.paid_amount) + '</td><td class="num">' + fmt(r.unpaid_balance) + '</td>'
+      + '<td>' + statusBadge(r.pay_status) + '</td>'
+      + '<td>' + (r.reconciled
+          ? '<span class="tag-recon">已对账</span> <button class="btn-outline btn-sm" onclick="markRecon(' + r.id + ',0)">撤销</button>'
+          : '<span class="tag-unrecon">未对账</span> <button class="btn-outline btn-sm" onclick="markRecon(' + r.id + ',1)">核对</button>')
+      + '</td></tr>';
+  }).join('');
+  var foot = '<tfoot><tr><td colspan="5">合计 ' + (d.items || []).length + ' 笔</td>'
+    + '<td class="num">' + fmt(s.total) + '</td><td class="num">' + fmt(s.tax) + '</td>'
+    + '<td class="num">' + fmt(s.invoiced) + '</td><td class="num">' + fmt(s.paid) + '</td>'
+    + '<td class="num">' + fmt(s.unpaid) + '</td><td colspan="2"></td></tr></tfoot>';
+  var tbl = '<div style="overflow-x:auto"><table class="recon-tbl"><thead><tr>'
+    + '<th>日期</th><th>单据号</th><th>品类</th><th>摘要</th><th>发票类型</th>'
+    + '<th class="num">采购额</th><th class="num">进项税</th><th class="num">已开票</th>'
+    + '<th class="num">已付</th><th class="num">未付</th><th>状态</th><th>对账</th>'
+    + '</tr></thead><tbody>' + (rows || '<tr><td colspan="12" class="empty">该期间没有采购记录</td></tr>')
+    + '</tbody>' + foot + '</table></div>';
+  var sub = '<div class="recon-cards"><div class="stat-card"><div class="s-label">累计未付（全部历史）</div>'
+    + '<div class="s-value warn">' + fmt(o.unpaid) + '</div>'
+    + '<div class="s-label">累计采购 ' + fmt(o.total) + ' / 已付 ' + fmt(o.paid) + ' / ' + o.count + ' 笔</div></div></div>';
+  var byInv = (d.by_invoice || []).length ? '<div class="s-label" style="margin-top:8px">按发票类型：'
+    + d.by_invoice.map(function(r){ return esc(r.invoice_type) + ' ' + fmt(r.total); }).join(' · ') + '</div>' : '';
+  var byMonth = (d.by_month || []).length ? '<div class="s-label">按月小计：'
+    + d.by_month.map(function(r){ return esc(r.period) + ' ' + fmt(r.total); }).join(' · ') + '</div>' : '';
+  $('reconArea').innerHTML = head + '<div class="recon-cards">' + cards + '</div>' + tbl + sub + byInv + byMonth;
+}
+function markRecon(id, flag){
+  fetch('/api/purchase/records/' + id + '/reconcile', {
+    method: 'POST', headers: {'Content-Type':'application/json'},
+    body: JSON.stringify({ reconciled: flag })
+  }).then(function(r){ return r.json(); }).then(function(d){
+    if (!d.success) { toast(d.error || '操作失败'); return; }
+    toast(flag ? '已标记对账' : '已撤销对账');
+    runRecon(); reload();
+  });
+}
 
 loadOptions();
 reload();

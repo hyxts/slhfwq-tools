@@ -11,10 +11,12 @@
 from __future__ import annotations
 
 import csv
+import datetime
 import io
 import os
 import re
 import sqlite3
+import urllib.parse
 from flask import Blueprint, Response, jsonify, request, send_from_directory
 
 from .utils import make_db, make_logger
@@ -49,6 +51,11 @@ def _num(val, default: float = 0.0) -> float:
 
 def _round2(v: float) -> float:
     return round(v + 0.0, 2)
+
+
+def now_str() -> str:
+    """对账时间等展示用的本地时间串"""
+    return datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
 
 
 def _validate(data: dict) -> dict:
@@ -103,6 +110,7 @@ def _with_derived(row: dict) -> dict:
         row['pay_status'] = '未付款'
     else:
         row['pay_status'] = '部分付款'
+    row['reconciled'] = bool(row.get('recon_at'))
     return row
 
 
@@ -127,6 +135,10 @@ def init_db():
         )''')
         conn.execute('CREATE INDEX IF NOT EXISTS idx_purchases_date ON purchases(date)')
         conn.execute('CREATE INDEX IF NOT EXISTS idx_purchases_supplier ON purchases(supplier)')
+        # 对账标记（老库补列）：recon_at 为空=未对账，否则是对账时间
+        cols = [r[1] for r in conn.execute('PRAGMA table_info(purchases)').fetchall()]
+        if 'recon_at' not in cols:
+            conn.execute("ALTER TABLE purchases ADD COLUMN recon_at TEXT DEFAULT ''")
         # 基础配置：供应商档案
         conn.execute('''CREATE TABLE IF NOT EXISTS suppliers (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -293,9 +305,11 @@ def stats():
                 FROM purchases WHERE {w}''', params).fetchone()
         by_supplier = conn.execute(
             f'''SELECT supplier, COUNT(*) cnt, COALESCE(SUM(total_amount),0) total,
+                COALESCE(SUM(input_tax),0) tax, COALESCE(SUM(invoiced_amount),0) invoiced,
+                COALESCE(SUM(paid_amount),0) paid,
                 COALESCE(SUM(total_amount-paid_amount),0) unpaid
                 FROM purchases WHERE {w} GROUP BY supplier
-                ORDER BY total DESC LIMIT 20''', params).fetchall()
+                ORDER BY total DESC LIMIT 50''', params).fetchall()
         by_category = conn.execute(
             f'''SELECT category, COUNT(*) cnt, COALESCE(SUM(total_amount),0) total
                 FROM purchases WHERE {w} GROUP BY category
@@ -313,12 +327,233 @@ def stats():
             'invoiced': _round2(total['invoiced']),
             'paid': _round2(total['paid']),
             'unpaid': _round2(total['unpaid']),
-            'by_supplier': [dict(r) for r in by_supplier],
-            'by_category': [dict(r) for r in by_category],
-            'by_invoice': [dict(r) for r in by_invoice],
+            'by_supplier': [_round_summary(dict(r)) for r in by_supplier],
+            'by_category': [_round_summary(dict(r)) for r in by_category],
+            'by_invoice': [_round_summary(dict(r)) for r in by_invoice],
         }})
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)}), 400
+
+
+# ==================== 趋势统计 / 对账报表 ====================
+
+_GROUP_EXPR = {
+    'year': "substr(date, 1, 4)",     # 2026
+    'month': "substr(date, 1, 7)",    # 2026-10
+    'day': "date",                    # 2026-10-18
+}
+
+
+def _period_where(args, extra_supplier: bool = True) -> tuple[list[str], list]:
+    """对账专用筛选：日期区间 + 供应商（不走 _filters 的品类/状态等条件）"""
+    where: list[str] = ['1=1']
+    params: list = []
+    start = str(args.get('start') or '').strip()
+    end = str(args.get('end') or '').strip()
+    if start and DATE_RE.match(start):
+        where.append('date >= ?')
+        params.append(start)
+    if end and DATE_RE.match(end):
+        where.append('date <= ?')
+        params.append(end)
+    if extra_supplier:
+        supplier = str(args.get('supplier') or '').strip()
+        if supplier:
+            where.append('supplier = ?')
+            params.append(supplier)
+    return where, params
+
+
+@bp.route('/api/purchase/trends', methods=['GET'])
+def trends():
+    """按年 / 月 / 日分组的趋势统计（与列表共用筛选条件）"""
+    try:
+        group = str(request.args.get('group') or 'month').strip()
+        expr = _GROUP_EXPR.get(group)
+        if not expr:
+            return jsonify({'success': False, 'error': 'group 只能是 year / month / day'}), 400
+        where, params = _filters(request.args)
+        w = ' AND '.join(where)
+        conn = _get_db()
+        rows = conn.execute(
+            f'''SELECT {expr} AS period, COUNT(*) cnt,
+                COALESCE(SUM(total_amount),0) total, COALESCE(SUM(input_tax),0) tax,
+                COALESCE(SUM(invoiced_amount),0) invoiced, COALESCE(SUM(paid_amount),0) paid,
+                COALESCE(SUM(total_amount-paid_amount),0) unpaid
+                FROM purchases WHERE {w} GROUP BY period ORDER BY period DESC''',
+            params).fetchall()
+        conn.close()
+        data = [_round_summary(dict(r)) for r in rows]
+        return jsonify({'success': True, 'data': {
+            'group': group,
+            'rows': data,
+            'count': sum(r['cnt'] for r in data),
+            'total': _round2(sum(r['total'] for r in data)),
+            'unpaid': _round2(sum(r['unpaid'] for r in data)),
+        }})
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 400
+
+
+@bp.route('/api/purchase/reconcile', methods=['GET'])
+def reconcile():
+    """对账报表：某供应商（或全部）在某段时间内的逐笔明细 + 汇总
+
+    - summary：本期间合计（采购额 / 进项税 / 不含税成本 / 已开票 / 待开票 /
+      已付 / 未付）与对账进度（已核对笔数）
+    - outstanding：该供应商**截至现在**的全部未付余额（不只本期间），对账用
+    - by_invoice / by_month：本期间按发票类型、按月份的小计
+    """
+    try:
+        supplier = str(request.args.get('supplier') or '').strip()
+        where, params = _period_where(request.args)
+        w = ' AND '.join(where)
+        conn = _get_db()
+        rows = conn.execute(
+            f'SELECT * FROM purchases WHERE {w} ORDER BY date, id', params).fetchall()
+        items = [_with_derived(dict(r)) for r in rows]
+
+        agg = conn.execute(
+            f'''SELECT COUNT(*) cnt, COALESCE(SUM(total_amount),0) total,
+                COALESCE(SUM(input_tax),0) tax, COALESCE(SUM(invoiced_amount),0) invoiced,
+                COALESCE(SUM(paid_amount),0) paid,
+                COALESCE(SUM(total_amount-paid_amount),0) unpaid,
+                COALESCE(SUM(CASE WHEN recon_at<>"" THEN 1 ELSE 0 END),0) recon_cnt
+                FROM purchases WHERE {w}''', params).fetchone()
+        by_invoice = conn.execute(
+            f'''SELECT invoice_type, COUNT(*) cnt, COALESCE(SUM(total_amount),0) total,
+                COALESCE(SUM(total_amount-paid_amount),0) unpaid
+                FROM purchases WHERE {w} GROUP BY invoice_type ORDER BY total DESC''',
+            params).fetchall()
+        by_month = conn.execute(
+            f'''SELECT substr(date,1,7) AS period, COUNT(*) cnt,
+                COALESCE(SUM(total_amount),0) total, COALESCE(SUM(paid_amount),0) paid,
+                COALESCE(SUM(total_amount-paid_amount),0) unpaid
+                FROM purchases WHERE {w} GROUP BY period ORDER BY period''',
+            params).fetchall()
+
+        # 该供应商全部历史的未付余额（对账看的是「还欠多少」，不只看本期）
+        out_where, out_params = ['1=1'], []
+        if supplier:
+            out_where.append('supplier = ?')
+            out_params.append(supplier)
+        outstanding = conn.execute(
+            f'''SELECT COALESCE(SUM(total_amount),0) total, COALESCE(SUM(paid_amount),0) paid,
+                COALESCE(SUM(total_amount-paid_amount),0) unpaid, COUNT(*) cnt
+                FROM purchases WHERE {' AND '.join(out_where)}''', out_params).fetchone()
+
+        profile = None
+        if supplier:
+            p = conn.execute('SELECT * FROM suppliers WHERE name=?', (supplier,)).fetchone()
+            profile = dict(p) if p else None
+        conn.close()
+
+        total = _round2(agg['total'])
+        invoiced = _round2(agg['invoiced'])
+        summary = {
+            'count': agg['cnt'],
+            'total': total,
+            'tax': _round2(agg['tax']),
+            'net_cost': _round2(total - agg['tax']),
+            'invoiced': invoiced,
+            'uninvoiced': _round2(total - invoiced),     # 待开票
+            'paid': _round2(agg['paid']),
+            'unpaid': _round2(agg['unpaid']),
+            'recon_cnt': agg['recon_cnt'],
+            'unrecon_cnt': agg['cnt'] - agg['recon_cnt'],
+        }
+        return jsonify({'success': True, 'data': {
+            'supplier': supplier,
+            'profile': profile,
+            'start': str(request.args.get('start') or '').strip(),
+            'end': str(request.args.get('end') or '').strip(),
+            'generated_at': now_str(),
+            'items': items,
+            'summary': summary,
+            'by_invoice': [_round_summary(dict(r)) for r in by_invoice],
+            'by_month': [_round_summary(dict(r)) for r in by_month],
+            'outstanding': {
+                'count': outstanding['cnt'],
+                'total': _round2(outstanding['total']),
+                'paid': _round2(outstanding['paid']),
+                'unpaid': _round2(outstanding['unpaid']),
+            },
+        }})
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 400
+
+
+@bp.route('/api/purchase/reconcile/export', methods=['GET'])
+def reconcile_export():
+    """导出对账单 CSV：抬头（供应商/期间/生成时间）+ 逐笔明细 + 合计行"""
+    try:
+        supplier = str(request.args.get('supplier') or '').strip()
+        where, params = _period_where(request.args)
+        w = ' AND '.join(where)
+        conn = _get_db()
+        rows = conn.execute(
+            f'SELECT * FROM purchases WHERE {w} ORDER BY date, id', params).fetchall()
+        conn.close()
+        items = [_with_derived(dict(r)) for r in rows]
+
+        buf = io.StringIO()
+        writer = csv.writer(buf)
+        writer.writerow(['对账单'])
+        writer.writerow(['供应商', supplier or '（全部供应商）'])
+        writer.writerow(['对账期间', f"{request.args.get('start') or '最早'} 至 "
+                                     f"{request.args.get('end') or '最新'}"])
+        writer.writerow(['生成时间', now_str()])
+        writer.writerow([])
+        writer.writerow(['日期', '单据号', '品类', '采购内容摘要', '发票类型',
+                         '采购总金额', '进项税额', '不含税成本', '已开金额',
+                         '已付金额', '未付余额', '付款账户', '付款状态', '已对账'])
+        for d in items:
+            writer.writerow([d['date'], d['bill_no'], d['category'], d['summary'],
+                             d['invoice_type'], f"{d['total_amount']:.2f}",
+                             f"{d['input_tax']:.2f}", f"{d['net_cost']:.2f}",
+                             f"{d['invoiced_amount']:.2f}", f"{d['paid_amount']:.2f}",
+                             f"{d['unpaid_balance']:.2f}", d['pay_account'],
+                             d['pay_status'], '是' if d['reconciled'] else '否'])
+        writer.writerow([])
+        writer.writerow(['合计', '', '', f"{len(items)} 笔", '',
+                         f"{sum(d['total_amount'] for d in items):.2f}",
+                         f"{sum(d['input_tax'] for d in items):.2f}",
+                         f"{sum(d['net_cost'] for d in items):.2f}",
+                         f"{sum(d['invoiced_amount'] for d in items):.2f}",
+                         f"{sum(d['paid_amount'] for d in items):.2f}",
+                         f"{sum(d['unpaid_balance'] for d in items):.2f}"])
+        out = io.BytesIO()
+        out.write(b'\xef\xbb\xbf')
+        out.write(buf.getvalue().encode('utf-8'))
+        name = f"对账单_{supplier or '全部'}_{request.args.get('start') or ''}_" \
+               f"{request.args.get('end') or ''}.csv"
+        quoted = urllib.parse.quote(name)
+        return Response(
+            out.getvalue(), mimetype='text/csv',
+            headers={'Content-Disposition':
+                     f"attachment; filename*=UTF-8''{quoted}"})
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 400
+
+
+@bp.route('/api/purchase/records/<int:rid>/reconcile', methods=['POST'])
+def mark_reconciled(rid: int):
+    """对账标记：reconciled=1 记下对账时间，=0 取消"""
+    try:
+        data = request.get_json(silent=True) or {}
+        flag = str(data.get('reconciled', 1)) in ('1', 'true', 'True')
+        conn = _get_db()
+        if not conn.execute('SELECT id FROM purchases WHERE id=?', (rid,)).fetchone():
+            conn.close()
+            return jsonify({'success': False, 'error': '记录不存在'}), 404
+        conn.execute('UPDATE purchases SET recon_at=? WHERE id=?',
+                     (now_str() if flag else '', rid))
+        conn.commit()
+        row = conn.execute('SELECT * FROM purchases WHERE id=?', (rid,)).fetchone()
+        conn.close()
+        return jsonify({'success': True, 'data': _with_derived(dict(row))})
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
 
 
 @bp.route('/api/purchase/options', methods=['GET'])
@@ -380,6 +615,16 @@ def _supplier_rows(conn, keyword: str = '', active_only: bool = False) -> list[d
         f"FROM suppliers s WHERE {' AND '.join(where)} "
         'ORDER BY s.active DESC, s.name')
     return [_round_supplier(dict(r)) for r in conn.execute(sql, params).fetchall()]
+
+
+def _round_summary(row: dict) -> dict:
+    """把分组汇总里的金额统一保留两位，并补出不含税成本"""
+    for k in ('total', 'tax', 'invoiced', 'paid', 'unpaid'):
+        if k in row:
+            row[k] = _round2(row[k] or 0.0)
+    if 'total' in row and 'tax' in row:
+        row['net_cost'] = _round2((row['total'] or 0.0) - (row['tax'] or 0.0))
+    return row
 
 
 def _round_supplier(row: dict) -> dict:
