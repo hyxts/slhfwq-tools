@@ -44,11 +44,13 @@ button { padding:10px 20px; border:none; border-radius:10px; font-size:14px; fon
 .filter-bar { display:flex; gap:8px; align-items:center; flex-wrap:wrap; margin-bottom:12px; }
 .filter-bar input, .filter-bar select { padding:8px 10px; border:1px solid var(--border); border-radius:10px; font-size:13px; background:var(--card-bg); min-height:44px; }
 .filter-bar input[type=date], .filter-bar input[type=search] { min-height:44px; }
-/* 表格 */
+/* 表格：默认表头浅底灰字（统计表/对账表用），台账表格用深底白字强调 */
 .table-wrap { overflow-x:auto; border:1px solid #c8cdd3; border-radius:10px; background:#fff; }
 table { border-collapse:collapse; width:100%; font-size:12.5px; min-width:1080px; }
-thead th { position:sticky; top:0; background:#0e7490; color:#fff; padding:8px 8px; text-align:left; white-space:nowrap; font-weight:600; }
+thead th { position:sticky; top:0; background:#f8fafc; color:var(--text-secondary); padding:8px; text-align:left; white-space:nowrap; font-weight:600; border-bottom:2px solid var(--border); z-index:2; }
+.table-wrap thead th { background:var(--primary); color:#fff; border-bottom:none; }
 tbody td { padding:7px 8px; border-bottom:1px solid #f1f5f9; white-space:nowrap; }
+tbody tr:nth-child(even) { background:#fbfdfe; }
 td.num { text-align:right; font-variant-numeric:tabular-nums; }
 td.wrap { white-space:normal; word-break:break-all; min-width:110px; }
 .badge { font-size:10.5px; padding:2px 8px; border-radius:10px; font-weight:600; white-space:nowrap; }
@@ -67,17 +69,19 @@ td.wrap { white-space:normal; word-break:break-all; min-width:110px; }
 /* 统计表 */
 .stat-wrap { overflow-x:auto; }
 .stat-tbl { width:100%; border-collapse:collapse; font-size:12.5px; min-width:640px; }
-.stat-tbl th { text-align:left; padding:6px 8px; border-bottom:1px solid var(--border); color:var(--text-secondary); font-weight:600; white-space:nowrap; }
+.stat-tbl th { text-align:left; padding:7px 8px; border-bottom:2px solid var(--border); color:var(--text-secondary); font-weight:600; white-space:nowrap; }
 .stat-tbl td { padding:6px 8px; border-bottom:1px solid #f1f5f9; white-space:nowrap; }
 .stat-tbl td.num, .stat-tbl th.num { text-align:right; font-variant-numeric:tabular-nums; }
-.stat-tbl tfoot td { font-weight:700; border-top:1px solid var(--border); border-bottom:none; }
-.bar-mini { display:inline-block; height:6px; background:var(--primary); border-radius:3px; vertical-align:middle; min-width:2px; }
+.stat-tbl tfoot td { font-weight:700; border-top:2px solid var(--border); border-bottom:none; }
+.stat-tbl tbody tr:hover, .recon-tbl tbody tr:hover { background:#f0f9ff; }
+.bar-track { display:inline-block; width:90px; height:6px; background:#e2e8f0; border-radius:3px; vertical-align:middle; margin-right:6px; overflow:hidden; }
+.bar-mini { display:block; height:100%; background:linear-gradient(90deg,#22d3ee,#0e7490); border-radius:3px; min-width:2px; }
 /* 对账单 */
 .recon-head { display:flex; flex-wrap:wrap; gap:10px 18px; align-items:baseline; margin-bottom:10px; font-size:13px; }
 .recon-head .t { font-size:16px; font-weight:700; }
 .recon-cards { display:grid; grid-template-columns:repeat(auto-fit,minmax(120px,1fr)); gap:8px; margin-bottom:10px; }
 .recon-tbl { width:100%; border-collapse:collapse; font-size:12.5px; }
-.recon-tbl th { text-align:left; padding:6px 8px; background:#f1f5f9; white-space:nowrap; }
+.recon-tbl th { text-align:left; padding:6px 8px; background:#f1f5f9; color:var(--text-secondary); font-weight:600; border-bottom:2px solid var(--border); white-space:nowrap; }
 .recon-tbl td { padding:6px 8px; border-bottom:1px solid #f1f5f9; white-space:nowrap; }
 .recon-tbl td.num { text-align:right; font-variant-numeric:tabular-nums; }
 .recon-tbl tfoot td { font-weight:700; border-top:2px solid var(--border); }
@@ -126,7 +130,7 @@ td.wrap { white-space:normal; word-break:break-all; min-width:110px; }
     .table-head { display:none; }
     .table-wrap { border:none; background:transparent; overflow:visible; }
     table { min-width:0; display:block; }
-    thead { display:none; }
+    .table-wrap thead { display:none; }
     tbody { display:block; }
     .row { display:block; background:var(--card-bg); border-radius:10px; box-shadow:0 1px 4px rgba(0,0,0,.05); padding:10px 12px; margin-bottom:8px; }
     tbody td { display:flex; justify-content:space-between; gap:10px; border-bottom:1px dashed #f1f5f9; padding:5px 0; white-space:normal; }
@@ -490,7 +494,8 @@ function renderStatTable(rows, nameLabel, grandTotal){
     return '<tr><td>' + nm + '</td><td class="num">' + r.cnt + '</td><td class="num">' + fmt(r.total)
       + '</td><td class="num">' + fmt(r.tax) + '</td><td class="num">' + fmt(r.net)
       + '</td><td class="num">' + fmt(r.paid) + '</td><td class="num">' + fmt(r.unpaid)
-      + '</td><td><span class="bar-mini" style="width:' + Math.max(2, pct * 0.9).toFixed(1) + 'px"></span> '
+      + '</td><td><span class="bar-track"><span class="bar-mini" style="width:'
+      + Math.min(100, Math.max(1.5, pct)).toFixed(1) + '%"></span></span>'
       + pct.toFixed(1) + '%</td></tr>';
   }).join('');
   var sum = rows.reduce(function(a, r){ return {
