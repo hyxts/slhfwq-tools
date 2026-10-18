@@ -264,6 +264,13 @@ td.wrap { white-space:normal; word-break:break-all; min-width:110px; }
     </div>
 
     <div id="cfgSupplier">
+      <div style="display:flex;gap:10px;align-items:center;margin-bottom:10px;font-size:12px">
+        <button class="btn-outline btn-sm" onclick="doImportSuppliers()">导入Excel</button>
+        <a href="#" onclick="downloadSupplierTemplate();return false" style="color:var(--primary);font-weight:600">下载导入模板</a>
+        <span style="color:var(--text-secondary)">重名默认跳过；要覆盖已有档案请先勾选「覆盖」</span>
+        <label style="display:flex;align-items:center;gap:4px;color:var(--text-secondary);margin-left:auto"><input type="checkbox" id="sImportMode" style="width:16px;height:16px">覆盖</label>
+      </div>
+      <input type="file" id="importSupplierFile" accept=".xlsx" style="display:none" onchange="uploadSuppliers(this)">
       <div class="cfg-form">
         <div class="form-row">
           <div class="field"><label>供应商名称 *</label><input id="sName" placeholder="如 旺绿商贸"></div>
@@ -696,6 +703,29 @@ function delSupplier(id){
   });
 }
 
+/* ---- 供应商导入 ---- */
+function downloadSupplierTemplate(){ window.open('/api/purchase/suppliers/template', '_blank'); }
+function doImportSuppliers(){ $('importSupplierFile').click(); }
+function uploadSuppliers(input){
+  var f = input.files && input.files[0];
+  if (!f) return;
+  if (!/\.xlsx$/i.test(f.name)) { alert('只支持 .xlsx；老版 .xls 请另存为 .xlsx'); input.value=''; return; }
+  var mode = $('sImportMode').checked ? 'update' : 'skip';
+  if (mode === 'update' && !confirm('「覆盖」会用表格里的内容更新同名供应商（联系人/电话/品类/票种/备注），启用状态不变。继续？')) { input.value=''; return; }
+  var fd = new FormData();
+  fd.append('file', f); fd.append('mode', mode);
+  toast('正在导入供应商…');
+  fetch('/api/purchase/suppliers/import', { method: 'POST', body: fd })
+    .then(function(r){ return r.json(); }).then(function(d){
+      input.value = '';
+      if (!d.success) { alert(d.error || '导入失败'); return; }
+      var r = d.data;
+      alert('导入完成：新增 ' + r.added + ' 家，更新 ' + r.updated + ' 家，跳过重名 '
+            + r.skipped + ' 家' + (r.errors && r.errors.length ? '，' + r.errors.length + ' 行有误' : ''));
+      loadSuppliers(); loadOptions();
+    })
+    .catch(function(){ input.value=''; alert('导入失败：网络或文件异常'); });
+}
 /* ---- 品类 / 付款账户字典 ---- */
 function loadDicts(){
   fetch('/api/purchase/dicts?kind=' + cfgTab).then(function(r){ return r.json(); }).then(function(d){

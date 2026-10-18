@@ -170,14 +170,15 @@ def _cell_money(v) -> float:
         raise ValueError(f'「{v}」不是有效金额')
 
 
-def _map_header(cells) -> dict[str, int]:
-    """表头行 → {字段: 列下标}"""
+def _map_header(cells, aliases: dict[str, tuple[str, ...]] | None = None) -> dict[str, int]:
+    """表头行 → {字段: 列下标}（aliases 省略时用采购记录的列名表）"""
+    aliases = aliases or _COL_ALIASES
     found: dict[str, int] = {}
     for idx, val in enumerate(cells):
         key = _cell_text(val).lower()
         if not key:
             continue
-        for field, names in _COL_ALIASES.items():
+        for field, names in aliases.items():
             if field in found:
                 continue
             if key in names or key in [n.lower() for n in names]:
@@ -186,11 +187,17 @@ def _map_header(cells) -> dict[str, int]:
     return found
 
 
-def _find_header(rows: list[tuple]) -> tuple[int, dict[str, int]]:
-    """在前 10 行里找表头：必须同时能认出日期、供应商、采购总金额"""
+def _find_header(rows: list[tuple], aliases: dict[str, tuple[str, ...]] | None = None,
+                 required: tuple[str, ...] | None = None) -> tuple[int, dict[str, int]]:
+    """在前 10 行里找表头：required 指定的字段必须都能认出来
+
+    采购记录默认要求「日期 + 供应商 + 采购总金额」，供应商档案只要求「供应商名称」。
+    """
+    aliases = aliases or _COL_ALIASES
+    required = required or ('date', 'supplier', 'total_amount')
     for i, row in enumerate(rows[:10]):
-        m = _map_header(row)
-        if 'date' in m and 'supplier' in m and 'total_amount' in m:
+        m = _map_header(row, aliases)
+        if all(k in m for k in required):
             return i, m
     return -1, {}
 
@@ -792,6 +799,18 @@ def _supplier_payload(data: dict) -> dict:
     return rec
 
 
+# 供应商档案导入用的列名（与采购记录的表分开）
+_SUPPLIER_HEADERS = ['供应商名称', '联系人', '电话', '主营品类', '默认发票类型', '备注']
+_SUPPLIER_ALIASES: dict[str, tuple[str, ...]] = {
+    'name': ('供应商名称', '供应商', '单位名称', '名称', 'name', 'supplier'),
+    'contact': ('联系人', 'contact'),
+    'phone': ('电话', '手机', '联系电话', 'phone', 'tel'),
+    'category': ('主营品类', '品类', '类别', 'category'),
+    'default_invoice': ('默认发票类型', '发票类型', '票种', 'default_invoice'),
+    'note': ('备注', '说明', 'note'),
+}
+
+
 @bp.route('/api/purchase/suppliers', methods=['GET'])
 def list_suppliers():
     try:
@@ -889,6 +908,118 @@ def delete_supplier(sid: int):
         return jsonify({'success': True})
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@bp.route('/api/purchase/suppliers/template', methods=['GET'])
+def supplier_template():
+    """供应商导入模板：表头 + 一行示例（导入时自动跳过示例行）"""
+    try:
+        if not EXCEL_OK:
+            return jsonify({'success': False,
+                            'error': f'服务器缺少 openpyxl：{EXCEL_ERR}'}), 500
+        wb = Workbook()
+        ws = wb.active
+        ws.title = '供应商'
+        ws.append(_SUPPLIER_HEADERS)
+        _style_header(ws, len(_SUPPLIER_HEADERS))
+        ws.append(['示例供应商', '张老板', '13800000000', '生鲜', '专票', '示例行，导入前请删除'])
+        ws.cell(row=2, column=1).font = Font(color='9CA3AF', italic=True)
+        ws.append(['填写说明：只有「供应商名称」必填；默认发票类型只能填 无票(不抵)/专票/普票，'
+                   '填错或不填会自动留空；重名的默认跳过，要覆盖已存在的请在导入时选「更新」。'])
+        ws.cell(row=3, column=1).font = Font(color='6B7280', size=10)
+        _set_widths(ws, [22, 12, 16, 14, 16, 30])
+        return _xlsx_response(wb, '供应商导入模板.xlsx')
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 400
+
+
+@bp.route('/api/purchase/suppliers/import', methods=['POST'])
+def import_suppliers():
+    """导入供应商 Excel（.xlsx）
+
+    - 按列名认列（顺序随意），至少要有「供应商名称」
+    - mode=skip（默认）：重名跳过，不动已有档案；mode=update：重名则更新联系人/
+      电话/主营品类/默认发票类型/备注（启用状态不改动）
+    - 不会删除已有供应商，也不会动采购记录
+    """
+    try:
+        if not EXCEL_OK:
+            return jsonify({'success': False,
+                            'error': f'服务器缺少 openpyxl，无法导入 Excel：{EXCEL_ERR}'}), 500
+        f = request.files.get('file')
+        if f is None or not f.filename:
+            return jsonify({'success': False, 'error': '请选择要导入的 .xlsx 文件'}), 400
+        if not f.filename.lower().endswith('.xlsx'):
+            return jsonify({'success': False,
+                            'error': '只支持 .xlsx（Excel 2007 及以后）；老版 .xls 请先另存为 .xlsx'}), 400
+        try:
+            wb = load_workbook(io.BytesIO(f.read()), data_only=True, read_only=True)
+        except Exception:
+            return jsonify({'success': False,
+                            'error': '文件解析失败，请下载导入模板按格式填写'}), 400
+        rows = [tuple(r) for r in wb.active.iter_rows(values_only=True)][:5001]
+        head_idx, colmap = _find_header(rows, _SUPPLIER_ALIASES, ('name',))
+        if head_idx < 0:
+            return jsonify({'success': False,
+                            'error': '没认出表头（至少要有一列「供应商名称」），'
+                                     '请先下载导入模板'}), 400
+        mode = 'update' if str(request.form.get('mode', 'skip')) == 'update' else 'skip'
+        conn = _get_db()
+        added: list[int] = []
+        updated: list[int] = []
+        skipped: list[dict] = []
+        errors: list[dict] = []
+
+        for i, row in enumerate(rows[head_idx + 1:], start=head_idx + 2):
+            def cell(field: str):
+                idx = colmap.get(field)
+                return row[idx] if idx is not None and idx < len(row) else None
+            if not any(c is not None and str(c).strip() for c in row):
+                continue
+            name = _cell_text(cell('name'))[:100]
+            if not name or name == '示例供应商':
+                continue
+            invoice = _cell_text(cell('default_invoice'))
+            if invoice and invoice not in INVOICE_TYPES:
+                invoice = ''                       # 票种写错就留空，不让整行失败
+            rec = {
+                'name': name,
+                'contact': _cell_text(cell('contact'))[:50],
+                'phone': _cell_text(cell('phone'))[:30],
+                'category': _cell_text(cell('category'))[:50],
+                'default_invoice': invoice,
+                'note': _cell_text(cell('note'))[:200],
+            }
+            old = conn.execute('SELECT id FROM suppliers WHERE name=?', (name,)).fetchone()
+            if old:
+                if mode == 'skip':
+                    skipped.append({'row': i, 'name': name, 'reason': '已存在，未改动'})
+                    continue
+                conn.execute(
+                    '''UPDATE suppliers SET contact=?, phone=?, category=?,
+                       default_invoice=?, note=? WHERE id=?''',
+                    (rec['contact'], rec['phone'], rec['category'],
+                     rec['default_invoice'], rec['note'], old['id']))
+                updated.append(old['id'])
+                continue
+            cur = conn.execute(
+                '''INSERT INTO suppliers (name, contact, phone, category,
+                   default_invoice, note, active) VALUES (?,?,?,?,?,?,1)''',
+                (rec['name'], rec['contact'], rec['phone'], rec['category'],
+                 rec['default_invoice'], rec['note']))
+            added.append(cur.lastrowid)
+        conn.commit()
+        conn.close()
+        _log(f'导入供应商：新增 {len(added)} / 更新 {len(updated)} / '
+             f'跳过 {len(skipped)} / 错误 {len(errors)}')
+        return jsonify({'success': True, 'data': {
+            'added': len(added), 'added_ids': added,
+            'updated': len(updated), 'updated_ids': updated,
+            'skipped': len(skipped), 'skipped_detail': skipped[:50],
+            'errors': errors[:50], 'mode': mode,
+        }})
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 400
 
 
 @bp.route('/api/purchase/dicts', methods=['GET'])

@@ -825,6 +825,68 @@ class TestPurchaseConfig(unittest.TestCase):
         self.assertEqual(r.status_code, 200)
         type(self)._dict_ids.remove(did)
 
+    def test_supplier_import(self) -> None:
+        """供应商 Excel 导入：模板、新增、重名跳过、覆盖更新、坏文件"""
+        r = self.client.get('/api/purchase/suppliers/template')
+        self.assertEqual(r.status_code, 200)
+        self.assertEqual(r.get_data()[:2], b'PK')
+        from openpyxl import Workbook, load_workbook
+        ws = load_workbook(io.BytesIO(r.get_data())).active
+        self.assertEqual(ws.cell(row=1, column=1).value, '供应商名称')
+
+        def build(contact: str) -> bytes:
+            wb = Workbook()
+            w = wb.active
+            w.append(['供应商', '联系人', '电话', '主营品类', '默认发票类型', '备注'])
+            w.append(['配置测试供应商导入A', contact, '13900000000', '生鲜', '专票', ''])
+            w.append(['配置测试供应商导入B', '李老板', '', '调料', '乱写的票种', ''])
+            w.append(['', '', '', '', '', ''])          # 空行应被忽略
+            buf = io.BytesIO()
+            wb.save(buf)
+            return buf.getvalue()
+
+        def upload(payload: bytes, mode: str = 'skip', name: str = 's.xlsx'):
+            return self.client.post(
+                '/api/purchase/suppliers/import',
+                data={'file': (io.BytesIO(payload), name), 'mode': mode},
+                content_type='multipart/form-data')
+
+        d = upload(build('王老板')).get_json()['data']
+        self.assertEqual(d['added'], 2)
+        type(self)._supplier_ids.extend(d['added_ids'])
+        rows = {s['name']: s for s in
+                self.client.get('/api/purchase/suppliers').get_json()['data']}
+        self.assertEqual(rows['配置测试供应商导入A']['contact'], '王老板')
+        self.assertEqual(rows['配置测试供应商导入A']['default_invoice'], '专票')
+        self.assertEqual(rows['配置测试供应商导入B']['default_invoice'], '')  # 非法票种留空
+
+        d2 = upload(build('王老板'), 'skip').get_json()['data']
+        self.assertEqual(d2['added'], 0)
+        self.assertEqual(d2['skipped'], 2)               # 重名默认不动
+        rows = {s['name']: s for s in
+                self.client.get('/api/purchase/suppliers').get_json()['data']}
+        self.assertEqual(rows['配置测试供应商导入A']['contact'], '王老板')
+
+        d3 = upload(build('王老板2'), 'update').get_json()['data']
+        self.assertEqual(d3['updated'], 2)
+        rows = {s['name']: s for s in
+                self.client.get('/api/purchase/suppliers').get_json()['data']}
+        self.assertEqual(rows['配置测试供应商导入A']['contact'], '王老板2')
+
+        r = upload(b'x', 'skip', 'a.xls')
+        self.assertEqual(r.status_code, 400)
+        self.assertIn('.xlsx', r.get_json()['error'])
+        r = upload(build('王老板'), 'skip', 'a.xlsx')     # 内容正常但换后缀不影响
+        self.assertEqual(r.status_code, 200)
+
+        bad = Workbook()
+        bad.active.append(['姓名', '年龄'])
+        buf = io.BytesIO()
+        bad.save(buf)
+        r = upload(buf.getvalue())
+        self.assertEqual(r.status_code, 400)
+        self.assertIn('表头', r.get_json()['error'])
+
     def test_config_anonymous_blocked(self) -> None:
         anon = app.test_client()
         self.assertNotEqual(
