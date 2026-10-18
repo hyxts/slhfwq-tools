@@ -55,6 +55,10 @@ button { padding:8px 14px; border:none; border-radius:9px; font-size:13px; font-
 .btn-outline { background:#fff; border:1px solid var(--border); color:var(--text-secondary); }
 .btn-outline:hover { border-color:var(--primary); color:var(--primary); background:var(--primary-weak); }
 .btn-sm { padding:5px 10px; font-size:12px; min-height:30px; border-radius:var(--r-sm); }
+.sel-sm { padding:5px 8px; font-size:12px; min-height:30px; border-radius:var(--r-sm);
+          border:1px solid var(--border); background:#fff; color:var(--text-secondary);
+          font-weight:600; cursor:pointer; }
+.sel-sm:hover { border-color:var(--primary); color:var(--primary); }
 .btn-danger-sm { background:var(--danger-weak); color:var(--danger); border:1px solid #fecaca; }
 .btn-danger-sm:hover { background:#fee2e2; border-color:var(--danger); }
 button:disabled { opacity:.5; cursor:not-allowed; }
@@ -364,7 +368,13 @@ td.empty::before { display:none; }
       </div>
     </div>
     <div class="appbar-acts">
-      <button class="btn-outline btn-sm" title="按当前筛选（供应商 / 日期）出 A4 对账单" onclick="printRecon()">打印对账单</button>
+      <select id="reconMode" class="sel-sm" title="对账单的出单粒度：按日汇总=一天一行，逐笔明细=一张单据一行，只出汇总=不列明细"
+              onchange="saveReconMode()">
+        <option value="day">按日汇总</option>
+        <option value="full">逐笔明细</option>
+        <option value="none">只出汇总</option>
+      </select>
+      <button class="btn-outline btn-sm" title="按当前筛选（供应商 / 日期 / 状态 / 关键词）出 A4 对账单" onclick="printRecon()">打印对账单</button>
       <button class="btn-outline btn-sm" title="同上条件导出对账单 Excel" onclick="exportRecon()">对账单Excel</button>
       <button class="btn-outline btn-sm" onclick="openConfig()">⚙ 配置</button>
       <button class="btn-outline btn-sm" title="下载 Excel 导入模板：按列名识别、列顺序随意" onclick="downloadTemplate()">导入模板</button>
@@ -1242,6 +1252,16 @@ function uploadSuppliers(input){
 /* ==================== 对账报表 ==================== */
 /* 对账单的条件 = 台账页当前的筛选（供应商 / 起止日期 / 状态 / 关键词），
    不另开一套弹窗：同一件事两个入口迟早会长成两套口径。 */
+/* 出单粒度：按日汇总（一天一行，生鲜每天送一批，对账常这么看）/ 逐笔明细 / 只出汇总。
+   上次选的记住：对账是个重复动作，每次都要重新选一遍很烦。 */
+var RECON_MODE_LABEL = { day: '按日汇总', full: '逐笔明细', none: '只出汇总' };
+function reconMode(){
+  var v = ($('reconMode') && $('reconMode').value) || 'day';
+  return RECON_MODE_LABEL[v] ? v : 'day';
+}
+function saveReconMode(){ localStorage.setItem('purchaseReconMode', reconMode()); }
+(function(){ if ($('reconMode')) $('reconMode').value = localStorage.getItem('purchaseReconMode') || 'day'; })();
+
 function reconQs(){
   var p = new URLSearchParams();
   var sup = multiSup.length ? multiSup[0] : ($('fSupplier').value || '');
@@ -1251,12 +1271,13 @@ function reconQs(){
   if ($('fStatus').value) p.set('status', $('fStatus').value);
   if ($('fSearch').value.trim()) p.set('search', $('fSearch').value.trim());
   p.set('group_by', 'supplier');
-  p.set('detail', 'full');
+  p.set('detail', reconMode());      // 按日汇总时后端会把分组维度强制成日期
   return p.toString();
 }
 function reconName(){
   var sup = multiSup.length ? multiSup[0] : ($('fSupplier').value || '全部供应商');
-  return sup.replace(/[\\/:*?"<>|]/g, '') + '_' + ($('fStart').value || '') + '至' + ($('fEnd').value || '');
+  return sup.replace(/[\\/:*?"<>|]/g, '') + '_' + ($('fStart').value || '') + '至' + ($('fEnd').value || '')
+    + '_' + RECON_MODE_LABEL[reconMode()];
 }
 /* 打印：先按当前筛选取数渲染到隐藏的打印区，再调打印（A4 样式见 @media print） */
 function printRecon(){
@@ -1361,12 +1382,18 @@ function renderRecon(d){
     + fmt(d.closing || ((op.unpaid || 0) + (s.unpaid || 0))) + '</td></tr>'
     + '</table>';
 
-  /* 分组小计：默认按供应商（对账单本来就是跟一家供应商对） */
+  /* 汇总表：按日汇总时它就是账单主体（一天一行），逐笔 / 只出汇总是「按供应商小计」 */
+  var mode = reconMode();
   var dimName = { day: '日期', supplier: '供应商', month: '月份' }[d.group_by] || '';
   var groupTbl = '';
   if (dimName && (d.by_group || []).length) {
-    groupTbl = '<div class="doc-subttl">按' + dimName + '小计</div>'
-      + '<div style="overflow-x:auto"><table class="stat-tbl" style="min-width:560px"><thead><tr>'
+    var gsum = d.by_group.reduce(function(a, g){
+      return { cnt: a.cnt + g.cnt, total: a.total + g.total, ret: a.ret + (g.ret || 0),
+               deduct: a.deduct + (g.deduct || 0), payable: a.payable + (g.payable || 0),
+               paid: a.paid + (g.paid || 0), unpaid: a.unpaid + (g.unpaid || 0) }; },
+      { cnt: 0, total: 0, ret: 0, deduct: 0, payable: 0, paid: 0, unpaid: 0 });
+    groupTbl = '<div class="doc-subttl">按' + dimName + '汇总</div>'
+      + '<div style="overflow-x:auto"><table class="recon-tbl" style="min-width:560px"><thead><tr>'
       + '<th>' + dimName + '</th><th class="num">笔数</th><th class="num">采购额</th>'
       + '<th class="num">退货</th><th class="num">扣款</th><th class="num">应付净额</th>'
       + '<th class="num">已付</th><th class="num">未付</th></tr></thead><tbody>'
@@ -1377,11 +1404,20 @@ function renderRecon(d){
             + '<td class="num">' + fmt(g.payable || 0) + '</td><td class="num">' + fmt(g.paid || 0) + '</td>'
             + '<td class="num' + ((g.unpaid || 0) > 0 ? ' neg' : '') + '">' + fmt(g.unpaid || 0) + '</td></tr>';
         }).join('')
-      + '</tbody></table></div>';
+      + '</tbody><tfoot><tr><td>合计</td><td class="num">' + gsum.cnt + '</td>'
+      + '<td class="num">' + fmt(gsum.total) + '</td><td class="num">' + fmt(gsum.ret) + '</td>'
+      + '<td class="num">' + fmt(gsum.deduct) + '</td><td class="num">' + fmt(gsum.payable) + '</td>'
+      + '<td class="num">' + fmt(gsum.paid) + '</td><td class="num">' + fmt(gsum.unpaid) + '</td>'
+      + '</tr></tfoot></table></div>';
   }
 
-  /* 明细：逐笔可勾选核对 */
+  /* 逐笔明细：只有「逐笔明细」模式才列——汇总模式下账单主体就是上面那张汇总表 */
   var items = d.items || [];
+  var tbl = '';
+  if (mode === 'none') {
+    tbl = '<div class="doc-subttl">明细</div>'
+      + '<div class="empty" style="padding:10px 0">本单按汇总出单，未附逐笔明细</div>';
+  }
   var rows = items.map(function(r, i){
     return '<tr><td class="seq">' + (i + 1) + '</td><td>' + esc(r.date) + '</td><td>' + esc(r.bill_no) + '</td>'
       + '<td>' + esc(r.summary) + '</td>'
@@ -1400,12 +1436,14 @@ function renderRecon(d){
     + '<td class="num">' + fmt(s.payable || 0) + '</td>'
     + '<td class="num">' + fmt(s.paid) + '</td><td class="num">' + fmt(s.unpaid) + '</td>'
     + '<td></td></tr></tfoot>';
-  var tbl = '<div class="doc-tbl-wrap" style="overflow-x:auto"><table class="recon-tbl"><thead><tr>'
-    + '<th class="seq">#</th><th>日期</th><th>单据号</th><th>摘要</th>'
-    + '<th class="num">采购额</th><th class="num">退货</th><th class="num">扣款</th>'
-    + '<th class="num">应付净额</th><th class="num">已付</th><th class="num">未付</th><th>核对</th>'
-    + '</tr></thead><tbody>' + (rows || '<tr><td colspan="11" class="empty">该期间没有采购记录</td></tr>')
-    + '</tbody>' + foot + '</table></div>';
+  if (mode === 'full') {
+    tbl = '<div class="doc-tbl-wrap" style="overflow-x:auto"><table class="recon-tbl"><thead><tr>'
+      + '<th class="seq">#</th><th>日期</th><th>单据号</th><th>摘要</th>'
+      + '<th class="num">采购额</th><th class="num">退货</th><th class="num">扣款</th>'
+      + '<th class="num">应付净额</th><th class="num">已付</th><th class="num">未付</th><th>核对</th>'
+      + '</tr></thead><tbody>' + (rows || '<tr><td colspan="11" class="empty">该期间没有采购记录</td></tr>')
+      + '</tbody>' + foot + '</table></div>';
+  }
 
   /* 大写金额 / 条款 / 签章 */
   var cap = '<div class="doc-foot"><span>期末未付（大写）：<b>' + cny(d.closing || 0) + '</b></span>'
