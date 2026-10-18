@@ -13,53 +13,114 @@
 <title>采购台账</title>
 <style>
 :root {
-    --primary:#0e7490; --primary-weak:#e0f2f7; --bg:#f0f2f5; --card-bg:#ffffff;
-    --text:#1e293b; --text-secondary:#64748b; --border:#e2e8f0;
-    --success:#10b981; --danger:#dc2626; --warn:#d97706;
-    --shadow:0 2px 8px rgba(0,0,0,.06);
+    --primary:#0e7490; --primary-dark:#0b5f78; --primary-weak:#e6f4f8;
+    --bg:#f1f5f9; --card-bg:#ffffff;
+    --text:#0f172a; --text-secondary:#64748b; --text-thin:#94a3b8;
+    --border:#e2e8f0; --border-strong:#cbd5e1;
+    --success:#059669; --success-weak:#ecfdf5;
+    --danger:#dc2626; --danger-weak:#fef2f2;
+    --warn:#d97706; --warn-weak:#fffbeb;
+    --shadow:0 1px 3px rgba(15,23,42,.07);
+    --shadow-lg:0 6px 20px rgba(15,23,42,.10);
+    --r:12px; --r-sm:8px;
 }
 * { margin:0; padding:0; box-sizing:border-box; }
 body { font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif; background:var(--bg); color:var(--text); -webkit-text-size-adjust:100%; -webkit-font-smoothing:antialiased; padding-top:env(safe-area-inset-top); padding-left:env(safe-area-inset-left); padding-right:env(safe-area-inset-right); padding-bottom:calc(16px + env(safe-area-inset-bottom)); }
 body::before { content:''; position:fixed; top:0; left:0; right:0; height:env(safe-area-inset-top); background:var(--card-bg); z-index:101; pointer-events:none; }
-@media (hover:hover){ .btn-primary:hover { opacity:.9; } .row:hover { background:#f8fafc; } }
-header { background:var(--card-bg); border-bottom:1px solid #e2e8f0; padding:12px 16px; position:sticky; top:0; z-index:100; display:flex; align-items:center; justify-content:space-between; }
-.header-left { display:flex; align-items:center; gap:8px; }
-.back { display:flex; align-items:center; justify-content:center; color:#64748b; font-size:20px; min-width:44px; min-height:44px; text-decoration:none; }
-header h1 { font-size:17px; font-weight:700; }
+/* ===== 顶栏 ===== */
+header.appbar { background:var(--card-bg); border-bottom:1px solid var(--border); position:sticky; top:0; z-index:100; box-shadow:0 1px 3px rgba(15,23,42,.05); }
+.appbar-in { max-width:1400px; margin:0 auto; padding:8px 16px; display:flex; align-items:center; gap:10px; }
+.header-left { display:flex; align-items:center; gap:10px; min-width:0; }
+.back { display:flex; align-items:center; justify-content:center; color:var(--text-secondary); font-size:18px; width:36px; height:36px; min-width:36px; min-height:36px; border-radius:9px; border:1px solid var(--border); text-decoration:none; background:#fff; }
+.back:hover { border-color:var(--primary); color:var(--primary); }
+.brand-logo { width:34px; height:34px; border-radius:9px; background:linear-gradient(135deg,#0e7490,#22d3ee); color:#fff; display:flex; align-items:center; justify-content:center; font-weight:800; font-size:15px; box-shadow:0 2px 6px rgba(14,116,144,.35); flex-shrink:0; }
+.brand-name { font-size:15.5px; font-weight:800; letter-spacing:.3px; line-height:1.15; }
+.brand-sub { font-size:11px; color:var(--text-thin); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+header h1 { font-size:16px; font-weight:800; letter-spacing:.3px; }
+.appbar-acts { display:flex; align-items:center; gap:6px; margin-left:auto; flex-wrap:wrap; justify-content:flex-end; }
+.appbar-acts .divider { width:1px; height:22px; background:var(--border); margin:0 2px; }
 .container { max-width:1400px; margin:0 auto; padding:12px 16px; }
-.card { background:var(--card-bg); border-radius:12px; box-shadow:var(--shadow); padding:16px; margin-bottom:12px; }
-button { padding:10px 20px; border:none; border-radius:10px; font-size:14px; font-weight:600; cursor:pointer; min-height:44px; }
-.btn-primary { background:var(--primary); color:#fff; }
-.btn-outline { background:transparent; border:1px solid var(--border); color:var(--text); }
-.btn-sm { padding:4px 10px; font-size:12px; min-height:auto; border-radius:8px; }
-.btn-danger-sm { background:#fee2e2; color:var(--danger); }
-/* 统计 */
-.stat-overview { display:grid; grid-template-columns:repeat(auto-fit,minmax(130px,1fr)); gap:8px; margin-bottom:12px; }
-.stat-card { background:var(--card-bg); border-radius:10px; padding:12px; box-shadow:0 1px 4px rgba(0,0,0,.06); }
-.s-label { font-size:11px; color:var(--text-secondary); margin-bottom:4px; }
-.s-value { font-size:18px; font-weight:700; }
+/* ===== 卡片 ===== */
+.card { background:var(--card-bg); border:1px solid var(--border); border-radius:var(--r); box-shadow:var(--shadow); margin-bottom:12px; overflow:hidden; }
+.card-hd { display:flex; align-items:center; gap:10px; padding:11px 14px; border-bottom:1px solid var(--border); background:#fcfdfe; }
+.card-hd h3 { font-size:14px; font-weight:700; letter-spacing:.2px; }
+.card-hd .hint { font-size:11.5px; color:var(--text-thin); font-weight:500; }
+.card-hd .grow { flex:1; }
+.card-bd { padding:12px 14px; }
+.count-pill { font-size:11px; font-weight:700; color:var(--primary); background:var(--primary-weak); border-radius:999px; padding:2px 9px; white-space:nowrap; }
+/* ===== 按钮 ===== */
+button { padding:8px 14px; border:none; border-radius:9px; font-size:13px; font-weight:600; cursor:pointer; min-height:36px; display:inline-flex; align-items:center; justify-content:center; gap:5px; font-family:inherit; transition:background .15s,border-color .15s,color .15s; }
+.btn-primary { background:var(--primary); color:#fff; box-shadow:0 1px 2px rgba(14,116,144,.28); }
+.btn-primary:hover { background:var(--primary-dark); }
+.btn-outline { background:#fff; border:1px solid var(--border); color:var(--text-secondary); }
+.btn-outline:hover { border-color:var(--primary); color:var(--primary); background:var(--primary-weak); }
+.btn-sm { padding:5px 10px; font-size:12px; min-height:30px; border-radius:var(--r-sm); }
+.btn-danger-sm { background:var(--danger-weak); color:var(--danger); border:1px solid #fecaca; }
+.btn-danger-sm:hover { background:#fee2e2; border-color:var(--danger); }
+button:disabled { opacity:.5; cursor:not-allowed; }
+@media (hover:hover){ .row:hover td { background:#f6fbfd; } }
+/* ===== 工作台页头 ===== */
+.work-head { display:flex; align-items:flex-end; justify-content:space-between; gap:12px; margin:0 2px 10px; flex-wrap:wrap; }
+.work-title { font-size:19px; font-weight:800; letter-spacing:.4px; }
+.work-desc { font-size:12px; color:var(--text-secondary); margin-top:3px; }
+.work-meta { font-size:11.5px; color:var(--text-thin); text-align:right; font-variant-numeric:tabular-nums; }
+/* ===== KPI 指标卡 ===== */
+.stat-overview { display:grid; grid-template-columns:repeat(auto-fit,minmax(170px,1fr)); gap:10px; margin-bottom:12px; }
+.stat-card { background:var(--card-bg); border:1px solid var(--border); border-radius:var(--r); padding:12px 14px; box-shadow:var(--shadow); position:relative; overflow:hidden; }
+.stat-card::before { content:''; position:absolute; left:0; top:0; bottom:0; width:3px; background:var(--primary); }
+.stat-card.k-warn::before { background:var(--warn); }
+.stat-card.k-danger::before { background:var(--danger); }
+.stat-card.k-ok::before { background:var(--success); }
+.s-label { font-size:11.5px; color:var(--text-secondary); font-weight:600; display:flex; align-items:center; gap:5px; }
+.s-ic { width:17px; height:17px; border-radius:5px; background:var(--primary-weak); color:var(--primary); font-size:10.5px; font-weight:800; display:inline-flex; align-items:center; justify-content:center; }
+.s-value { font-size:21px; font-weight:800; letter-spacing:.2px; margin-top:5px; font-variant-numeric:tabular-nums; line-height:1.15; }
+.s-sub { font-size:11px; color:var(--text-thin); margin-top:3px; font-variant-numeric:tabular-nums; }
 .s-value.warn { color:var(--warn); }
+.s-value.danger { color:var(--danger); }
+.s-value.ok { color:var(--success); }
 .s-value.primary { color:var(--primary); }
-/* 筛选栏 */
-.filter-bar { display:flex; gap:8px; align-items:center; flex-wrap:wrap; margin-bottom:12px; }
-.filter-bar input, .filter-bar select { padding:8px 10px; border:1px solid var(--border); border-radius:10px; font-size:13px; background:var(--card-bg); min-height:44px; }
-.filter-bar input[type=date], .filter-bar input[type=search] { min-height:44px; }
+/* ===== 快捷时间范围 ===== */
+.chips { display:flex; gap:6px; flex-wrap:wrap; margin:0 0 12px; }
+.chip { padding:5px 12px; border-radius:999px; border:1px solid var(--border); background:#fff; font-size:12px; font-weight:600; color:var(--text-secondary); cursor:pointer; min-height:32px; font-family:inherit; }
+.chip:hover { border-color:var(--primary); color:var(--primary); background:var(--primary-weak); }
+.chip.on { background:var(--primary); border-color:var(--primary); color:#fff; box-shadow:0 1px 2px rgba(14,116,144,.25); }
+/* ===== 筛选栏 ===== */
+.filter-bar { display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
+.filter-bar input, .filter-bar select { padding:8px 10px; border:1px solid var(--border); border-radius:var(--r-sm); font-size:13px; background:var(--card-bg); min-height:36px; color:var(--text); font-family:inherit; }
+.filter-bar input:focus, .filter-bar select:focus { outline:none; border-color:var(--primary); box-shadow:0 0 0 3px var(--primary-weak); }
+.filter-bar input[type=date], .filter-bar input[type=search] { min-height:36px; }
+.f-label { font-size:11.5px; color:var(--text-thin); font-weight:600; }
 /* 表格：默认表头浅底灰字（统计表/对账表用），台账表格用深底白字强调 */
-.table-wrap { overflow-x:auto; border:1px solid #c8cdd3; border-radius:10px; background:#fff; }
-table { border-collapse:collapse; width:100%; font-size:12.5px; min-width:1080px; }
-thead th { position:sticky; top:0; background:#f8fafc; color:var(--text-secondary); padding:8px; text-align:left; white-space:nowrap; font-weight:600; border-bottom:2px solid var(--border); z-index:2; }
-.table-wrap thead th { background:var(--primary); color:#fff; border-bottom:none; }
-tbody td { padding:7px 8px; border-bottom:1px solid #f1f5f9; white-space:nowrap; }
-tbody tr:nth-child(even) { background:#fbfdfe; }
+.table-wrap { overflow:auto; border:1px solid var(--border); border-radius:var(--r-sm); background:#fff; max-height:68vh; }
+table { border-collapse:separate; border-spacing:0; width:100%; font-size:12.5px; min-width:1180px; }
+thead th { position:sticky; top:0; background:#f8fafc; color:var(--text-secondary); padding:9px 10px; text-align:left; white-space:nowrap; font-weight:700; font-size:11.5px; letter-spacing:.02em; border-bottom:1px solid var(--border); z-index:2; }
+.table-wrap thead th { background:var(--primary); color:#fff; border-bottom:none; box-shadow:none; }
+.table-wrap thead th.num { text-align:right; }
+tbody td { padding:8px 10px; border-bottom:1px solid #f1f5f9; white-space:nowrap; }
+tbody tr:nth-child(even) td { background:#fcfdfe; }
 td.num { text-align:right; font-variant-numeric:tabular-nums; }
 td.wrap { white-space:normal; word-break:break-all; min-width:110px; }
-.badge { font-size:10.5px; padding:2px 8px; border-radius:10px; font-weight:600; white-space:nowrap; }
-.badge.none { background:#f1f5f9; color:#64748b; }
-.badge.part { background:#fef3c7; color:#b45309; }
-.badge.done { background:#dcfce7; color:#16a34a; }
-.badge.inv { background:#e0f2f7; color:#0e7490; }
+td.dim { color:var(--text-thin); }
+td.strong { font-weight:700; }
+td.neg { color:var(--danger); font-weight:700; }
+.badge { font-size:10.5px; padding:2px 8px; border-radius:999px; font-weight:700; white-space:nowrap; display:inline-flex; align-items:center; gap:4px; letter-spacing:.02em; }
+.badge::before { content:''; width:5px; height:5px; border-radius:50%; background:currentColor; opacity:.85; }
+.badge.none { background:#f1f5f9; color:#475569; }
+.badge.part { background:var(--warn-weak); color:#b45309; }
+.badge.done { background:var(--success-weak); color:#047857; }
+.badge.inv { background:var(--primary-weak); color:var(--primary); }
+.badge.inv::before { display:none; }
 .row-actions { display:flex; gap:4px; }
-.empty { text-align:center; color:var(--text-secondary); padding:28px 0; font-size:13px; }
+.empty { text-align:center; color:var(--text-secondary); padding:34px 12px; font-size:13px; }
+.empty::before { content:''; display:block; width:38px; height:38px; margin:0 auto 10px; border-radius:50%; background:#f1f5f9; border:1px solid var(--border); }
+td.empty::before { display:none; }
+/* ===== 分页条 ===== */
+.pager { display:flex; align-items:center; gap:8px; flex-wrap:wrap; padding:10px 14px; border-top:1px solid var(--border); background:#fcfdfe; font-size:12.5px; color:var(--text-secondary); }
+.pager .grow { flex:1; }
+.pg-btn { min-height:30px; padding:4px 11px; border:1px solid var(--border); background:#fff; border-radius:var(--r-sm); font-size:12.5px; color:var(--text-secondary); font-weight:600; cursor:pointer; font-family:inherit; }
+.pg-btn:hover:not(:disabled) { border-color:var(--primary); color:var(--primary); background:var(--primary-weak); }
+.pg-btn:disabled { opacity:.42; cursor:default; }
+.pager select { padding:3px 6px; border:1px solid var(--border); border-radius:var(--r-sm); font-size:12.5px; background:#fff; font-family:inherit; }
 /* 汇总 */
 .sum-sec { margin-top:12px; display:grid; grid-template-columns:repeat(auto-fit,minmax(260px,1fr)); gap:12px; }
 .sum-sec h4 { font-size:13px; font-weight:600; margin-bottom:8px; }
@@ -68,210 +129,336 @@ td.wrap { white-space:normal; word-break:break-all; min-width:110px; }
 .sum-row .val { font-weight:600; white-space:nowrap; }
 /* 统计表 */
 .stat-wrap { overflow-x:auto; }
-.stat-tbl { width:100%; border-collapse:collapse; font-size:12.5px; min-width:640px; }
-.stat-tbl th { text-align:left; padding:7px 8px; border-bottom:2px solid var(--border); color:var(--text-secondary); font-weight:600; white-space:nowrap; }
-.stat-tbl td { padding:6px 8px; border-bottom:1px solid #f1f5f9; white-space:nowrap; }
+.stat-tbl { width:100%; border-collapse:separate; border-spacing:0; font-size:12.5px; min-width:680px; }
+.stat-tbl th { text-align:left; padding:9px 10px; border-bottom:1px solid var(--border); color:var(--text-secondary); font-weight:700; font-size:11.5px; white-space:nowrap; background:#f8fafc; }
+.stat-tbl td { padding:7px 10px; border-bottom:1px solid #f1f5f9; white-space:nowrap; }
 .stat-tbl td.num, .stat-tbl th.num { text-align:right; font-variant-numeric:tabular-nums; }
-.stat-tbl tfoot td { font-weight:700; border-top:2px solid var(--border); border-bottom:none; }
-.stat-tbl tbody tr:hover, .recon-tbl tbody tr:hover { background:#f0f9ff; }
+.stat-tbl tfoot td { font-weight:800; border-top:1px solid var(--border); border-bottom:none; background:#fcfdfe; }
+.stat-tbl tbody tr:hover td, .recon-tbl tbody tr:hover td { background:#f6fbfd; }
+.stat-tbl .drill { color:var(--primary); cursor:pointer; font-weight:600; border-bottom:1px dashed transparent; }
+.stat-tbl .drill:hover { border-bottom-color:var(--primary); }
 .bar-track { display:inline-block; width:90px; height:6px; background:#e2e8f0; border-radius:3px; vertical-align:middle; margin-right:6px; overflow:hidden; }
 .bar-mini { display:block; height:100%; background:linear-gradient(90deg,#22d3ee,#0e7490); border-radius:3px; min-width:2px; }
-/* 对账单 */
-.recon-head { display:flex; flex-wrap:wrap; gap:10px 18px; align-items:baseline; margin-bottom:10px; font-size:13px; }
-.recon-head .t { font-size:16px; font-weight:700; }
-.recon-cards { display:grid; grid-template-columns:repeat(auto-fit,minmax(120px,1fr)); gap:8px; margin-bottom:10px; }
-.recon-tbl { width:100%; border-collapse:collapse; font-size:12.5px; }
-.recon-tbl th { text-align:left; padding:6px 8px; background:#f1f5f9; color:var(--text-secondary); font-weight:600; border-bottom:2px solid var(--border); white-space:nowrap; }
-.recon-tbl td { padding:6px 8px; border-bottom:1px solid #f1f5f9; white-space:nowrap; }
+/* ===== 对账单：正式单据版式 ===== */
+.doc { background:#fff; border:1px solid var(--border); border-radius:var(--r); padding:18px 20px; }
+.doc-title { text-align:center; font-size:20px; font-weight:800; letter-spacing:3px; }
+.doc-no { text-align:center; font-size:11.5px; color:var(--text-thin); margin-top:5px; font-variant-numeric:tabular-nums; }
+.doc-info { display:grid; grid-template-columns:repeat(auto-fit,minmax(190px,1fr)); gap:7px 18px; margin:14px 0; padding:12px 14px; background:#f8fafc; border:1px solid var(--border); border-radius:10px; font-size:12.5px; }
+.doc-info div { min-width:0; overflow:hidden; text-overflow:ellipsis; }
+.doc-info .k { color:var(--text-thin); margin-right:6px; }
+.doc-sum { display:grid; grid-template-columns:repeat(auto-fit,minmax(118px,1fr)); gap:8px; margin-bottom:12px; }
+.doc-sum .cell { background:#f8fafc; border:1px solid var(--border); border-radius:10px; padding:8px 10px; }
+.doc-sum .cell .l { font-size:11px; color:var(--text-secondary); font-weight:600; }
+.doc-sum .cell .v { font-size:15px; font-weight:800; font-variant-numeric:tabular-nums; margin-top:2px; }
+.doc-sum .cell.hl { background:var(--primary-weak); border-color:#bae6fd; }
+.doc-sum .cell.hl .v { color:var(--primary); }
+.doc-sum .cell.warn { background:var(--warn-weak); border-color:#fde68a; }
+.doc-sum .cell.warn .v { color:var(--warn); }
+.doc-sign { display:grid; grid-template-columns:repeat(auto-fit,minmax(190px,1fr)); gap:24px; margin-top:20px; font-size:12.5px; color:var(--text-secondary); }
+.doc-sign .line { border-bottom:1px solid var(--border-strong); height:30px; margin-top:4px; }
+.doc-foot { margin-top:14px; padding-top:10px; border-top:1px dashed var(--border); font-size:11px; color:var(--text-thin); display:flex; justify-content:space-between; gap:10px; flex-wrap:wrap; }
+.recon-cards { display:grid; grid-template-columns:repeat(auto-fit,minmax(118px,1fr)); gap:8px; margin-bottom:10px; }
+.recon-tbl { width:100%; border-collapse:separate; border-spacing:0; font-size:12.5px; }
+.recon-tbl th { text-align:left; padding:8px 10px; background:#f8fafc; color:var(--text-secondary); font-weight:700; font-size:11.5px; border-bottom:1px solid var(--border); white-space:nowrap; }
+.recon-tbl td { padding:7px 10px; border-bottom:1px solid #f1f5f9; white-space:nowrap; }
 .recon-tbl td.num { text-align:right; font-variant-numeric:tabular-nums; }
-.recon-tbl tfoot td { font-weight:700; border-top:2px solid var(--border); }
-.tag-recon { font-size:10.5px; background:#dcfce7; color:#16a34a; border-radius:8px; padding:1px 6px; }
-.tag-unrecon { font-size:10.5px; background:#fef3c7; color:#b45309; border-radius:8px; padding:1px 6px; }
+.recon-tbl tfoot td { font-weight:800; border-top:1px solid var(--border); background:#fcfdfe; }
+.tag-recon { font-size:10.5px; background:var(--success-weak); color:#047857; border-radius:999px; padding:1px 7px; font-weight:700; }
+.tag-unrecon { font-size:10.5px; background:var(--warn-weak); color:#b45309; border-radius:999px; padding:1px 7px; font-weight:700; }
+/* ===== 供应商档案表 ===== */
+.mini-tbl { width:100%; border-collapse:separate; border-spacing:0; font-size:12.5px; min-width:720px; }
+.mini-tbl th { background:#f8fafc; color:var(--text-secondary); font-size:11.5px; font-weight:700; padding:8px 10px; text-align:left; border-bottom:1px solid var(--border); white-space:nowrap; }
+.mini-tbl td { padding:8px 10px; border-bottom:1px solid #f1f5f9; white-space:nowrap; }
+.mini-tbl tbody tr:hover td { background:#f6fbfd; }
+.mini-tbl td.num { text-align:right; font-variant-numeric:tabular-nums; }
+.mini-tbl tr.off td { opacity:.5; }
+.mini-wrap { overflow-x:auto; }
 @media print {
-    body > header, .container, #cfgModal, #toast, .filter-bar, .modal-actions { display:none !important; }
+    @page { size:A4; margin:12mm; }
+    body > header, .container, #cfgModal, #toast, .filter-bar, .modal-hd, .modal-ft { display:none !important; }
     .modal-overlay { position:static !important; display:block !important; background:#fff !important; padding:0 !important; }
-    .modal { max-width:none !important; box-shadow:none !important; padding:0 !important; max-height:none !important; overflow:visible !important; }
+    .modal { max-width:none !important; box-shadow:none !important; padding:0 !important; max-height:none !important; overflow:visible !important; border:none !important; }
     #reconArea { max-height:none !important; overflow:visible !important; }
+    .doc { border:none !important; padding:0 !important; }
+    .doc-tbl-wrap { overflow:visible !important; }
     .recon-tbl th { background:#e2e8f0 !important; -webkit-print-color-adjust:exact; print-color-adjust:exact; }
+    .doc-sum .cell { -webkit-print-color-adjust:exact; print-color-adjust:exact; }
+    .recon-tbl tbody tr { page-break-inside:avoid; }
+    .doc-sign { page-break-inside:avoid; }
 }
 
 /* 配置面板 */
-.cfg-tabs { display:flex; gap:6px; margin-bottom:12px; }
-.cfg-tab { padding:8px 14px; border-radius:9px; font-size:13px; font-weight:600; border:1px solid var(--border); background:#fff; color:var(--text-secondary); cursor:pointer; min-height:44px; }
-.cfg-tab.on { background:var(--primary); border-color:var(--primary); color:#fff; }
-.cfg-form { background:#f8fafc; border-radius:10px; padding:10px; margin-bottom:10px; }
+.cfg-tabs { display:flex; gap:6px; margin-bottom:12px; flex-wrap:wrap; }
+.cfg-tab { padding:7px 13px; border-radius:9px; font-size:12.5px; font-weight:600; border:1px solid var(--border); background:#fff; color:var(--text-secondary); cursor:pointer; min-height:36px; }
+.cfg-tab:hover { border-color:var(--primary); color:var(--primary); background:var(--primary-weak); }
+.cfg-tab.on { background:var(--primary); border-color:var(--primary); color:#fff; box-shadow:0 1px 2px rgba(14,116,144,.25); }
+.cfg-form { background:#f8fafc; border:1px solid var(--border); border-radius:10px; padding:12px; margin-bottom:10px; }
 .cfg-list { max-height:46vh; overflow-y:auto; }
-.cfg-item { display:flex; align-items:center; gap:8px; padding:8px 10px; background:#fff; border-radius:8px; margin-bottom:6px; box-shadow:0 1px 3px rgba(0,0,0,.04); font-size:12.5px; }
+.cfg-item { display:flex; align-items:center; gap:8px; padding:9px 10px; background:#fff; border:1px solid var(--border); border-radius:var(--r-sm); margin-bottom:6px; font-size:12.5px; }
 .cfg-item.off { opacity:.5; }
 .cfg-item .nm { font-weight:600; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; word-break:break-all; }
 .cfg-item .meta { color:var(--text-secondary); font-size:11.5px; }
 .cfg-item .grow { flex:1; min-width:0; }
 .cfg-item .acts { display:flex; gap:4px; flex-shrink:0; }
-.tag-off { font-size:10.5px; background:#f1f5f9; color:#64748b; border-radius:8px; padding:1px 6px; }
+.tag-off { font-size:10.5px; background:#f1f5f9; color:#64748b; border-radius:999px; padding:1px 7px; font-weight:700; }
 .sync-line { display:flex; align-items:center; gap:6px; font-size:12px; color:var(--text-secondary); margin-top:6px; }
 .sync-line input { width:16px; height:16px; }
+/* 表单分组 */
+.fset { border:1px solid var(--border); border-radius:10px; padding:10px 12px 4px; margin-bottom:10px; background:#fcfdfe; }
+.fset-lg { font-size:11.5px; font-weight:700; color:var(--primary); letter-spacing:.3px; margin-bottom:8px; display:flex; align-items:center; gap:6px; }
+.fset-lg::before { content:''; width:3px; height:12px; background:var(--primary); border-radius:2px; }
 
 /* 弹窗 */
-.modal-overlay { position:fixed; inset:0; background:rgba(0,0,0,.4); z-index:200; display:none; align-items:center; justify-content:center; padding:20px; }
+.modal-overlay { position:fixed; inset:0; background:rgba(15,23,42,.45); backdrop-filter:blur(2px); z-index:200; display:none; align-items:center; justify-content:center; padding:20px; }
 .modal-overlay.show { display:flex; }
-.modal { background:var(--card-bg); border-radius:14px; padding:20px; width:100%; max-width:440px; max-height:85vh; overflow-y:auto; }
-.modal h4 { font-size:16px; font-weight:600; margin-bottom:14px; }
+.modal { background:var(--card-bg); border-radius:16px; width:100%; max-width:480px; max-height:88vh; box-shadow:var(--shadow-lg); display:flex; flex-direction:column; overflow:hidden; }
+.modal-hd { padding:13px 18px; border-bottom:1px solid var(--border); display:flex; align-items:center; gap:10px; background:#fff; }
+.modal-hd h4 { font-size:15.5px; font-weight:700; letter-spacing:.3px; }
+.modal-hd .grow { flex:1; }
+.modal-x { width:30px; height:30px; min-height:30px; padding:0; border-radius:8px; border:1px solid var(--border); background:#fff; color:var(--text-secondary); font-size:15px; line-height:1; }
+.modal-x:hover { border-color:var(--danger); color:var(--danger); }
+.modal-bd { padding:14px 18px; overflow-y:auto; }
+.modal-ft { padding:12px 18px; border-top:1px solid var(--border); display:flex; gap:8px; background:#fcfdfe; }
+.modal h4 { font-size:15.5px; font-weight:700; margin-bottom:12px; }
 .form-row { display:flex; gap:8px; margin-bottom:8px; }
-.field { flex:1; }
-.field label { display:block; font-size:11px; color:var(--text-secondary); margin-bottom:2px; }
-.field input, .field select { width:100%; padding:10px 12px; border:1px solid var(--border); border-radius:10px; font-size:16px; background:var(--card-bg); -webkit-appearance:none; min-height:44px; }
-.field input:focus, .field select:focus { outline:none; border-color:var(--primary); }
-.derived { display:flex; gap:12px; font-size:12px; color:var(--text-secondary); background:var(--primary-weak); border-radius:8px; padding:8px 12px; margin-bottom:8px; }
-.derived b { color:var(--primary); }
+.field { flex:1; min-width:0; }
+.field label { display:block; font-size:11px; color:var(--text-secondary); font-weight:600; margin-bottom:3px; }
+.field input, .field select { width:100%; padding:9px 11px; border:1px solid var(--border); border-radius:var(--r-sm); font-size:16px; background:var(--card-bg); -webkit-appearance:none; min-height:42px; font-family:inherit; color:var(--text); }
+.field input:focus, .field select:focus { outline:none; border-color:var(--primary); box-shadow:0 0 0 3px var(--primary-weak); }
+.field .hint, .hint { font-size:11px; color:var(--text-thin); margin-top:3px; }
+.derived { display:flex; gap:14px; font-size:12px; color:var(--text-secondary); background:var(--primary-weak); border:1px solid #bae6fd; border-radius:10px; padding:9px 12px; margin-bottom:8px; flex-wrap:wrap; }
+.derived b { color:var(--primary); font-size:13.5px; font-variant-numeric:tabular-nums; }
 .modal-actions { display:flex; gap:8px; margin-top:10px; }
-#toast { position:fixed; left:50%; transform:translateX(-50%); bottom:80px; background:#1e293b; color:#fff; padding:10px 20px; border-radius:10px; font-size:13px; z-index:300; display:none; max-width:80vw; word-break:break-all; }
+#toast { position:fixed; left:50%; transform:translateX(-50%); bottom:80px; background:#0f172a; color:#fff; padding:11px 18px; border-radius:10px; font-size:13px; z-index:300; display:none; max-width:80vw; word-break:break-all; box-shadow:var(--shadow-lg); }
 @media (max-width:768px){
     .container { max-width:100vw; padding:10px 12px; }
     .table-head { display:none; }
-    .table-wrap { border:none; background:transparent; overflow:visible; }
+    .table-wrap { border:none; background:transparent; overflow:visible; max-height:none; }
     table { min-width:0; display:block; }
     .table-wrap thead { display:none; }
     tbody { display:block; }
-    .row { display:block; background:var(--card-bg); border-radius:10px; box-shadow:0 1px 4px rgba(0,0,0,.05); padding:10px 12px; margin-bottom:8px; }
-    tbody td { display:flex; justify-content:space-between; gap:10px; border-bottom:1px dashed #f1f5f9; padding:5px 0; white-space:normal; }
+    .row { display:block; background:var(--card-bg); border:1px solid var(--border); border-radius:12px; box-shadow:var(--shadow); padding:10px 12px; margin-bottom:8px; }
+    tbody td { display:flex; justify-content:space-between; gap:10px; border-bottom:1px dashed #f1f5f9; padding:5px 0; white-space:normal; background:transparent !important; }
     tbody td::before { content:attr(data-l); color:var(--text-secondary); font-size:11.5px; flex-shrink:0; }
     tbody td:last-child { border-bottom:none; justify-content:flex-end; }
-    td.num { text-align:right; }
+    td.num { text-align:right; font-variant-numeric:tabular-nums; }
     td.wrap { min-width:0; }
+    .work-head { margin-bottom:8px; }
+    .work-title { font-size:17px; }
+    .work-meta { text-align:left; }
+    .stat-overview { grid-template-columns:repeat(2,minmax(0,1fr)); gap:8px; }
+    .s-value { font-size:18px; }
+    .brand-sub { display:none; }
+    .appbar-in { padding:7px 12px; gap:8px; }
+    .appbar-acts .btn-sm { padding:5px 9px; }
+    .card-hd { padding:10px 12px; }
+    .card-bd { padding:10px 12px; }
+    .modal { max-height:92vh; border-radius:14px; }
+    .modal-overlay { padding:10px; }
+    .doc { padding:12px 14px; }
+    .doc-title { font-size:17px; letter-spacing:2px; }
 }
 </style>
 </head>
 <body>
-<header>
-  <div class="header-left">
-    <a class="back" href="/nav" title="返回导航" onclick="if(document.referrer.includes('/nav')){history.back();return false}">&larr;</a>
-    <h1>采购台账</h1>
-  </div>
-  <div style="display:flex;gap:8px;flex-wrap:wrap">
-    <button class="btn-outline btn-sm" style="min-height:36px" onclick="openRecon()">对账报表</button>
-    <button class="btn-outline btn-sm" style="min-height:36px" onclick="openConfig()">⚙ 配置</button>
-    <button class="btn-outline btn-sm" style="min-height:36px" title="下载 Excel 导入模板：按列名识别、列顺序随意" onclick="downloadTemplate()">导入模板</button>
-    <button class="btn-outline btn-sm" style="min-height:36px" onclick="doImport()">导入Excel</button>
-    <button class="btn-outline btn-sm" style="min-height:36px" onclick="doExport()">导出Excel</button>
-    <button class="btn-primary btn-sm" style="min-height:36px" onclick="openModal()">+ 新增采购</button>
+<header class="appbar">
+  <div class="appbar-in">
+    <div class="header-left">
+      <a class="back" href="/nav" title="返回导航" onclick="if(document.referrer.includes('/nav')){history.back();return false}">&larr;</a>
+      <div class="brand-logo">采</div>
+      <div style="min-width:0">
+        <h1 class="brand-name">采购管理</h1>
+        <div class="brand-sub">生鲜配送 · 供应商 / 发票 / 付款 / 对账</div>
+      </div>
+    </div>
+    <div class="appbar-acts">
+      <button class="btn-outline btn-sm" onclick="openRecon()">对账报表</button>
+      <button class="btn-outline btn-sm" onclick="openConfig()">⚙ 配置</button>
+      <button class="btn-outline btn-sm" title="下载 Excel 导入模板：按列名识别、列顺序随意" onclick="downloadTemplate()">导入模板</button>
+      <button class="btn-outline btn-sm" onclick="doImport()">导入Excel</button>
+      <button class="btn-outline btn-sm" onclick="doExport()">导出Excel</button>
+      <span class="divider"></span>
+      <button class="btn-primary btn-sm" onclick="openModal()">+ 新增采购</button>
+    </div>
   </div>
 </header>
 <input type="file" id="importFile" accept=".xlsx" style="display:none" onchange="uploadImport(this)">
 <div class="container">
+  <div class="work-head">
+    <div>
+      <div class="work-title">采购台账</div>
+      <div class="work-desc">按供应商 / 品类 / 客户管理生鲜采购、发票与付款；退货、扣款自动冲减应付净额。</div>
+    </div>
+    <div class="work-meta">
+      统计范围 <b id="rangeText">全部日期</b><br>
+      共 <b id="listCount">0</b> 条 · 更新于 <span id="updTime">--:--</span>
+    </div>
+  </div>
+
   <div class="stat-overview" id="statCards"></div>
 
-  <div class="card">
-    <div class="cfg-tabs" style="margin-bottom:10px;flex-wrap:wrap">
-      <button class="cfg-tab on" id="dimMonth" onclick="setDim('month')">按月</button>
-      <button class="cfg-tab" id="dimYear" onclick="setDim('year')">按年</button>
-      <button class="cfg-tab" id="dimDay" onclick="setDim('day')">按日</button>
-      <button class="cfg-tab" id="dimSupplier" onclick="setDim('supplier')">按供应商</button>
-      <button class="cfg-tab" id="dimCategory" onclick="setDim('category')">按品类</button>
-      <button class="cfg-tab" id="dimCustomer" onclick="setDim('customer')">按客户</button>
-      <button class="cfg-tab" id="dimInvoice" onclick="setDim('invoice')">按发票类型</button>
-    </div>
-    <div id="statTable"></div>
+  <div class="chips" id="rangeChips">
+    <button class="chip" data-r="month" onclick="quickRange('month')">本月</button>
+    <button class="chip" data-r="last" onclick="quickRange('last')">上月</button>
+    <button class="chip" data-r="30" onclick="quickRange('30')">近30天</button>
+    <button class="chip" data-r="quarter" onclick="quickRange('quarter')">本季</button>
+    <button class="chip" data-r="year" onclick="quickRange('year')">本年</button>
+    <button class="chip on" data-r="all" onclick="quickRange('all')">全部</button>
   </div>
 
   <div class="card">
-    <div class="filter-bar">
-      <input type="date" id="fStart" onchange="curPage=1;reload()">
-      <span style="color:var(--text-secondary);font-size:12px">至</span>
-      <input type="date" id="fEnd" onchange="curPage=1;reload()">
-      <select id="fSupplier" onchange="curPage=1;reload()"><option value="">全部供应商</option></select>
-      <select id="fCategory" onchange="curPage=1;reload()"><option value="">全部品类</option></select>
-      <select id="fCustomer" onchange="curPage=1;reload()"><option value="">全部客户</option></select>
-      <select id="fInvoice" onchange="curPage=1;reload()"></select>
-      <select id="fStatus" onchange="curPage=1;reload()">
-        <option value="">全部状态</option><option>未付款</option><option>部分付款</option><option>已付清</option>
-      </select>
-      <input type="search" id="fSearch" placeholder="搜索单号/摘要/账户…" style="flex:1;min-width:140px" onkeydown="if(event.key==='Enter'){curPage=1;reload()}">
-      <button class="btn-outline btn-sm" style="min-height:44px" onclick="resetFilter()">重置</button>
+    <div class="card-hd">
+      <h3>采购分析</h3>
+      <span class="hint">点名称可下钻筛选</span>
+      <span class="grow"></span>
+      <div class="cfg-tabs" style="margin-bottom:0">
+        <button class="cfg-tab on" id="dimMonth" onclick="setDim('month')">按月</button>
+        <button class="cfg-tab" id="dimYear" onclick="setDim('year')">按年</button>
+        <button class="cfg-tab" id="dimDay" onclick="setDim('day')">按日</button>
+        <button class="cfg-tab" id="dimSupplier" onclick="setDim('supplier')">按供应商</button>
+        <button class="cfg-tab" id="dimCategory" onclick="setDim('category')">按品类</button>
+        <button class="cfg-tab" id="dimCustomer" onclick="setDim('customer')">按客户</button>
+        <button class="cfg-tab" id="dimInvoice" onclick="setDim('invoice')">按发票类型</button>
+      </div>
+    </div>
+    <div class="card-bd"><div id="statTable"></div></div>
+  </div>
+
+  <div class="card">
+    <div class="card-hd">
+      <h3>采购明细</h3>
+      <span class="count-pill" id="listCountPill">0 条</span>
+      <span class="grow"></span>
+      <input type="search" id="fSearch" placeholder="搜索单号 / 供应商 / 摘要 / 客户…" style="min-width:180px;flex:0 1 260px;padding:7px 10px;border:1px solid var(--border);border-radius:8px;font-size:13px;min-height:34px" onkeydown="if(event.key==='Enter'){curPage=1;reload()}">
+      <button class="btn-outline btn-sm" onclick="doExport()">导出当前筛选</button>
+    </div>
+    <div class="card-bd">
+      <div class="filter-bar">
+        <span class="f-label">日期</span>
+        <input type="date" id="fStart" onchange="onRange()">
+        <span style="color:var(--text-thin);font-size:12px">至</span>
+        <input type="date" id="fEnd" onchange="onRange()">
+        <select id="fSupplier" onchange="curPage=1;reload()"><option value="">全部供应商</option></select>
+        <select id="fCategory" onchange="curPage=1;reload()"><option value="">全部品类</option></select>
+        <select id="fCustomer" onchange="curPage=1;reload()"><option value="">全部客户</option></select>
+        <select id="fInvoice" onchange="curPage=1;reload()"></select>
+        <select id="fStatus" onchange="curPage=1;reload()">
+          <option value="">全部状态</option><option>未付款</option><option>部分付款</option><option>已付清</option>
+        </select>
+        <button class="btn-outline btn-sm" onclick="resetFilter()">重置筛选</button>
+      </div>
     </div>
     <div class="table-wrap">
       <table>
         <thead><tr>
           <th>日期</th><th>单据号</th><th>供应商名称</th><th>客户/门店</th><th>品类</th>
-          <th>采购内容摘要</th><th>发票类型</th><th style="text-align:right">采购总金额</th>
-          <th style="text-align:right">进项税额</th><th style="text-align:right">不含税成本</th>
-          <th style="text-align:right">退货</th><th style="text-align:right">扣款</th>
-          <th style="text-align:right">应付净额</th><th style="text-align:right">已开金额</th>
-          <th style="text-align:right">已付金额</th><th style="text-align:right">未付余额</th>
+          <th>采购内容摘要</th><th>发票类型</th><th class="num">采购总金额</th>
+          <th class="num">进项税额</th><th class="num">不含税成本</th>
+          <th class="num">退货</th><th class="num">扣款</th>
+          <th class="num">应付净额</th><th class="num">已开金额</th>
+          <th class="num">已付金额</th><th class="num">未付余额</th>
           <th>付款账户</th><th>付款状态</th><th>操作</th>
         </tr></thead>
         <tbody id="tbody"><tr><td colspan="19" class="empty">加载中…</td></tr></tbody>
       </table>
     </div>
-    <div id="pager" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:10px;font-size:13px"></div>
+    <div id="pager" class="pager"></div>
   </div>
 </div>
 
 <div class="modal-overlay" id="reconModal">
-  <div class="modal" style="max-width:900px">
-    <h4>对账报表</h4>
-    <div class="filter-bar" style="margin-bottom:10px">
-      <select id="rSupplier" style="min-width:150px"><option value="">全部供应商</option></select>
-      <input type="date" id="rStart">
-      <span style="color:var(--text-secondary);font-size:12px">至</span>
-      <input type="date" id="rEnd">
-      <button class="btn-primary btn-sm" style="min-height:44px" onclick="runRecon()">生成对账单</button>
+  <div class="modal" style="max-width:980px">
+    <div class="modal-hd">
+      <h4>对账报表</h4>
+      <span class="grow"></span>
+      <button class="modal-x" onclick="closeRecon()" title="关闭">&times;</button>
     </div>
-    <div class="modal-actions" style="margin-bottom:10px">
+    <div class="modal-bd">
+      <div class="filter-bar" style="margin-bottom:12px">
+        <select id="rSupplier" style="min-width:150px"><option value="">全部供应商</option></select>
+        <span class="f-label">期间</span>
+        <input type="date" id="rStart">
+        <span style="color:var(--text-thin);font-size:12px">至</span>
+        <input type="date" id="rEnd">
+        <button class="btn-primary btn-sm" onclick="runRecon()">生成对账单</button>
+      </div>
+      <div id="reconArea" style="max-height:62vh;overflow-y:auto"></div>
+    </div>
+    <div class="modal-ft">
       <button class="btn-outline" style="flex:1" onclick="printRecon()">打印 / 存为PDF</button>
       <button class="btn-outline" style="flex:1" onclick="exportRecon()">导出Excel</button>
-      <button class="btn-outline" style="flex:1" onclick="closeRecon()">关闭</button>
+      <button class="btn-outline" style="flex:0 0 90px" onclick="closeRecon()">关闭</button>
     </div>
-    <div id="reconArea" class="cfg-list" style="max-height:60vh"></div>
   </div>
 </div>
 
 <div class="modal-overlay" id="modal">
-  <div class="modal">
-    <h4 id="modalTitle">新增采购</h4>
-    <div class="form-row">
-      <div class="field"><label>日期 *</label><input type="date" id="mDate"></div>
-      <div class="field"><label>单据号</label><input id="mBillNo" placeholder="如 20261008-01"></div>
+  <div class="modal" style="max-width:520px">
+    <div class="modal-hd">
+      <h4 id="modalTitle">新增采购</h4>
+      <span class="grow"></span>
+      <button class="modal-x" onclick="closeModal()" title="关闭">&times;</button>
     </div>
-    <div class="form-row">
-      <div class="field"><label>供应商名称 *</label><input id="mSupplier" list="dlSupplier" placeholder="如 旺绿商贸"><datalist id="dlSupplier"></datalist></div>
-      <div class="field"><label>品类</label><input id="mCategory" list="dlCategory" placeholder="如 生鲜"><datalist id="dlCategory"></datalist></div>
+    <div class="modal-bd">
+      <div class="fset">
+        <div class="fset-lg">基础信息</div>
+        <div class="form-row">
+          <div class="field"><label>日期 *</label><input type="date" id="mDate"></div>
+          <div class="field"><label>单据号</label><input id="mBillNo" placeholder="如 20261008-01"></div>
+        </div>
+        <div class="form-row">
+          <div class="field"><label>供应商名称 *</label><input id="mSupplier" list="dlSupplier" placeholder="如 旺绿商贸"><datalist id="dlSupplier"></datalist></div>
+          <div class="field"><label>品类</label><input id="mCategory" list="dlCategory" placeholder="如 生鲜"><datalist id="dlCategory"></datalist></div>
+        </div>
+        <div class="form-row">
+          <div class="field"><label>采购内容摘要</label><input id="mSummary" maxlength="200" placeholder="如 猪肉/蔬菜一批"></div>
+          <div class="field"><label>客户/门店</label><input id="mCustomer" list="dlCustomer" placeholder="如 一中食堂（选填）"><datalist id="dlCustomer"></datalist></div>
+        </div>
+      </div>
+      <div class="fset">
+        <div class="fset-lg">发票与税额</div>
+        <div class="form-row">
+          <div class="field"><label>发票类型</label><select id="mInvoice" onchange="onInvoiceChange()"></select></div>
+          <div class="field"><label>付款账户</label><input id="mPayAccount" list="dlAccount" placeholder="如 微信/银行卡"><datalist id="dlAccount"></datalist></div>
+        </div>
+        <div class="form-row">
+          <div class="field"><label>采购总金额(含税/买价) *</label><input id="mTotal" type="number" step="0.01" min="0" inputmode="decimal" placeholder="0.00"></div>
+          <div class="field"><label>进项税额</label><input id="mTax" type="number" step="0.01" min="0" inputmode="decimal" placeholder="0.00">
+            <div id="taxHint" class="hint"></div></div>
+        </div>
+      </div>
+      <div class="fset">
+        <div class="fset-lg">退货 / 扣款 / 收付</div>
+        <div class="form-row">
+          <div class="field"><label>退货金额</label><input id="mReturn" type="number" step="0.01" min="0" inputmode="decimal" placeholder="0.00（不新鲜退回）"></div>
+          <div class="field"><label>扣款金额</label><input id="mDeduct" type="number" step="0.01" min="0" inputmode="decimal" placeholder="0.00（扣重/扣水）"></div>
+        </div>
+        <div class="form-row">
+          <div class="field"><label>已开金额</label><input id="mInvoiced" type="number" step="0.01" min="0" inputmode="decimal" placeholder="0.00"></div>
+          <div class="field"><label>已付金额</label><input id="mPaid" type="number" step="0.01" min="0" inputmode="decimal" placeholder="0.00"></div>
+        </div>
+      </div>
+      <div class="derived">
+        <span>不含税成本 <b id="dNet">0.00</b></span>
+        <span>应付净额 <b id="dPayable">0.00</b></span>
+        <span>未付余额 <b id="dUnpaid">0.00</b></span>
+      </div>
+      <div class="hint">应付净额 = 采购总金额 − 退货 − 扣款</div>
     </div>
-    <div class="form-row">
-      <div class="field"><label>采购内容摘要</label><input id="mSummary" maxlength="200" placeholder="如 猪肉/蔬菜一批"></div>
-      <div class="field"><label>客户/门店</label><input id="mCustomer" list="dlCustomer" placeholder="如 一中食堂（选填）"><datalist id="dlCustomer"></datalist></div>
-    </div>
-    <div class="form-row">
-      <div class="field"><label>发票类型</label><select id="mInvoice" onchange="onInvoiceChange()"></select></div>
-      <div class="field"><label>付款账户</label><input id="mPayAccount" list="dlAccount" placeholder="如 微信/银行卡"><datalist id="dlAccount"></datalist></div>
-    </div>
-    <div class="form-row">
-      <div class="field"><label>采购总金额(含税/买价) *</label><input id="mTotal" type="number" step="0.01" min="0" inputmode="decimal" placeholder="0.00"></div>
-      <div class="field"><label>进项税额</label><input id="mTax" type="number" step="0.01" min="0" inputmode="decimal" placeholder="0.00">
-        <div id="taxHint" style="font-size:11px;color:var(--text-secondary);margin-top:3px"></div></div>
-    </div>
-    <div class="form-row">
-      <div class="field"><label>退货金额</label><input id="mReturn" type="number" step="0.01" min="0" inputmode="decimal" placeholder="0.00（不新鲜退回）"></div>
-      <div class="field"><label>扣款金额</label><input id="mDeduct" type="number" step="0.01" min="0" inputmode="decimal" placeholder="0.00（扣重/扣水）"></div>
-    </div>
-    <div class="form-row">
-      <div class="field"><label>已开金额</label><input id="mInvoiced" type="number" step="0.01" min="0" inputmode="decimal" placeholder="0.00"></div>
-      <div class="field"><label>已付金额</label><input id="mPaid" type="number" step="0.01" min="0" inputmode="decimal" placeholder="0.00"></div>
-    </div>
-    <div class="derived">
-      <span>不含税成本 <b id="dNet">0.00</b></span>
-      <span>应付净额 <b id="dPayable">0.00</b></span>
-      <span>未付余额 <b id="dUnpaid">0.00</b></span>
-    </div>
-    <div style="font-size:11px;color:var(--text-secondary);margin-top:2px">应付净额 = 采购总金额 − 退货 − 扣款</div>
-    <div class="modal-actions">
-      <button class="btn-outline" style="flex:1" onclick="closeModal()">取消</button>
+    <div class="modal-ft">
+      <button class="btn-outline" style="flex:0 0 92px" onclick="closeModal()">取消</button>
       <button class="btn-primary" style="flex:1" id="btnSave" onclick="save()">保存</button>
     </div>
   </div>
 </div>
 <div class="modal-overlay" id="cfgModal">
-  <div class="modal" style="max-width:560px">
-    <h4>基础配置</h4>
+  <div class="modal" style="max-width:660px">
+    <div class="modal-hd">
+      <h4>基础配置</h4>
+      <span class="grow"></span>
+      <button class="modal-x" onclick="closeConfig()" title="关闭">&times;</button>
+    </div>
+    <div class="modal-bd">
     <div class="cfg-tabs">
       <button class="cfg-tab on" id="tabSupplier" onclick="switchTab('supplier')">供应商</button>
       <button class="cfg-tab" id="tabCategory" onclick="switchTab('category')">品类</button>
@@ -333,8 +520,8 @@ td.wrap { white-space:normal; word-break:break-all; min-width:110px; }
       </div>
       <div class="cfg-list" id="dictList"></div>
     </div>
-
-    <div class="modal-actions">
+    </div>
+    <div class="modal-ft">
       <button class="btn-outline" style="flex:1" onclick="closeConfig()">关闭</button>
     </div>
   </div>
@@ -439,19 +626,50 @@ function renderPager(d){
     return '<option value="' + n + '"' + (n === pageSize ? ' selected' : '') + '>' + n + '</option>';
   }).join('');
   var btn = function(label, target, disabled){
-    return '<button class="btn-outline btn-sm" style="min-height:30px;padding:2px 10px'
-      + (disabled ? ';opacity:.45" disabled' : '"')
+    return '<button class="pg-btn"' + (disabled ? ' disabled' : '')
       + ' onclick="setPage(' + target + ')">' + label + '</button>';
   };
-  el.innerHTML = '每页 <select onchange="setPageSize(this.value)" style="padding:4px 6px;border:1px solid var(--border);border-radius:8px;font-size:13px">'
-    + opts + '</select> 项'
-    + '<span style="color:var(--text-secondary)">共 ' + d.total + ' 条 · 第 ' + d.page + ' / ' + d.pages + ' 页</span>'
-    + '<span style="flex:1"></span>'
+  el.innerHTML = '<span>每页</span><select onchange="setPageSize(this.value)">' + opts + '</select><span>项</span>'
+    + '<span>共 <b style="color:var(--text)">' + d.total + '</b> 条 · 第 <b style="color:var(--text)">'
+    + d.page + '</b> / ' + d.pages + ' 页</span>'
+    + '<span class="grow"></span>'
     + btn('« 首页', 1, d.page <= 1)
-    + btn('‹ 上一页', d.page - 1, d.page <= 1)
-    + btn('下一页 ›', d.page + 1, d.page >= d.pages)
+    + btn('‹ 上页', d.page - 1, d.page <= 1)
+    + btn('下页 ›', d.page + 1, d.page >= d.pages)
     + btn('末页 »', d.pages, d.page >= d.pages);
 }
+/* 页头右侧：统计范围 / 条数 / 更新时间 */
+function updateWorkMeta(d){
+  if (d && d.total !== undefined) {
+    $('listCount').textContent = d.total;
+    $('listCountPill').textContent = d.total + ' 条';
+  }
+  var a = $('fStart').value, b = $('fEnd').value;
+  $('rangeText').textContent = (a || b) ? ((a || '最早') + ' 至 ' + (b || '最新')) : '全部日期';
+  $('updTime').textContent = new Date().toTimeString().slice(0, 5);
+}
+/* 快捷时间范围：本月 / 上月 / 近30天 / 本季 / 本年 / 全部 */
+function ymd(d){ return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'); }
+function markChip(p){
+  ['month','last','30','quarter','year','all'].forEach(function(k){
+    var el = document.querySelector('.chip[data-r="' + k + '"]');
+    if (el) el.classList.toggle('on', k === p);
+  });
+}
+function quickRange(p){
+  var now = new Date(), y = now.getFullYear(), m = now.getMonth(), s = '', e = ymd(now);
+  if (p === 'month') s = ymd(new Date(y, m, 1));
+  else if (p === 'last') { s = ymd(new Date(y, m - 1, 1)); e = ymd(new Date(y, m, 0)); }
+  else if (p === '30') s = ymd(new Date(now.getTime() - 29 * 86400000));
+  else if (p === 'quarter') s = ymd(new Date(y, Math.floor(m / 3) * 3, 1));
+  else if (p === 'year') s = ymd(new Date(y, 0, 1));
+  else { s = ''; e = ''; }
+  $('fStart').value = s; $('fEnd').value = e;
+  markChip(p);
+  curPage = 1;
+  reload();
+}
+function onRange(){ curPage = 1; markChip(null); reload(); }
 function reload(){
   var qs = queryParams();
   fetch('/api/purchase/records?' + qs + '&page=' + curPage + '&page_size=' + pageSize)
@@ -459,6 +677,7 @@ function reload(){
     if (!d.success) { toast(d.error || '加载失败'); return; }
     renderRows(d.data);
     renderPager(d);
+    updateWorkMeta(d);
   });
   fetch('/api/purchase/stats?' + qs).then(function(r){ return r.json(); }).then(function(d){
     if (!d.success) return;
@@ -511,12 +730,9 @@ function fetchTrends(){
 }
 function renderStatTable(rows, nameLabel, grandTotal){
   if (!rows.length) { $('statTable').innerHTML = '<div class="empty">当前筛选下没有数据</div>'; return; }
-  var clickable = statDim === 'supplier';
   var body = rows.map(function(r){
     var pct = grandTotal > 0 ? (r.total / grandTotal * 100) : 0;
-    var nm = clickable
-      ? '<span style="color:var(--primary);cursor:pointer" onclick="pickSupplier(\'' + esc(String(r.name)).replace(/'/g, "\\'") + '\')">' + esc(r.name) + '</span>'
-      : esc(r.name);
+    var nm = '<span class="drill" onclick="pickDim(\'' + esc(String(r.name)).replace(/'/g, "\\'") + '\')">' + esc(r.name) + '</span>';
     return '<tr><td>' + nm + '</td><td class="num">' + r.cnt + '</td><td class="num">' + fmt(r.total)
       + '</td><td class="num">' + fmt(r.tax) + '</td><td class="num">' + fmt(r.net)
       + '</td><td class="num">' + fmt(r.payable) + '</td><td class="num">' + fmt(r.paid)
@@ -542,18 +758,39 @@ function renderStatTable(rows, nameLabel, grandTotal){
     + '</td><td></td></tr></tfoot></table></div>';
 }
 function renderStats(s){
+  var total = s.total || 0, payable = s.payable || 0, paid = s.paid || 0, unpaid = s.unpaid || 0;
+  var uninvoiced = Math.max(0, total - (s.invoiced || 0));
+  var rate = function(a, b){ return b > 0 ? (a / b * 100).toFixed(1) + '%' : '—'; };
   var cards = [
-    ['笔数', s.count, ''],
-    ['采购总金额', fmt(s.total), 'primary'],
-    ['进项税额', fmt(s.tax), ''],
-    ['不含税成本', fmt(s.net_cost), ''],
-    ['应付净额', fmt(s.payable || 0), ''],
-    ['已开金额', fmt(s.invoiced), ''],
-    ['未付余额', fmt(s.unpaid), s.unpaid > 0 ? 'warn' : '']
+    { k: '', l: '采购总额', ic: '¥', v: fmt(total), sub: (s.count || 0) + ' 笔', cls: 'primary' },
+    { k: '', l: '应付净额', ic: '净', v: fmt(payable),
+      sub: '退货 ' + fmt(s.returned || 0) + ' · 扣款 ' + fmt(s.deducted || 0) },
+    { k: 'k-ok', l: '已付金额', ic: '付', v: fmt(paid), sub: '付款率 ' + rate(paid, payable), cls: 'ok' },
+    { k: unpaid > 0 ? 'k-danger' : 'k-ok', l: '未付余额', ic: '欠', v: fmt(unpaid),
+      sub: unpaid > 0 ? ('占应付 ' + rate(unpaid, payable)) : '本期已结清', cls: unpaid > 0 ? 'danger' : 'ok' },
+    { k: uninvoiced > 0 ? 'k-warn' : 'k-ok', l: '待开票', ic: '票', v: fmt(uninvoiced),
+      sub: '已开 ' + rate(s.invoiced || 0, total), cls: uninvoiced > 0 ? 'warn' : 'ok' },
+    { k: '', l: '进项税额', ic: '税', v: fmt(s.tax), sub: '综合税负 ' + rate(s.tax, total) }
   ];
   $('statCards').innerHTML = cards.map(function(c){
-    return '<div class="stat-card"><div class="s-label">'+c[0]+'</div><div class="s-value '+c[2]+'">'+c[1]+'</div></div>';
+    return '<div class="stat-card ' + c.k + '">'
+      + '<div class="s-label"><span class="s-ic">' + c.ic + '</span>' + c.l + '</div>'
+      + '<div class="s-value ' + (c.cls || '') + '">' + c.v + '</div>'
+      + '<div class="s-sub">' + c.sub + '</div></div>';
   }).join('');
+}
+/* 点统计表里的名称 → 直接下钻成筛选条件（时间点成该期间） */
+function pickDim(name){
+  if (name === '（未填）') { toast('这一组没有填名称，无法下钻'); return; }
+  if (statDim === 'supplier') $('fSupplier').value = name;
+  else if (statDim === 'category') $('fCategory').value = name;
+  else if (statDim === 'customer') $('fCustomer').value = name;
+  else if (statDim === 'invoice') $('fInvoice').value = name;
+  else if (/^\d{4}-\d{2}$/.test(name)) { $('fStart').value = name + '-01'; $('fEnd').value = name + '-31'; markChip(null); }
+  else if (/^\d{4}-\d{2}-\d{2}$/.test(name)) { $('fStart').value = name; $('fEnd').value = name; markChip(null); }
+  else if (/^\d{4}$/.test(name)) { $('fStart').value = name + '-01-01'; $('fEnd').value = name + '-12-31'; markChip(null); }
+  curPage = 1;
+  reload();
 }
 function pickSupplier(name){ $('fSupplier').value = name; reload(); }
 
@@ -584,7 +821,7 @@ function renderRows(rows){
       ['应付', fmt(r.payable), 'num strong'],
       ['已开', fmt(r.invoiced_amount), 'num'],
       ['已付', fmt(r.paid_amount), 'num'],
-      ['未付', fmt(r.unpaid_balance), 'num'],
+      ['未付', fmt(r.unpaid_balance), 'num' + (r.unpaid_balance > 0 ? ' neg' : '')],
       ['账户', esc(r.pay_account), ''],
       ['状态', statusBadge(r.pay_status), '']
     ];
@@ -707,6 +944,7 @@ function resetFilter(){
   $('fSupplier').value = ''; $('fCategory').value = '';
   $('fInvoice').value = ''; $('fStatus').value = ''; $('fCustomer').value = '';
   curPage = 1;
+  markChip('all');
   reload();
 }
 /* 下载：用 fetch + blob 触发，避免被浏览器当弹窗拦截；失败一定会提示 */
@@ -791,20 +1029,30 @@ function renderSuppliers(rows){
   supplierMap = {};
   supplierRows.forEach(function(s){ supplierMap[s.name] = s; });
   if (!supplierRows.length) { $('supplierList').innerHTML = '<div class="empty">还没有供应商，上面填一条保存即可</div>'; return; }
-  $('supplierList').innerHTML = supplierRows.map(function(s){
-    var meta = [[s.code, '#' + s.code], [s.s_type], [s.market, '市场:' + s.market],
-                [s.address], [s.contact], [s.phone], [s.category, '品类:' + s.category],
-                [s.default_invoice], [s.settle_type, '结算:' + s.settle_type], [s.note]]
-      .filter(function(x){ return x[0]; }).map(function(x){ return x[1] || x[0]; }).join(' · ');
-    var stat = s.used_cnt ? (s.used_cnt + '笔 / ' + fmt(s.used_total) + ' / 未付 ' + fmt(s.used_unpaid)) : '暂无采购记录';
-    return '<div class="cfg-item' + (s.active ? '' : ' off') + '">'
-      + '<div class="grow"><div class="nm">' + esc(s.name)
+  var trs = supplierRows.map(function(s){
+    var sub = [s.s_type, s.market, s.address].filter(function(x){ return x; }).join(' · ');
+    return '<tr class="' + (s.active ? '' : 'off') + '">'
+      + '<td><div class="nm" style="font-weight:600">' + esc(s.name)
       + (s.active ? '' : ' <span class="tag-off">已停用</span>') + '</div>'
-      + '<div class="meta">' + esc(meta) + '</div><div class="meta">累计 ' + esc(stat) + '</div></div>'
-      + '<div class="acts"><button class="btn-outline btn-sm" onclick="editSupplier(' + s.id + ')">编辑</button>'
+      + '<div class="meta" style="font-size:11px;color:var(--text-thin)">' + esc(sub) + '</div></td>'
+      + '<td>' + esc(s.code || '—') + '</td>'
+      + '<td>' + esc(s.category || '—') + '</td>'
+      + '<td>' + (s.default_invoice ? '<span class="badge inv">' + esc(s.default_invoice) + '</span>' : '—') + '</td>'
+      + '<td>' + (s.settle_type ? esc(s.settle_type) : '<span style="color:var(--text-thin)">未设置</span>') + '</td>'
+      + '<td>' + esc(s.contact || '—')
+      + '<div class="meta" style="font-size:11px;color:var(--text-thin)">' + esc(s.phone || '') + '</div></td>'
+      + '<td class="num">' + fmt(s.used_total || 0)
+      + '<div class="meta" style="font-size:11px;color:var(--text-thin)">' + (s.used_cnt || 0) + ' 笔</div></td>'
+      + '<td class="num' + ((s.used_unpaid || 0) > 0 ? ' neg' : '') + '">' + fmt(s.used_unpaid || 0) + '</td>'
+      + '<td><div style="display:flex;gap:4px">'
+      + '<button class="btn-outline btn-sm" onclick="editSupplier(' + s.id + ')">编辑</button>'
       + '<button class="btn-outline btn-sm" onclick="toggleSupplier(' + s.id + ',' + s.active + ')">' + (s.active ? '停用' : '启用') + '</button>'
-      + '<button class="btn-sm btn-danger-sm" onclick="delSupplier(' + s.id + ')">删除</button></div></div>';
+      + '<button class="btn-sm btn-danger-sm" onclick="delSupplier(' + s.id + ')">删除</button></div></td></tr>';
   }).join('');
+  $('supplierList').innerHTML = '<div class="mini-wrap"><table class="mini-tbl"><thead><tr>'
+    + '<th>供应商</th><th>编码</th><th>主营品类</th><th>默认票种</th><th>结算方式</th>'
+    + '<th>联系人</th><th class="num">累计采购</th><th class="num">未付</th><th>操作</th>'
+    + '</tr></thead><tbody>' + trs + '</tbody></table></div>';
 }
 function resetSupplierForm(){
   editSid = null;
@@ -962,28 +1210,59 @@ function runRecon(){
     renderRecon(d.data);
   });
 }
+/* 金额转中文大写：对账单要有大写金额才像正式单据 */
+var CN_NUM = '零壹贰叁肆伍陆柒捌玖';
+function intToCn(v){
+  if (v === 0) return '零';
+  var out = '', sec = 0, unit = ['', '拾', '佰', '仟'], big = ['', '万', '亿'];
+  while (v > 0){
+    var part = v % 10000, ps = '';
+    v = Math.floor(v / 10000);
+    for (var i = 0; i < 4; i++){
+      var dg = part % 10;
+      part = Math.floor(part / 10);
+      ps = (dg ? CN_NUM[dg] + unit[i] : '零') + ps;
+    }
+    ps = ps.replace(/零+$/, '').replace(/零{2,}/g, '零');
+    if (ps) out = ps + big[sec] + out;
+    else if (out && out.charAt(0) !== '零') out = '零' + out;
+    sec++;
+  }
+  return out.replace(/零+$/, '').replace(/零{2,}/g, '零');
+}
+function cny(n){
+  n = Math.round(Math.abs(Number(n) || 0) * 100) / 100;
+  if (n === 0) return '零元整';
+  var yuan = Math.floor(n), cent = Math.round((n - yuan) * 100);
+  var jiao = Math.floor(cent / 10), fen = cent % 10;
+  var tail = (jiao ? CN_NUM[jiao] + '角' : '') + (fen ? CN_NUM[fen] + '分' : '');
+  return intToCn(yuan) + '元' + (tail || '整');
+}
 function renderRecon(d){
   var s = d.summary, o = d.outstanding;
-  var prof = d.profile;
-  var head = '<div class="recon-head">'
-    + '<span class="t">采购对账单</span>'
-    + '<span>供应商：<b>' + esc(d.supplier || '全部供应商') + '</b></span>'
-    + (prof && prof.s_type ? '<span>类型：' + esc(prof.s_type) + '</span>' : '')
-    + (prof && prof.market ? '<span>市场：' + esc(prof.market) + '</span>' : '')
-    + (prof && prof.address ? '<span>地址：' + esc(prof.address) + '</span>' : '')
-    + (prof && prof.contact ? '<span>负责人：' + esc(prof.contact) + '</span>' : '')
-    + (prof && prof.phone ? '<span>电话：' + esc(prof.phone) + '</span>' : '')
-    + '<span>结算方式：' + esc((prof && prof.settle_type) || '未设置') + '</span>'
-    + '<span>期间：' + esc((d.start || '最早') + ' 至 ' + (d.end || '最新')) + '</span>'
-    + '<span style="color:var(--text-secondary)">生成时间：' + esc(d.generated_at) + '</span></div>';
-  var cards = [['笔数', s.count], ['采购总额', fmt(s.total)], ['进项税额', fmt(s.tax)],
-               ['不含税成本', fmt(s.net_cost)], ['退货', fmt(s.returned || 0)],
-               ['扣款', fmt(s.deducted || 0)], ['应付净额', fmt(s.payable || 0)],
-               ['已开票', fmt(s.invoiced)],
-               ['待开票', fmt(s.uninvoiced)], ['已付', fmt(s.paid)],
-               ['本期未付', fmt(s.unpaid)],
-               ['对账进度', s.recon_cnt + '/' + s.count]]
-    .map(function(c){ return '<div class="stat-card"><div class="s-label">' + c[0] + '</div><div class="s-value">' + c[1] + '</div></div>'; }).join('');
+  var prof = d.profile || {};
+  var info = function(k, v){ return v ? '<div><span class="k">' + k + '</span>' + esc(v) + '</div>' : ''; };
+  var cell = function(l, v, cls){ return '<div class="cell ' + (cls || '') + '"><div class="l">' + l + '</div><div class="v">' + v + '</div></div>'; };
+  var no = 'DZ' + String(d.start || '').replace(/-/g, '') + '-' + (d.supplier ? String(d.supplier).slice(0, 4) : 'ALL');
+  var head = '<div class="doc">'
+    + '<div class="doc-title">采购对账单</div>'
+    + '<div class="doc-no">单号 ' + esc(no) + ' · 生成于 ' + esc(d.generated_at) + '</div>'
+    + '<div class="doc-info">'
+    + info('供应商', d.supplier || '全部供应商')
+    + info('供应商类型', prof.s_type) + info('批发市场', prof.market)
+    + info('经营地址', prof.address) + info('负责人', prof.contact)
+    + info('联系电话', prof.phone) + info('结算方式', prof.settle_type || '未设置')
+    + info('对账期间', (d.start || '最早') + ' 至 ' + (d.end || '最新'))
+    + '</div>';
+  var cards = '<div class="doc-sum">'
+    + cell('笔数', s.count) + cell('采购总额', fmt(s.total))
+    + cell('进项税额', fmt(s.tax)) + cell('不含税成本', fmt(s.net_cost))
+    + cell('退货', fmt(s.returned || 0)) + cell('扣款', fmt(s.deducted || 0))
+    + cell('应付净额', fmt(s.payable || 0), 'hl')
+    + cell('已开票', fmt(s.invoiced)) + cell('待开票', fmt(s.uninvoiced))
+    + cell('已付', fmt(s.paid))
+    + cell('本期未付', fmt(s.unpaid), s.unpaid > 0 ? 'warn' : '')
+    + '</div>';
   var rows = (d.items || []).map(function(r){
     return '<tr><td>' + esc(r.date) + '</td><td>' + esc(r.bill_no) + '</td>'
       + '<td>' + esc(r.category) + '</td><td>' + esc(r.customer || '') + '</td>'
@@ -1007,22 +1286,27 @@ function renderRecon(d){
     + '<td class="num">' + fmt(s.payable || 0) + '</td>'
     + '<td class="num">' + fmt(s.invoiced) + '</td><td class="num">' + fmt(s.paid) + '</td>'
     + '<td class="num">' + fmt(s.unpaid) + '</td><td colspan="2"></td></tr></tfoot>';
-  var tbl = '<div style="overflow-x:auto"><table class="recon-tbl"><thead><tr>'
+  var tbl = '<div class="doc-tbl-wrap" style="overflow-x:auto"><table class="recon-tbl"><thead><tr>'
     + '<th>日期</th><th>单据号</th><th>品类</th><th>客户/门店</th><th>摘要</th><th>发票类型</th>'
     + '<th class="num">采购额</th><th class="num">进项税</th><th class="num">退货</th>'
     + '<th class="num">扣款</th><th class="num">应付净额</th><th class="num">已开票</th>'
     + '<th class="num">已付</th><th class="num">未付</th><th>状态</th><th>对账</th>'
     + '</tr></thead><tbody>' + (rows || '<tr><td colspan="16" class="empty">该期间没有采购记录</td></tr>')
     + '</tbody>' + foot + '</table></div>';
-  var sub = '<div class="recon-cards"><div class="stat-card"><div class="s-label">累计未付（全部历史）</div>'
-    + '<div class="s-value warn">' + fmt(o.unpaid) + '</div>'
-    + '<div class="s-label">累计采购 ' + fmt(o.total) + ' / 应付 ' + fmt(o.payable || 0)
-    + ' / 已付 ' + fmt(o.paid) + ' / ' + o.count + ' 笔</div></div></div>';
-  var byInv = (d.by_invoice || []).length ? '<div class="s-label" style="margin-top:8px">按发票类型：'
-    + d.by_invoice.map(function(r){ return esc(r.invoice_type) + ' ' + fmt(r.total); }).join(' · ') + '</div>' : '';
-  var byMonth = (d.by_month || []).length ? '<div class="s-label">按月小计：'
-    + d.by_month.map(function(r){ return esc(r.period) + ' ' + fmt(r.total); }).join(' · ') + '</div>' : '';
-  $('reconArea').innerHTML = head + '<div class="recon-cards">' + cards + '</div>' + tbl + sub + byInv + byMonth;
+  var sign = '<div class="doc-sign">'
+    + '<div>供应商确认（签字 / 盖章）<div class="line"></div></div>'
+    + '<div>财务审核<div class="line"></div></div>'
+    + '<div>付款日期<div class="line"></div></div></div>';
+  var footNote = '<div class="doc-foot">'
+    + '<span>本期应付净额（大写）：<b>' + cny(s.payable || 0) + '</b></span>'
+    + '<span>累计未付 ' + fmt(o.unpaid) + ' 元 · 累计采购 ' + fmt(o.total) + ' 元 / ' + o.count + ' 笔'
+    + ' · 对账进度 ' + s.recon_cnt + '/' + s.count + '</span></div>';
+  var note = function(t, arr, f){ return (arr || []).length
+    ? '<div style="font-size:11.5px;color:var(--text-secondary);margin-top:6px">' + t + '：'
+      + arr.map(f).join(' · ') + '</div>' : ''; };
+  var byInv = note('按发票类型', d.by_invoice, function(r){ return esc(r.invoice_type) + ' ' + fmt(r.total); });
+  var byMonth = note('按月小计', d.by_month, function(r){ return esc(r.period) + ' ' + fmt(r.total); });
+  $('reconArea').innerHTML = head + cards + tbl + sign + footNote + byInv + byMonth + '</div>';
 }
 function markRecon(id, flag){
   fetch('/api/purchase/records/' + id + '/reconcile', {
@@ -1034,6 +1318,22 @@ function markRecon(id, flag){
     runRecon(); reload();
   });
 }
+
+/* 键盘快捷键：Esc 关闭 / N 新增 / / 聚焦搜索；点遮罩空白处关闭 */
+document.addEventListener('keydown', function(e){
+  var tag = (e.target.tagName || '').toUpperCase();
+  if (tag === 'INPUT' || tag === 'SELECT' || tag === 'TEXTAREA') {
+    if (e.key === 'Escape') e.target.blur();
+    return;
+  }
+  if (e.key === 'Escape') { closeModal(); closeRecon(); closeConfig(); }
+  else if (e.key === '/') { e.preventDefault(); $('fSearch').focus(); }
+  else if (e.key === 'n' || e.key === 'N') { e.preventDefault(); openModal(); }
+});
+[['modal', closeModal], ['reconModal', closeRecon], ['cfgModal', closeConfig]]
+  .forEach(function(p){
+    $(p[0]).addEventListener('click', function(e){ if (e.target === this) p[1](); });
+  });
 
 loadOptions();
 reload();
