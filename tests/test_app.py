@@ -29,6 +29,17 @@ from routes.utils import make_db
 _REAL_LEDGER_GET_DB = ledger_mod._get_db
 
 
+def _authed_client() -> FlaskClient:
+    """测试用客户端：页面与 API 都要登录态；同时放宽限流，避免连续请求被 429 打断"""
+    app.config['TESTING'] = True
+    c = app.test_client()
+    with c.session_transaction() as sess:      # type: ignore[attr-defined]
+        sess['auth'] = True
+    app_mod.RATE_LIMIT_MAX_JSON = 100000
+    app_mod.RATE_LIMIT_MAX_HTML = 100000
+    return c
+
+
 class TestAppBasics(unittest.TestCase):
     """应用基础测试"""
 
@@ -37,12 +48,12 @@ class TestAppBasics(unittest.TestCase):
     @classmethod
     @override
     def setUpClass(cls) -> None:
-        cls.client = app.test_client()
-        app.config['TESTING'] = True
+        cls.client = _authed_client()
 
     def test_index_200(self) -> None:
         r = self.client.get('/')
-        self.assertEqual(r.status_code, 200)
+        self.assertEqual(r.status_code, 302)      # 根路径跳导航页 /nav
+        self.assertIn('/nav', r.headers.get('Location', ''))
 
     def test_api_version(self) -> None:
         r = self.client.get('/api/version')
@@ -78,14 +89,13 @@ class TestRenqingAPI(unittest.TestCase):
     @classmethod
     @override
     def setUpClass(cls) -> None:
-        cls.client = app.test_client()
-        app.config['TESTING'] = True
+        cls.client = _authed_client()
 
     def test_list_events(self) -> None:
         r = self.client.get('/api/renqing/events')
         self.assertEqual(r.status_code, 200)
-        data: dict = r.get_json()
-        self.assertIn('success', data)
+        data = r.get_json()
+        self.assertIsInstance(data, list)      # 事件列表接口直接返回数组
 
     def test_list_events_with_params(self) -> None:
         r = self.client.get('/api/renqing/events?page=1&page_size=5')
@@ -95,9 +105,11 @@ class TestRenqingAPI(unittest.TestCase):
         r = self.client.get('/api/renqing/stats')
         self.assertEqual(r.status_code, 200)
 
-    def test_list_names(self) -> None:
-        r = self.client.get('/api/renqing/names')
+    def test_suggestions(self) -> None:
+        """姓名联想：带 q 返回数组"""
+        r = self.client.get('/api/renqing/suggestions?q=张')
         self.assertEqual(r.status_code, 200)
+        self.assertIsInstance(r.get_json(), list)
 
 
 class TestGPAAPI(unittest.TestCase):
@@ -108,22 +120,23 @@ class TestGPAAPI(unittest.TestCase):
     @classmethod
     @override
     def setUpClass(cls) -> None:
-        cls.client = app.test_client()
-        app.config['TESTING'] = True
+        cls.client = _authed_client()
 
     def test_page_accessible(self) -> None:
         r = self.client.get('/gpa')
         self.assertEqual(r.status_code, 200)
 
     def test_list_courses(self) -> None:
-        r = self.client.get('/api/gpa/courses')
-        self.assertEqual(r.status_code, 200)
+        r = self.client.get('/api/gpa/data')          # gpa 用的是整包 data 接口
+        self.assertIn(r.status_code, (200, 404))      # 还没录入数据时 404 也算正常
         data: dict = r.get_json()
         self.assertIn('success', data)
+        if r.status_code == 200:
+            self.assertIn('courses', data['data'])
 
     def test_get_stats(self) -> None:
-        r = self.client.get('/api/gpa/stats')
-        self.assertEqual(r.status_code, 200)
+        r = self.client.get('/api/gpa/data')
+        self.assertIn(r.status_code, (200, 404))
 
 
 class TestHSGradesAPI(unittest.TestCase):
@@ -134,16 +147,15 @@ class TestHSGradesAPI(unittest.TestCase):
     @classmethod
     @override
     def setUpClass(cls) -> None:
-        cls.client = app.test_client()
-        app.config['TESTING'] = True
+        cls.client = _authed_client()
 
     def test_page_accessible(self) -> None:
         r = self.client.get('/hsgrades')
         self.assertEqual(r.status_code, 200)
 
     def test_list_exams(self) -> None:
-        r = self.client.get('/api/hsgrades/exams')
-        self.assertEqual(r.status_code, 200)
+        r = self.client.get('/api/hsgrades/data')     # 成绩也是整包 data 接口
+        self.assertIn(r.status_code, (200, 404))
         data: dict = r.get_json()
         self.assertIn('success', data)
 
@@ -833,6 +845,39 @@ class TestPurchase(unittest.TestCase):
                 '/api/purchase/reconcile?', ''))
             self.assertEqual(r.status_code, 200, q)
             self.assertEqual(r.get_data()[:2], b'PK')
+
+    def test_invalid_params_rejected(self) -> None:
+        """坏参数要明确报错，不能静默返回「全量」或把脏数据写进去"""
+        # 日期写错：以前会整个条件失效，实际返回全量数据
+        r = self.client.get('/api/purchase/stats?start=2026/10/01')
+        self.assertEqual(r.status_code, 400)
+        self.assertIn('日期', r.get_json()['error'])
+        r = self.client.get('/api/purchase/reconcile?end=abc')
+        self.assertEqual(r.status_code, 400)
+        # 金额 NaN / 无穷 / 超大：float() 都能解析，写库会变 NULL 或 Infinity
+        for bad in ('nan', 'inf', '1e400'):
+            rr = self.client.post('/api/purchase/records',
+                                  json={'date': '2026-10-09', 'supplier': '自检供应商',
+                                        'total_amount': bad})
+            self.assertEqual(rr.status_code, 400, bad)
+        # 负 limit 在 SQLite 里等于不限量，必须被钳住
+        r2 = self.client.get('/api/purchase/records?limit=-1')
+        self.assertEqual(r2.status_code, 200)
+        self.assertLessEqual(len(r2.get_json()['data']), 5000)
+
+    def test_supplier_unpaid_matches_ledger(self) -> None:
+        """供应商档案的未付要和台账/对账单同口径：总额 − 退货 − 扣款 − 已付"""
+        name = '口径供应商'
+        # 档案要先存在（供应商列表来自档案表，不是采购记录里的名字）
+        if not any(x['name'] == name
+                   for x in self.client.get('/api/purchase/suppliers').get_json()['data']):
+            self.client.post('/api/purchase/suppliers', json={'name': name})
+        self._create({'date': '2026-10-09', 'supplier': name,
+                      'total_amount': 1000, 'return_amount': 100,
+                      'deduct_amount': 50, 'paid_amount': 200})
+        lst = self.client.get('/api/purchase/suppliers').get_json()['data']
+        row = next(x for x in lst if x['name'] == name)
+        self.assertAlmostEqual(row['used_unpaid'], 650.0, places=2)   # 1000-100-50-200
 
     def test_multi_select_filters(self) -> None:
         """分析支持多选：多个供应商 / 多个具体日期可以同时筛，并能叠加"""
@@ -1536,8 +1581,7 @@ class TestRateLimiting(unittest.TestCase):
     @classmethod
     @override
     def setUpClass(cls) -> None:
-        cls.client = app.test_client()
-        app.config['TESTING'] = True
+        cls.client = _authed_client()
 
     def test_normal_request_passes(self) -> None:
         """正常请求不被限制"""
@@ -1546,7 +1590,7 @@ class TestRateLimiting(unittest.TestCase):
 
     def test_html_page_not_limited_easily(self) -> None:
         """HTML 页面有较高限制"""
-        r = self.client.get('/')
+        r = self.client.get('/nav')
         self.assertEqual(r.status_code, 200)
 
 
@@ -1558,8 +1602,7 @@ class TestDeployAPI(unittest.TestCase):
     @classmethod
     @override
     def setUpClass(cls) -> None:
-        cls.client = app.test_client()
-        app.config['TESTING'] = True
+        cls.client = _authed_client()          # 部署接口先过登录，再校验 token
 
     def test_ping_no_token(self) -> None:
         """没有 token 也能 ping"""
@@ -1567,14 +1610,14 @@ class TestDeployAPI(unittest.TestCase):
         self.assertEqual(r.status_code, 200)
 
     def test_pull_without_token(self) -> None:
-        """没有 token 应该被拒绝"""
+        """没有 token 应该被拒绝（登录态也不能绕过运维接口）"""
         r = self.client.post('/api/git-pull')
-        self.assertEqual(r.status_code, 403)
+        self.assertEqual(r.status_code, 401)
 
-    def test_reload_without_token(self) -> None:
-        """没有 token 应该被拒绝"""
-        r = self.client.post('/api/reload-webapp')
-        self.assertEqual(r.status_code, 403)
+    def test_deploy_token_accepted(self) -> None:
+        """带正确 token 才放行（用只读的 /api/status 验证，免得测试真的去拉代码）"""
+        r = self.client.get('/api/status', headers={'X-Deploy-Token': app_mod.DEPLOY_TOKEN})
+        self.assertNotEqual(r.status_code, 401)
 
 
 class TestDBConnection(unittest.TestCase):

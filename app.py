@@ -192,24 +192,27 @@ def check_auth():
     PUBLIC_PREFIXES: tuple[str, ...] = ('/static', '/countdown', '/accounting', '/hsgrades/icon', '/hsgrades/manifest', '/gpa/icon', '/gpa/manifest', '/renqing/manifest', '/renqing/icon', '/deploy/manifest', '/deploy/icon', '/nav/manifest', '/nav/icon', '/api/accounting', '/api/countdown', '/api/pa/', '/api/status', '/purchase/manifest', '/purchase/icon')
     if request.path in ('/login', '/setup', '/api/ping') or any(request.path.startswith(p) for p in PUBLIC_PREFIXES):
         return
-    if session.get('auth'):
-        return
-    # 备份同步端点：独立密钥验证（供本地拉取脚本使用）
-    if request.path.startswith('/api/backup/'):
-        backup_token: str = request.headers.get('X-Backup-Token', '')
-        BACKUP_SYNC_TOKEN: str = os.environ.get('BACKUP_SYNC_TOKEN', 'ce952b9ded0733ed')
-        if backup_token == BACKUP_SYNC_TOKEN:
-            return
 
-    # 部署/续期接口允许令牌认证
-    if request.path in ('/api/git-pull', '/api/status', '/api/ping', '/api/restore-db',
-                         '/api/backup/restore-latest', '/api/renqing/db-check') or \
+    # 部署 / 运维类接口：只认令牌，**登录态不能旁路**。
+    # 放在 session 判断之前——否则任何一个登录用户都能直接触发 git reset --hard、
+    # 恢复数据库、清理目录，等于把运维权限送给了所有使用者。
+    if request.path in ('/api/git-pull', '/api/status', '/api/restore-db',
+                        '/api/backup/restore-latest', '/api/renqing/db-check') or \
        request.path.startswith('/api/backup/') or \
        request.path.startswith('/api/cleanup'):
+        # 备份同步端点：独立密钥验证（供本地拉取脚本使用）
+        if request.path.startswith('/api/backup/'):
+            backup_token: str = request.headers.get('X-Backup-Token', '')
+            BACKUP_SYNC_TOKEN: str = os.environ.get('BACKUP_SYNC_TOKEN', 'ce952b9ded0733ed')
+            if backup_token == BACKUP_SYNC_TOKEN:
+                return
         token: str = request.headers.get('X-Deploy-Token', '')
         if DEPLOY_TOKEN and token == DEPLOY_TOKEN:
             return
         return jsonify({'success': False, 'error': '未授权'}), 401
+
+    if session.get('auth'):
+        return
     if request.path.startswith('/api/'):
         return jsonify({'success': False, 'error': '未登录'}), 401
     return redirect('/login?next=' + request.path)

@@ -13,9 +13,11 @@ from __future__ import annotations
 import csv
 import datetime
 import io
+import math
 import os
 import re
 import sqlite3
+import sys
 import urllib.parse
 
 # Excel 读写（openpyxl 已在 requirements.txt）。服务器万一没装，只在用到
@@ -49,6 +51,22 @@ _log = make_logger(os.path.join(DB_DIR, 'purchase.log'))
 
 DATE_RE = re.compile(r'^\d{4}-\d{2}-\d{2}$')
 _EPS = 0.005          # 金额比较容差（分为单位以下忽略）
+
+
+def _server_error(e: Exception) -> tuple:
+    """统一错误出口
+
+    ValueError 是用户输入问题 → 400 + 原样提示；其余算内部错误 → 记日志（带上
+    出错函数名，线上才有得查）+ 500，且不把 sqlite 报错、路径之类的内部细节抛给用户。
+    """
+    if isinstance(e, ValueError):
+        return jsonify({'success': False, 'error': str(e)}), 400
+    try:
+        fn = sys._getframe(1).f_code.co_name        # noqa: SLF001  取调用者函数名
+    except Exception:
+        fn = '?'
+    _log(f'[{fn}] 服务器内部错误: {e!r}')
+    return jsonify({'success': False, 'error': '服务器内部错误，请稍后重试'}), 500
 
 # 发票类型（生鲜行业实际会碰到的票种）
 #   rate = 默认税率/扣除率(%)，mode = 进项税怎么算：
@@ -129,8 +147,15 @@ def _load_settings(conn=None) -> dict:
     return out
 
 
+AMOUNT_MAX = 1e12          # 金额上限：挡住手滑多敲几个 0 和恶意超大值
+
+
 def _num(val, default: float = 0.0) -> float:
-    """宽松解析数字：容忍千分位逗号与空串"""
+    """宽松解析数字：容忍千分位逗号与空串
+
+    float() 会接受 nan / inf / 1e400，这些值写进 SQLite 会变 NULL 或让 SUM()
+    变成 Infinity（jsonify 直接报序列化错误），所以这里必须显式挡掉。
+    """
     if val is None:
         return default
     s = str(val).strip().replace(',', '').replace('，', '')
@@ -140,6 +165,10 @@ def _num(val, default: float = 0.0) -> float:
         v = float(s)
     except ValueError:
         raise ValueError('金额格式不正确')
+    if not math.isfinite(v):
+        raise ValueError('金额不是有效数字')
+    if abs(v) > AMOUNT_MAX:
+        raise ValueError(f'金额超出上限（{AMOUNT_MAX:,.0f}）')
     return v
 
 
@@ -276,6 +305,10 @@ def _cell_date(v) -> str:
          .replace('年', '-').replace('月', '-').replace('日', '')
     if re.match(r'^\d{8}$', s):
         s = f'{s[:4]}-{s[4:6]}-{s[6:]}'
+    # 月/日补零：2026/10/1、2026年10月1日 归一化后是 2026-10-1，不补零过不了校验
+    m = re.match(r'^(\d{4})-(\d{1,2})-(\d{1,2})$', s)
+    if m:
+        s = f'{m.group(1)}-{int(m.group(2)):02d}-{int(m.group(3)):02d}'
     return s
 
 
@@ -453,6 +486,10 @@ def init_db():
         )''')
         conn.execute('CREATE INDEX IF NOT EXISTS idx_purchases_date ON purchases(date)')
         conn.execute('CREATE INDEX IF NOT EXISTS idx_purchases_supplier ON purchases(supplier)')
+        # 筛选与分组（stats / 对账 / 分析）都会用到这几列
+        for _col in ('category', 'customer', 'invoice_type', 'pay_account'):
+            conn.execute(
+                f'CREATE INDEX IF NOT EXISTS idx_purchases_{_col} ON purchases({_col})')
         # 对账标记（老库补列）：recon_at 为空=未对账，否则是对账时间
         cols = [r[1] for r in conn.execute('PRAGMA table_info(purchases)').fetchall()]
         if 'recon_at' not in cols:
@@ -534,6 +571,11 @@ def _filters(args) -> tuple[list[str], list]:
     end = str(args.get('end') or '').strip()
     status = str(args.get('status') or '').strip()
     search = str(args.get('search') or '').strip()
+    # 日期填错要报错，不能静默忽略——否则条件整个不生效，返回的其实是「全量数据」，
+    # 用户拿到一份口径完全不对的报表还以为是准的
+    for _label, _v in (('开始日期', start), ('结束日期', end)):
+        if _v and not DATE_RE.match(_v):
+            raise ValueError(f'{_label}格式应为 YYYY-MM-DD')
     # 多选具体日期（dates=2026-10-06,2026-10-08）：挑几天对比时用，
     # 有值就忽略起止区间，免得区间把多选的日期又并进来
     dates = [d for d in _multi_values(args.get('dates'), 366) if DATE_RE.match(d)]
@@ -588,8 +630,10 @@ def list_records():
         try:
             page = max(1, int(request.args.get('page', 1)))
             page_size = int(request.args.get('page_size', 0))
+            # 负的 limit 在 SQLite 里等于「不限量」，会把整表灌进内存，必须钳下界
+            limit = max(1, min(int(request.args.get('limit', 500)), 5000))
         except ValueError:
-            return jsonify({'success': False, 'error': 'page/page_size 必须是数字'}), 400
+            return jsonify({'success': False, 'error': 'page/page_size/limit 必须是数字'}), 400
         if page_size > 0:                       # 分页模式
             page_size = min(page_size, 500)
             pages = max(1, (total + page_size - 1) // page_size)
@@ -599,7 +643,6 @@ def list_records():
                 'LIMIT ? OFFSET ?',
                 (*params, page_size, (page - 1) * page_size)).fetchall()
         else:                                   # 兼容：一次性拉取
-            limit = min(int(request.args.get('limit', 500)), 5000)
             pages = 1
             rows = conn.execute(
                 f"SELECT * FROM purchases WHERE {' AND '.join(where)}{order} "
@@ -610,7 +653,7 @@ def list_records():
                         'total': total, 'page': page, 'pages': pages,
                         'page_size': page_size or None})
     except Exception as e:
-        return jsonify({'success': False, 'error': str(e)}), 400
+        return _server_error(e)
 
 
 @bp.route('/api/purchase/records', methods=['POST'])
@@ -637,7 +680,7 @@ def create_record():
     except ValueError as e:
         return jsonify({'success': False, 'error': str(e)}), 400
     except Exception as e:
-        return jsonify({'success': False, 'error': str(e)}), 500
+        return _server_error(e)
 
 
 @bp.route('/api/purchase/records/<int:rid>', methods=['POST'])
@@ -665,7 +708,7 @@ def update_record(rid: int):
     except ValueError as e:
         return jsonify({'success': False, 'error': str(e)}), 400
     except Exception as e:
-        return jsonify({'success': False, 'error': str(e)}), 500
+        return _server_error(e)
 
 
 @bp.route('/api/purchase/records/<int:rid>', methods=['DELETE'])
@@ -680,7 +723,7 @@ def delete_record(rid: int):
         _log(f'删除采购记录 id={rid}')
         return jsonify({'success': True})
     except Exception as e:
-        return jsonify({'success': False, 'error': str(e)}), 500
+        return _server_error(e)
 
 
 @bp.route('/api/purchase/stats', methods=['GET'])
@@ -741,7 +784,7 @@ def stats():
             'by_customer': [_round_summary(dict(r)) for r in by_customer],
         }})
     except Exception as e:
-        return jsonify({'success': False, 'error': str(e)}), 400
+        return _server_error(e)
 
 
 # ==================== 趋势统计 / 对账报表 ====================
@@ -780,6 +823,9 @@ def _recon_filters(args, before: bool = False) -> tuple[list[str], list]:
     params: list = []
     start = str(args.get('start') or '').strip()
     end = str(args.get('end') or '').strip()
+    for _label, _v in (('开始日期', start), ('结束日期', end)):
+        if _v and not DATE_RE.match(_v):
+            raise ValueError(f'{_label}格式应为 YYYY-MM-DD')
     if start and DATE_RE.match(start):
         where.append('date < ?' if before else 'date >= ?')
         params.append(start)
@@ -847,7 +893,7 @@ def trends():
             'unpaid': _round2(sum(r['unpaid'] for r in data)),
         }})
     except Exception as e:
-        return jsonify({'success': False, 'error': str(e)}), 400
+        return _server_error(e)
 
 
 @bp.route('/api/purchase/reconcile', methods=['GET'])
@@ -922,7 +968,7 @@ def reconcile():
                     COALESCE(SUM(total_amount-return_amount-deduct_amount),0) payable,
                     COALESCE(SUM(paid_amount),0) paid,
                     COALESCE(SUM(total_amount-return_amount-deduct_amount-paid_amount),0) unpaid
-                    FROM purchases WHERE {w} GROUP BY name ORDER BY total DESC''',
+                    FROM purchases WHERE {w} GROUP BY name ORDER BY {order}''',
                 params).fetchall()]
 
         # 该供应商全部历史的未付余额（对账看的是「还欠多少」，不只看本期）
@@ -992,7 +1038,7 @@ def reconcile():
             },
         }})
     except Exception as e:
-        return jsonify({'success': False, 'error': str(e)}), 400
+        return _server_error(e)
 
 
 @bp.route('/api/purchase/reconcile/export', methods=['GET'])
@@ -1133,7 +1179,7 @@ def reconcile_export():
                 f"{request.args.get('end') or ''}.xlsx")
         return _xlsx_response(wb, name)
     except Exception as e:
-        return jsonify({'success': False, 'error': str(e)}), 400
+        return _server_error(e)
 
 
 @bp.route('/api/purchase/records/<int:rid>/reconcile', methods=['POST'])
@@ -1153,7 +1199,7 @@ def mark_reconciled(rid: int):
         conn.close()
         return jsonify({'success': True, 'data': _with_derived(dict(row))})
     except Exception as e:
-        return jsonify({'success': False, 'error': str(e)}), 500
+        return _server_error(e)
 
 
 @bp.route('/api/purchase/options', methods=['GET'])
@@ -1196,7 +1242,7 @@ def options():
                              for n, r, m in _INVOICE_DEFS],
             'settle_types': list(SETTLE_TYPES)}})
     except Exception as e:
-        return jsonify({'success': False, 'error': str(e)}), 400
+        return _server_error(e)
 
 
 @bp.route('/api/purchase/settings', methods=['GET'])
@@ -1205,7 +1251,7 @@ def get_settings():
     try:
         return jsonify({'success': True, 'data': _load_settings()})
     except Exception as e:
-        return jsonify({'success': False, 'error': str(e)}), 400
+        return _server_error(e)
 
 
 @bp.route('/api/purchase/settings', methods=['POST'])
@@ -1224,7 +1270,7 @@ def save_settings():
         conn.close()
         return jsonify({'success': True, 'data': _load_settings()})
     except Exception as e:
-        return jsonify({'success': False, 'error': str(e)}), 400
+        return _server_error(e)
 
 
 # ==================== 基础配置 ====================
@@ -1232,10 +1278,18 @@ def save_settings():
 DICT_KINDS = ('category', 'account', 'customer')
 
 
-def _supplier_rows(conn, keyword: str = '', active_only: bool = False) -> list[dict]:
-    """供应商档案 + 每家的采购统计（笔数 / 总额 / 未付）"""
+def _supplier_rows(conn, keyword: str = '', active_only: bool = False,
+                   sid: int | None = None) -> list[dict]:
+    """供应商档案 + 每家的采购统计（笔数 / 总额 / 未付）
+
+    sid 用于精确取某一行（新增/编辑后回查）；keyword 是 LIKE 模糊匹配，
+    同名前缀的供应商可能被一起匹配到，不能靠它取唯一结果。
+    """
     where: list[str] = ['1=1']
     params: list = []
+    if sid:
+        where.append('s.id = ?')
+        params.append(sid)
     if active_only:
         where.append('active=1')
     keyword = keyword.strip()
@@ -1249,8 +1303,9 @@ def _supplier_rows(conn, keyword: str = '', active_only: bool = False) -> list[d
         'SELECT s.*, '
         '(SELECT COUNT(*) FROM purchases p WHERE p.supplier = s.name) used_cnt, '
         'COALESCE((SELECT SUM(p.total_amount) FROM purchases p WHERE p.supplier = s.name), 0) used_total, '
-        'COALESCE((SELECT SUM(p.total_amount - p.paid_amount) FROM purchases p '
-        'WHERE p.supplier = s.name), 0) used_unpaid '
+        # 未付口径必须和台账/对账单一致：总额 − 退货 − 扣款 − 已付
+        'COALESCE((SELECT SUM(p.total_amount - p.return_amount - p.deduct_amount '
+        '- p.paid_amount) FROM purchases p WHERE p.supplier = s.name), 0) used_unpaid '
         f"FROM suppliers s WHERE {' AND '.join(where)} "
         'ORDER BY s.active DESC, s.name')
     return [_round_supplier(dict(r)) for r in conn.execute(sql, params).fetchall()]
@@ -1334,7 +1389,7 @@ def list_suppliers():
         conn.close()
         return jsonify({'success': True, 'data': rows})
     except Exception as e:
-        return jsonify({'success': False, 'error': str(e)}), 400
+        return _server_error(e)
 
 
 @bp.route('/api/purchase/suppliers', methods=['POST'])
@@ -1363,14 +1418,14 @@ def create_supplier():
         except sqlite3.IntegrityError:
             conn.close()
             return jsonify({'success': False, 'error': '该供应商名称已存在'}), 400
-        row = _supplier_rows(conn, rec['name'])[0]
+        row = _supplier_rows(conn, rec['name'], sid=sid)[0]   # 按 id 精确回查，别用名称模糊匹配
         conn.close()
         _log(f'新增供应商 id={sid} name={rec["name"]}')
         return jsonify({'success': True, 'data': row})
     except ValueError as e:
         return jsonify({'success': False, 'error': str(e)}), 400
     except Exception as e:
-        return jsonify({'success': False, 'error': str(e)}), 500
+        return _server_error(e)
 
 
 @bp.route('/api/purchase/suppliers/<int:sid>', methods=['POST'])
@@ -1408,14 +1463,14 @@ def update_supplier(sid: int):
         except sqlite3.IntegrityError:
             conn.close()
             return jsonify({'success': False, 'error': '该供应商名称已存在'}), 400
-        row = _supplier_rows(conn, rec['name'])[0]
+        row = _supplier_rows(conn, rec['name'], sid=sid)[0]   # 按 id 精确回查，别用名称模糊匹配
         conn.close()
         _log(f'编辑供应商 id={sid} name={rec["name"]} 同步历史={renamed}')
         return jsonify({'success': True, 'data': row, 'renamed': renamed})
     except ValueError as e:
         return jsonify({'success': False, 'error': str(e)}), 400
     except Exception as e:
-        return jsonify({'success': False, 'error': str(e)}), 500
+        return _server_error(e)
 
 
 @bp.route('/api/purchase/suppliers/<int:sid>', methods=['DELETE'])
@@ -1439,7 +1494,7 @@ def delete_supplier(sid: int):
         _log(f'删除供应商 id={sid} name={row["name"]}')
         return jsonify({'success': True})
     except Exception as e:
-        return jsonify({'success': False, 'error': str(e)}), 500
+        return _server_error(e)
 
 
 @bp.route('/api/purchase/suppliers/template', methods=['GET'])
@@ -1466,7 +1521,7 @@ def supplier_template():
         _set_widths(ws, [12, 20, 12, 16, 26, 12, 14, 12, 16, 10, 22])
         return _xlsx_response(wb, '供应商导入模板.xlsx')
     except Exception as e:
-        return jsonify({'success': False, 'error': str(e)}), 400
+        return _server_error(e)
 
 
 @bp.route('/api/purchase/suppliers/import', methods=['POST'])
@@ -1572,7 +1627,7 @@ def import_suppliers():
             'errors': errors[:50], 'mode': mode,
         }})
     except Exception as e:
-        return jsonify({'success': False, 'error': str(e)}), 400
+        return _server_error(e)
 
 
 @bp.route('/api/purchase/dicts', methods=['GET'])
@@ -1595,7 +1650,7 @@ def list_dicts():
         conn.close()
         return jsonify({'success': True, 'data': out})
     except Exception as e:
-        return jsonify({'success': False, 'error': str(e)}), 400
+        return _server_error(e)
 
 
 @bp.route('/api/purchase/dicts', methods=['POST'])
@@ -1624,7 +1679,7 @@ def create_dict():
     except ValueError as e:
         return jsonify({'success': False, 'error': str(e)}), 400
     except Exception as e:
-        return jsonify({'success': False, 'error': str(e)}), 500
+        return _server_error(e)
 
 
 @bp.route('/api/purchase/dicts/<int:did>', methods=['POST'])
@@ -1651,7 +1706,7 @@ def update_dict(did: int):
     except ValueError as e:
         return jsonify({'success': False, 'error': str(e)}), 400
     except Exception as e:
-        return jsonify({'success': False, 'error': str(e)}), 500
+        return _server_error(e)
 
 
 @bp.route('/api/purchase/dicts/<int:did>', methods=['DELETE'])
@@ -1665,7 +1720,7 @@ def delete_dict(did: int):
             return jsonify({'success': False, 'error': '条目不存在'}), 404
         return jsonify({'success': True})
     except Exception as e:
-        return jsonify({'success': False, 'error': str(e)}), 500
+        return _server_error(e)
 
 
 @bp.route('/api/purchase/export', methods=['GET'])
@@ -1714,7 +1769,7 @@ def export_excel():
         _set_widths(ws, [12, 14, 20, 12, 10, 28, 14, 18, 12, 13, 11, 11, 13, 12, 12, 12, 12, 10])
         return _xlsx_response(wb, f'采购台账_{now_str()[:10]}.xlsx')
     except Exception as e:
-        return jsonify({'success': False, 'error': str(e)}), 400
+        return _server_error(e)
 
 
 @bp.route('/api/purchase/template', methods=['GET'])
@@ -1741,7 +1796,7 @@ def download_template():
         _set_widths(ws, [12, 14, 20, 12, 10, 28, 14, 18, 12, 13, 11, 11, 13, 12, 12, 12, 12, 10])
         return _xlsx_response(wb, '采购台账导入模板.xlsx')
     except Exception as e:
-        return jsonify({'success': False, 'error': str(e)}), 400
+        return _server_error(e)
 
 
 @bp.route('/api/purchase/import', methods=['POST'])
@@ -1851,7 +1906,7 @@ def import_excel():
             'skipped_detail': skipped[:50],
         }})
     except Exception as e:
-        return jsonify({'success': False, 'error': str(e)}), 400
+        return _server_error(e)
 
 
 @bp.route('/purchase')
