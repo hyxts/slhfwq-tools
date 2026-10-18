@@ -825,6 +825,40 @@ class TestPurchaseConfig(unittest.TestCase):
         self.assertEqual(r.status_code, 200)
         type(self)._dict_ids.remove(did)
 
+    def test_supplier_profile_fields(self) -> None:
+        """供应商档案字段：编码（自动/自定义/冲突）、类型、市场、地址"""
+        r = self.client.post('/api/purchase/suppliers', json={
+            'name': '配置测试供应商档案A', 's_type': '个体', 'market': '恩施华硒',
+            'address': '旗峰大道1号', 'contact': '谭博', 'phone': '13986867680',
+            'category': '生鲜'})
+        self.assertEqual(r.status_code, 200)
+        a = r.get_json()['data']
+        type(self)._supplier_ids.append(a['id'])
+        self.assertRegex(a['code'], r'^GYS\d{3,}$')      # 编码留空自动生成
+        self.assertEqual(a['s_type'], '个体')
+        self.assertEqual(a['market'], '恩施华硒')
+        self.assertEqual(a['address'], '旗峰大道1号')
+
+        # 编码冲突
+        r = self.client.post('/api/purchase/suppliers', json={
+            'name': '配置测试供应商档案B', 'code': a['code']})
+        self.assertEqual(r.status_code, 400)
+        self.assertIn('编码', r.get_json()['error'])
+
+        # 自定义编码 + 编辑
+        b = self._supplier({'name': '配置测试供应商档案B', 'code': 'GYS998'})
+        self.assertEqual(b['code'], 'GYS998')
+        r = self.client.post(f'/api/purchase/suppliers/{a["id"]}', json={
+            'name': '配置测试供应商档案A', 'code': a['code'], 's_type': '批发市场',
+            'market': '金子坝', 'active': 1})
+        self.assertEqual(r.get_json()['data']['s_type'], '批发市场')
+        self.assertEqual(r.get_json()['data']['market'], '金子坝')
+
+        # 编码可搜索
+        names = [s['name'] for s in self.client.get(
+            '/api/purchase/suppliers?q=GYS998').get_json()['data']]
+        self.assertIn('配置测试供应商档案B', names)
+
     def test_supplier_import(self) -> None:
         """供应商 Excel 导入：模板、新增、重名跳过、覆盖更新、坏文件"""
         r = self.client.get('/api/purchase/suppliers/template')
@@ -832,15 +866,20 @@ class TestPurchaseConfig(unittest.TestCase):
         self.assertEqual(r.get_data()[:2], b'PK')
         from openpyxl import Workbook, load_workbook
         ws = load_workbook(io.BytesIO(r.get_data())).active
-        self.assertEqual(ws.cell(row=1, column=1).value, '供应商名称')
+        self.assertEqual(ws.cell(row=1, column=1).value, '供应商编码')
+        self.assertEqual(ws.cell(row=1, column=2).value, '供应商名称')
 
         def build(contact: str) -> bytes:
             wb = Workbook()
             w = wb.active
-            w.append(['供应商', '联系人', '电话', '主营品类', '默认发票类型', '备注'])
-            w.append(['配置测试供应商导入A', contact, '13900000000', '生鲜', '专票', ''])
-            w.append(['配置测试供应商导入B', '李老板', '', '调料', '乱写的票种', ''])
-            w.append(['', '', '', '', '', ''])          # 空行应被忽略
+            w.append(['供应商编码', '供应商名称', '供应商类型', '批发市场名称',
+                      '经营地址', '法人/负责人', '联系方式', '主营品类',
+                      '默认发票类型', '备注'])
+            w.append(['', '配置测试供应商导入A', '个体', '恩施华硒', '旗峰大道1号',
+                      contact, '13900000000', '生鲜', '专票', ''])
+            w.append(['GYS900', '配置测试供应商导入B', '批发市场', '清源路', '',
+                      '李老板', '', '调料', '乱写的票种', ''])
+            w.append(['', '', '', '', '', '', '', '', '', ''])   # 空行应被忽略
             buf = io.BytesIO()
             wb.save(buf)
             return buf.getvalue()
@@ -856,8 +895,14 @@ class TestPurchaseConfig(unittest.TestCase):
         type(self)._supplier_ids.extend(d['added_ids'])
         rows = {s['name']: s for s in
                 self.client.get('/api/purchase/suppliers').get_json()['data']}
-        self.assertEqual(rows['配置测试供应商导入A']['contact'], '王老板')
-        self.assertEqual(rows['配置测试供应商导入A']['default_invoice'], '专票')
+        a_row = rows['配置测试供应商导入A']
+        self.assertEqual(a_row['contact'], '王老板')
+        self.assertEqual(a_row['default_invoice'], '专票')
+        self.assertEqual(a_row['s_type'], '个体')            # 新档案字段能导入
+        self.assertEqual(a_row['market'], '恩施华硒')
+        self.assertEqual(a_row['address'], '旗峰大道1号')
+        self.assertRegex(a_row['code'], r'^GYS\d{3,}$')      # 编码留空自动生成
+        self.assertEqual(rows['配置测试供应商导入B']['code'], 'GYS900')  # 指定编码生效
         self.assertEqual(rows['配置测试供应商导入B']['default_invoice'], '')  # 非法票种留空
 
         d2 = upload(build('王老板'), 'skip').get_json()['data']

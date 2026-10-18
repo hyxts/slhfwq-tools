@@ -274,16 +274,25 @@ td.wrap { white-space:normal; word-break:break-all; min-width:110px; }
       <div class="cfg-form">
         <div class="form-row">
           <div class="field"><label>供应商名称 *</label><input id="sName" placeholder="如 旺绿商贸"></div>
-          <div class="field"><label>联系人</label><input id="sContact" placeholder="如 张老板"></div>
+          <div class="field"><label>供应商编码</label><input id="sCode" placeholder="留空自动生成 GYS001…"></div>
         </div>
         <div class="form-row">
-          <div class="field"><label>电话</label><input id="sPhone" placeholder="选填"></div>
+          <div class="field"><label>供应商类型</label><input id="sType" list="dlSType" placeholder="个体 / 批发市场 / 公司 / 其他"></div>
+          <div class="field"><label>批发市场名称</label><input id="sMarket" placeholder="如 恩施华硒"></div>
+        </div>
+        <div class="form-row">
+          <div class="field"><label>经营地址</label><input id="sAddress" placeholder="选填"></div>
+          <div class="field"><label>法人/负责人</label><input id="sContact" placeholder="如 张老板"></div>
+        </div>
+        <div class="form-row">
+          <div class="field"><label>联系方式</label><input id="sPhone" placeholder="选填"></div>
           <div class="field"><label>主营品类</label><input id="sCategory" list="dlCategory" placeholder="如 生鲜"></div>
         </div>
         <div class="form-row">
           <div class="field"><label>默认发票类型</label><select id="sInvoice"></select></div>
           <div class="field"><label>备注</label><input id="sNote" placeholder="选填"></div>
         </div>
+        <datalist id="dlSType"><option value="个体"><option value="批发市场"><option value="公司"><option value="其他"></datalist>
         <label class="sync-line" id="syncWrap" style="display:none"><input type="checkbox" id="sSync" checked>改名时同步更新历史采购记录</label>
         <div class="modal-actions" style="margin-top:8px">
           <button class="btn-outline" style="flex:0 0 90px" onclick="resetSupplierForm()">清空</button>
@@ -640,7 +649,10 @@ function renderSuppliers(rows){
   supplierRows.forEach(function(s){ supplierMap[s.name] = s; });
   if (!supplierRows.length) { $('supplierList').innerHTML = '<div class="empty">还没有供应商，上面填一条保存即可</div>'; return; }
   $('supplierList').innerHTML = supplierRows.map(function(s){
-    var meta = [s.contact, s.phone, s.category, s.default_invoice, s.note].filter(Boolean).join(' · ');
+    var meta = [[s.code, '#' + s.code], [s.s_type], [s.market, '市场:' + s.market],
+                [s.address], [s.contact], [s.phone], [s.category, '品类:' + s.category],
+                [s.default_invoice], [s.note]]
+      .filter(function(x){ return x[0]; }).map(function(x){ return x[1] || x[0]; }).join(' · ');
     var stat = s.used_cnt ? (s.used_cnt + '笔 / ' + fmt(s.used_total) + ' / 未付 ' + fmt(s.used_unpaid)) : '暂无采购记录';
     return '<div class="cfg-item' + (s.active ? '' : ' off') + '">'
       + '<div class="grow"><div class="nm">' + esc(s.name)
@@ -653,7 +665,8 @@ function renderSuppliers(rows){
 }
 function resetSupplierForm(){
   editSid = null;
-  ['sName','sContact','sPhone','sCategory','sNote'].forEach(function(id){ $(id).value = ''; });
+  ['sName','sCode','sType','sMarket','sAddress','sContact','sPhone','sCategory','sNote']
+    .forEach(function(id){ $(id).value = ''; });
   $('sInvoice').value = '';
   $('syncWrap').style.display = 'none';
 }
@@ -661,7 +674,9 @@ function editSupplier(id){
   var s = supplierRows.find(function(x){ return x.id === id; });
   if (!s) return;
   editSid = id;
-  $('sName').value = s.name; $('sContact').value = s.contact || '';
+  $('sName').value = s.name; $('sCode').value = s.code || '';
+  $('sType').value = s.s_type || ''; $('sMarket').value = s.market || '';
+  $('sAddress').value = s.address || ''; $('sContact').value = s.contact || '';
   $('sPhone').value = s.phone || ''; $('sCategory').value = s.category || '';
   $('sInvoice').value = s.default_invoice || ''; $('sNote').value = s.note || '';
   $('syncWrap').style.display = 'flex';
@@ -669,7 +684,9 @@ function editSupplier(id){
 }
 function saveSupplier(){
   var payload = {
-    name: $('sName').value.trim(), contact: $('sContact').value.trim(),
+    name: $('sName').value.trim(), code: $('sCode').value.trim(),
+    s_type: $('sType').value.trim(), market: $('sMarket').value.trim(),
+    address: $('sAddress').value.trim(), contact: $('sContact').value.trim(),
     phone: $('sPhone').value.trim(), category: $('sCategory').value.trim(),
     default_invoice: $('sInvoice').value, note: $('sNote').value.trim(), active: 1
   };
@@ -801,7 +818,10 @@ function renderRecon(d){
   var head = '<div class="recon-head">'
     + '<span class="t">采购对账单</span>'
     + '<span>供应商：<b>' + esc(d.supplier || '全部供应商') + '</b></span>'
-    + (prof && prof.contact ? '<span>联系人：' + esc(prof.contact) + '</span>' : '')
+    + (prof && prof.s_type ? '<span>类型：' + esc(prof.s_type) + '</span>' : '')
+    + (prof && prof.market ? '<span>市场：' + esc(prof.market) + '</span>' : '')
+    + (prof && prof.address ? '<span>地址：' + esc(prof.address) + '</span>' : '')
+    + (prof && prof.contact ? '<span>负责人：' + esc(prof.contact) + '</span>' : '')
     + (prof && prof.phone ? '<span>电话：' + esc(prof.phone) + '</span>' : '')
     + '<span>期间：' + esc((d.start || '最早') + ' 至 ' + (d.end || '最新')) + '</span>'
     + '<span style="color:var(--text-secondary)">生成时间：' + esc(d.generated_at) + '</span></div>';

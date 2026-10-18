@@ -326,6 +326,10 @@ def init_db():
         conn.execute('''CREATE TABLE IF NOT EXISTS suppliers (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             name TEXT NOT NULL UNIQUE,
+            code TEXT DEFAULT '',
+            s_type TEXT DEFAULT '',
+            market TEXT DEFAULT '',
+            address TEXT DEFAULT '',
             contact TEXT DEFAULT '',
             phone TEXT DEFAULT '',
             category TEXT DEFAULT '',
@@ -334,6 +338,14 @@ def init_db():
             active INTEGER NOT NULL DEFAULT 1,
             created_at TEXT DEFAULT (datetime('now','localtime'))
         )''')
+        # 供应商编码唯一（老库补列后建索引；空编码不参与唯一约束）
+        scols = [r[1] for r in conn.execute('PRAGMA table_info(suppliers)').fetchall()]
+        for col, ddl in (('code', "TEXT DEFAULT ''"), ('s_type', "TEXT DEFAULT ''"),
+                         ('market', "TEXT DEFAULT ''"), ('address', "TEXT DEFAULT ''")):
+            if col not in scols:
+                conn.execute(f'ALTER TABLE suppliers ADD COLUMN {col} {ddl}')
+        conn.execute('''CREATE UNIQUE INDEX IF NOT EXISTS idx_suppliers_code
+                        ON suppliers(code) WHERE code <> '' ''')
         # 基础配置：品类 / 付款账户等通用字典（kind 区分）
         conn.execute('''CREATE TABLE IF NOT EXISTS purchase_dicts (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -790,9 +802,11 @@ def _supplier_rows(conn, keyword: str = '', active_only: bool = False) -> list[d
         where.append('active=1')
     keyword = keyword.strip()
     if keyword:
-        where.append('(s.name LIKE ? OR s.contact LIKE ? OR s.phone LIKE ?)')
+        where.append('(s.name LIKE ? OR s.code LIKE ? OR s.s_type LIKE ? OR s.market LIKE ? '
+                     'OR s.address LIKE ? OR s.contact LIKE ? OR s.phone LIKE ? '
+                     'OR s.category LIKE ?)')
         like = f'%{keyword}%'
-        params.extend([like] * 3)
+        params.extend([like] * 8)
     sql = (
         'SELECT s.*, '
         '(SELECT COUNT(*) FROM purchases p WHERE p.supplier = s.name) used_cnt, '
@@ -820,10 +834,22 @@ def _round_supplier(row: dict) -> dict:
     return row
 
 
+def _next_supplier_code(conn) -> str:
+    """自动生成供应商编码：GYS001 起，接现有最大号 +1（编码留空时用）"""
+    row = conn.execute(
+        "SELECT MAX(CAST(substr(code,4) AS INTEGER)) m FROM suppliers "
+        "WHERE code GLOB 'GYS[0-9]*'").fetchone()
+    return f'GYS{(row["m"] or 0) + 1:03d}'
+
+
 def _supplier_payload(data: dict) -> dict:
     """校验供应商字段，失败抛 ValueError"""
     rec = {
         'name': str(data.get('name') or '').strip()[:100],
+        'code': str(data.get('code') or '').strip()[:30],
+        's_type': str(data.get('s_type') or '').strip()[:20],
+        'market': str(data.get('market') or '').strip()[:50],
+        'address': str(data.get('address') or '').strip()[:100],
         'contact': str(data.get('contact') or '').strip()[:50],
         'phone': str(data.get('phone') or '').strip()[:30],
         'category': str(data.get('category') or '').strip()[:50],
@@ -839,11 +865,16 @@ def _supplier_payload(data: dict) -> dict:
 
 
 # 供应商档案导入用的列名（与采购记录的表分开）
-_SUPPLIER_HEADERS = ['供应商名称', '联系人', '电话', '主营品类', '默认发票类型', '备注']
+_SUPPLIER_HEADERS = ['供应商编码', '供应商名称', '供应商类型', '批发市场名称', '经营地址',
+                     '法人/负责人', '联系方式', '主营品类', '默认发票类型', '备注']
 _SUPPLIER_ALIASES: dict[str, tuple[str, ...]] = {
+    'code': ('供应商编码', '编码', '编号', 'code'),
     'name': ('供应商名称', '供应商', '单位名称', '名称', 'name', 'supplier'),
-    'contact': ('联系人', 'contact'),
-    'phone': ('电话', '手机', '联系电话', 'phone', 'tel'),
+    's_type': ('供应商类型', '类型', 's_type'),
+    'market': ('批发市场名称', '批发市场', '市场', 'market'),
+    'address': ('经营地址', '地址', 'address'),
+    'contact': ('法人/负责人', '法人', '负责人', '联系人', 'contact'),
+    'phone': ('联系方式', '电话', '手机', '联系电话', 'phone', 'tel'),
     'category': ('主营品类', '品类', '类别', 'category'),
     'default_invoice': ('默认发票类型', '发票类型', '票种', 'default_invoice'),
     'note': ('备注', '说明', 'note'),
@@ -867,11 +898,20 @@ def create_supplier():
     try:
         rec = _supplier_payload(request.get_json(silent=True) or {})
         conn = _get_db()
+        if not rec['code']:
+            rec['code'] = _next_supplier_code(conn)      # 编码留空自动生成
+        elif conn.execute('SELECT id FROM suppliers WHERE code=?',
+                          (rec['code'],)).fetchone():
+            conn.close()
+            return jsonify({'success': False,
+                            'error': f'供应商编码 {rec["code"]} 已被其它供应商使用'}), 400
         try:
             cur = conn.execute(
-                '''INSERT INTO suppliers (name, contact, phone, category,
-                   default_invoice, note, active) VALUES (?,?,?,?,?,?,?)''',
-                (rec['name'], rec['contact'], rec['phone'], rec['category'],
+                '''INSERT INTO suppliers (name, code, s_type, market, address,
+                   contact, phone, category, default_invoice, note, active)
+                   VALUES (?,?,?,?,?,?,?,?,?,?,?)''',
+                (rec['name'], rec['code'], rec['s_type'], rec['market'],
+                 rec['address'], rec['contact'], rec['phone'], rec['category'],
                  rec['default_invoice'], rec['note'], rec['active']))
             conn.commit()
             sid = cur.lastrowid
@@ -900,11 +940,18 @@ def update_supplier(sid: int):
         if not old:
             conn.close()
             return jsonify({'success': False, 'error': '供应商不存在'}), 404
+        if rec['code'] and rec['code'] != old['code'] and conn.execute(
+                'SELECT id FROM suppliers WHERE code=?', (rec['code'],)).fetchone():
+            conn.close()
+            return jsonify({'success': False,
+                            'error': f'供应商编码 {rec["code"]} 已被其它供应商使用'}), 400
         try:
             conn.execute(
-                '''UPDATE suppliers SET name=?, contact=?, phone=?, category=?,
-                   default_invoice=?, note=?, active=? WHERE id=?''',
-                (rec['name'], rec['contact'], rec['phone'], rec['category'],
+                '''UPDATE suppliers SET name=?, code=?, s_type=?, market=?, address=?,
+                   contact=?, phone=?, category=?, default_invoice=?, note=?, active=?
+                   WHERE id=?''',
+                (rec['name'], rec['code'], rec['s_type'], rec['market'],
+                 rec['address'], rec['contact'], rec['phone'], rec['category'],
                  rec['default_invoice'], rec['note'], rec['active'], sid))
             renamed = 0
             if sync and old['name'] != rec['name']:
@@ -961,12 +1008,15 @@ def supplier_template():
         ws.title = '供应商'
         ws.append(_SUPPLIER_HEADERS)
         _style_header(ws, len(_SUPPLIER_HEADERS))
-        ws.append(['示例供应商', '张老板', '13800000000', '生鲜', '专票', '示例行，导入前请删除'])
-        ws.cell(row=2, column=1).font = Font(color='9CA3AF', italic=True)
-        ws.append(['填写说明：只有「供应商名称」必填；默认发票类型只能填 无票(不抵)/专票/普票，'
-                   '填错或不填会自动留空；重名的默认跳过，要覆盖已存在的请在导入时选「更新」。'])
+        ws.append(['GYS001', '示例供应商', '个体', '恩施华硒', '恩施华硒农产品市场3号',
+                   '张老板', '13800000000', '生鲜', '专票', '示例行，导入前请删除'])
+        ws.cell(row=2, column=2).font = Font(color='9CA3AF', italic=True)
+        ws.append(['填写说明：只有「供应商名称」必填，其余选填；「供应商编码」留空会自动按'
+                   ' GYS001 顺序生成；「供应商类型」建议填 个体/批发市场/公司/其他；'
+                   '默认发票类型只能填 无票(不抵)/专票/普票，填错或不填会自动留空；'
+                   '重名的默认跳过，要覆盖已存在的请在导入时选「更新」。'])
         ws.cell(row=3, column=1).font = Font(color='6B7280', size=10)
-        _set_widths(ws, [22, 12, 16, 14, 16, 30])
+        _set_widths(ws, [12, 20, 12, 16, 26, 12, 14, 12, 14, 22])
         return _xlsx_response(wb, '供应商导入模板.xlsx')
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)}), 400
@@ -977,8 +1027,9 @@ def import_suppliers():
     """导入供应商 Excel（.xlsx）
 
     - 按列名认列（顺序随意），至少要有「供应商名称」
-    - mode=skip（默认）：重名跳过，不动已有档案；mode=update：重名则更新联系人/
-      电话/主营品类/默认发票类型/备注（启用状态不改动）
+    - mode=skip（默认）：重名跳过，不动已有档案；mode=update：重名则更新全部
+      档案字段（启用状态不改动）；编码留空自动按 GYS001 顺序生成；编码与其它
+      供应商重复则该行报错
     - 不会删除已有供应商，也不会动采购记录
     """
     try:
@@ -1018,6 +1069,10 @@ def import_suppliers():
                 invoice = ''                       # 票种写错就留空，不让整行失败
             rec = {
                 'name': name,
+                'code': _cell_text(cell('code'))[:30],
+                's_type': _cell_text(cell('s_type'))[:20],
+                'market': _cell_text(cell('market'))[:50],
+                'address': _cell_text(cell('address'))[:100],
                 'contact': _cell_text(cell('contact'))[:50],
                 'phone': _cell_text(cell('phone'))[:30],
                 'category': _cell_text(cell('category'))[:50],
@@ -1030,16 +1085,27 @@ def import_suppliers():
                     skipped.append({'row': i, 'name': name, 'reason': '已存在，未改动'})
                     continue
                 conn.execute(
-                    '''UPDATE suppliers SET contact=?, phone=?, category=?,
-                       default_invoice=?, note=? WHERE id=?''',
-                    (rec['contact'], rec['phone'], rec['category'],
+                    '''UPDATE suppliers SET code=?, s_type=?, market=?, address=?,
+                       contact=?, phone=?, category=?, default_invoice=?, note=?
+                       WHERE id=?''',
+                    (rec['code'], rec['s_type'], rec['market'], rec['address'],
+                     rec['contact'], rec['phone'], rec['category'],
                      rec['default_invoice'], rec['note'], old['id']))
                 updated.append(old['id'])
                 continue
+            if not rec['code']:
+                rec['code'] = _next_supplier_code(conn)
+            elif conn.execute('SELECT id FROM suppliers WHERE code=?',
+                              (rec['code'],)).fetchone():
+                errors.append({'row': i, 'name': name,
+                               'reason': f'编码 {rec["code"]} 已被其它供应商使用'})
+                continue
             cur = conn.execute(
-                '''INSERT INTO suppliers (name, contact, phone, category,
-                   default_invoice, note, active) VALUES (?,?,?,?,?,?,1)''',
-                (rec['name'], rec['contact'], rec['phone'], rec['category'],
+                '''INSERT INTO suppliers (name, code, s_type, market, address,
+                   contact, phone, category, default_invoice, note, active)
+                   VALUES (?,?,?,?,?,?,?,?,?,?,1)''',
+                (rec['name'], rec['code'], rec['s_type'], rec['market'],
+                 rec['address'], rec['contact'], rec['phone'], rec['category'],
                  rec['default_invoice'], rec['note']))
             added.append(cur.lastrowid)
         conn.commit()
@@ -1306,8 +1372,8 @@ def import_excel():
             imported.append(cur.lastrowid)
             if auto_supplier and rec['supplier']:
                 conn.execute(
-                    'INSERT OR IGNORE INTO suppliers (name, active) VALUES (?, 1)',
-                    (rec['supplier'],))
+                    "INSERT OR IGNORE INTO suppliers (name, code, active) "
+                    "VALUES (?, ?, 1)", (rec['supplier'], _next_supplier_code(conn)))
         conn.commit()
         conn.close()
         _log(f'导入 Excel：成功 {len(imported)} 行 / 跳过 {len(skipped)} 行 / '
