@@ -560,10 +560,12 @@ class TestPurchase(unittest.TestCase):
     @classmethod
     @override
     def tearDownClass(cls) -> None:
-        app_mod.RATE_LIMIT_MAX_JSON = cls._rate_json
-        app_mod.RATE_LIMIT_MAX_HTML = cls._rate_html
+        # 注意顺序：先清数据，再恢复限流。反过来的话清理请求会被限流拦掉（429），
+        # 测试数据就残留在真实库里，下一轮跑测试会撞「名称已存在」。
         for rid in cls._created_ids:
             cls.client.delete(f'/api/purchase/records/{rid}')
+        app_mod.RATE_LIMIT_MAX_JSON = cls._rate_json
+        app_mod.RATE_LIMIT_MAX_HTML = cls._rate_html
 
     def _create(self, payload: dict) -> dict:
         r = self.client.post('/api/purchase/records', json=payload)
@@ -575,7 +577,9 @@ class TestPurchase(unittest.TestCase):
     def test_page_accessible(self) -> None:
         r = self.client.get('/purchase')
         self.assertEqual(r.status_code, 200)
-        self.assertIn('采购台账', r.get_data(as_text=True))
+        html = r.get_data(as_text=True)
+        self.assertIn('采购台账', html)
+        self.assertIn('基础配置', html)          # 配置面板入口随页面一起下发
 
     def test_manifest(self) -> None:
         r = self.client.get('/purchase/manifest.json')
@@ -666,6 +670,165 @@ class TestPurchase(unittest.TestCase):
             anon.post('/api/purchase/records', json={'date': '2026-10-10',
                                                      'supplier': 'x',
                                                      'total_amount': 1}).status_code, 200)
+
+
+class TestPurchaseConfig(unittest.TestCase):
+    """采购模块的基础配置：供应商 / 品类 / 付款账户（需要登录会话）"""
+
+    client: FlaskClient = None
+    _supplier_ids: list[int] = []
+    _dict_ids: list[int] = []
+    _record_ids: list[int] = []
+
+    @classmethod
+    @override
+    def setUpClass(cls) -> None:
+        cls.client = app.test_client()
+        app.config['TESTING'] = True
+        with cls.client.session_transaction() as sess:  # type: ignore[attr-defined]
+            sess['auth'] = True
+        cls._rate_json: int = app_mod.RATE_LIMIT_MAX_JSON
+        cls._rate_html: int = app_mod.RATE_LIMIT_MAX_HTML
+        app_mod.RATE_LIMIT_MAX_JSON = 100000
+        app_mod.RATE_LIMIT_MAX_HTML = 100000
+        cls._clean_leftovers()
+
+    @classmethod
+    def _clean_leftovers(cls) -> None:
+        """清掉上一轮可能没删干净的本用例数据（否则撞 UNIQUE 名称，用例直接失败）"""
+        from urllib.parse import quote
+        for s in cls.client.get('/api/purchase/suppliers').get_json()['data']:
+            if not s['name'].startswith('配置测试供应商'):
+                continue
+            for r in cls.client.get(
+                    '/api/purchase/records?search=' + quote(s['name'])).get_json()['data']:
+                if r['supplier'] == s['name']:
+                    cls.client.delete(f'/api/purchase/records/{r["id"]}')
+            cls.client.delete(f'/api/purchase/suppliers/{s["id"]}')
+        for kind, items in cls.client.get('/api/purchase/dicts').get_json()['data'].items():
+            for d in items:
+                if d['name'].startswith('配置测试'):
+                    cls.client.delete(f'/api/purchase/dicts/{d["id"]}')
+
+    @classmethod
+    @override
+    def tearDownClass(cls) -> None:
+        # 同上：先清数据，再恢复限流，否则清理请求会被限流拦掉留下脏数据
+        for rid in cls._record_ids:
+            cls.client.delete(f'/api/purchase/records/{rid}')
+        for did in cls._dict_ids:
+            cls.client.delete(f'/api/purchase/dicts/{did}')
+        for sid in cls._supplier_ids:
+            cls.client.delete(f'/api/purchase/suppliers/{sid}')
+        app_mod.RATE_LIMIT_MAX_JSON = cls._rate_json
+        app_mod.RATE_LIMIT_MAX_HTML = cls._rate_html
+
+    def _supplier(self, payload: dict) -> dict:
+        r = self.client.post('/api/purchase/suppliers', json=payload)
+        self.assertEqual(r.status_code, 200, r.get_data(as_text=True))
+        data = r.get_json()['data']
+        type(self)._supplier_ids.append(data['id'])
+        return data
+
+    def test_supplier_crud(self) -> None:
+        """新增 → 重名拒绝 → 编辑 → 停用 → 无记录可删"""
+        a = self._supplier({'name': '配置测试供应商A', 'contact': '张老板',
+                            'phone': '13000000000', 'category': '配置测试品类',
+                            'default_invoice': '专票', 'note': '测试备注'})
+        self.assertEqual(a['category'], '配置测试品类')
+        self.assertEqual(a['used_cnt'], 0)
+
+        r = self.client.post('/api/purchase/suppliers', json={'name': '配置测试供应商A'})
+        self.assertEqual(r.status_code, 400)
+        self.assertIn('已存在', r.get_json()['error'])
+
+        r = self.client.post('/api/purchase/suppliers', json={'name': ''})
+        self.assertEqual(r.status_code, 400)
+
+        r = self.client.post(f'/api/purchase/suppliers/{a["id"]}',
+                             json={'name': '配置测试供应商A', 'contact': '李老板',
+                                   'default_invoice': '无票(不抵)'})
+        self.assertEqual(r.status_code, 200)
+        self.assertEqual(r.get_json()['data']['contact'], '李老板')
+
+        # 停用后 active=0，且仍查得到
+        r = self.client.post(f'/api/purchase/suppliers/{a["id"]}',
+                             json={'name': '配置测试供应商A', 'active': 0})
+        self.assertEqual(r.get_json()['data']['active'], 0)
+        rows = self.client.get('/api/purchase/suppliers').get_json()['data']
+        a_row = next(x for x in rows if x['id'] == a['id'])
+        self.assertEqual(a_row['active'], 0)
+        self.assertEqual(len(self.client.get(
+            '/api/purchase/suppliers?active_only=1').get_json()['data']),
+            len(rows) - 1)
+
+        # 没有采购记录 → 可以删除
+        r = self.client.delete(f'/api/purchase/suppliers/{a["id"]}')
+        self.assertEqual(r.status_code, 200)
+        type(self)._supplier_ids.remove(a['id'])
+
+    def test_rename_syncs_history(self) -> None:
+        """供应商改名并同步时，历史采购记录跟着改；有记录的供应商不允许删除"""
+        s = self._supplier({'name': '配置测试供应商B'})
+        rec = self.client.post('/api/purchase/records', json={
+            'date': '2026-10-15', 'supplier': '配置测试供应商B',
+            'total_amount': 100, 'paid_amount': 0})
+        rid = rec.get_json()['data']['id']
+        type(self)._record_ids.append(rid)
+
+        r = self.client.post(f'/api/purchase/suppliers/{s["id"]}',
+                             json={'name': '配置测试供应商B改名', 'sync_history': 1})
+        self.assertEqual(r.status_code, 200)
+        self.assertEqual(r.get_json()['renamed'], 1)
+        names = [x['supplier'] for x in
+                 self.client.get('/api/purchase/records?search=配置测试供应商').get_json()['data']]
+        self.assertIn('配置测试供应商B改名', names)
+        self.assertNotIn('配置测试供应商B', names)
+
+        # 有历史记录 → 禁止删除
+        r = self.client.delete(f'/api/purchase/suppliers/{s["id"]}')
+        self.assertEqual(r.status_code, 400)
+        self.assertIn('停用', r.get_json()['error'])
+
+    def test_dicts(self) -> None:
+        """品类 / 付款账户字典：新增、重名拒绝、列表、删除"""
+        r = self.client.post('/api/purchase/dicts', json={'kind': 'category',
+                                                          'name': '配置测试品类X'})
+        self.assertEqual(r.status_code, 200)
+        did = r.get_json()['data']['id']
+        type(self)._dict_ids.append(did)
+
+        r = self.client.post('/api/purchase/dicts', json={'kind': 'category',
+                                                          'name': '配置测试品类X'})
+        self.assertEqual(r.status_code, 400)
+        self.assertIn('已存在', r.get_json()['error'])
+
+        r = self.client.post('/api/purchase/dicts', json={'kind': '不存在的类型',
+                                                          'name': 'x'})
+        self.assertEqual(r.status_code, 400)
+
+        names = [x['name'] for x in self.client.get(
+            '/api/purchase/dicts?kind=category').get_json()['data']]
+        self.assertIn('配置测试品类X', names)
+
+        r = self.client.post(f'/api/purchase/dicts/{did}', json={'name': '配置测试品类Y'})
+        self.assertEqual(r.status_code, 200)
+        self.assertEqual(r.get_json()['data']['name'], '配置测试品类Y')
+
+        # 配置的品类要出现在表单建议里
+        opts = self.client.get('/api/purchase/options').get_json()['data']
+        self.assertIn('配置测试品类Y', opts['categories'])
+
+        r = self.client.delete(f'/api/purchase/dicts/{did}')
+        self.assertEqual(r.status_code, 200)
+        type(self)._dict_ids.remove(did)
+
+    def test_config_anonymous_blocked(self) -> None:
+        anon = app.test_client()
+        self.assertNotEqual(
+            anon.post('/api/purchase/suppliers', json={'name': '匿名供应商'}).status_code, 200)
+        self.assertNotEqual(
+            anon.get('/api/purchase/suppliers').status_code, 200)
 
 
 class TestRateLimiting(unittest.TestCase):

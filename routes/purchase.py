@@ -14,6 +14,7 @@ import csv
 import io
 import os
 import re
+import sqlite3
 from flask import Blueprint, Response, jsonify, request, send_from_directory
 
 from .utils import make_db, make_logger
@@ -126,6 +127,26 @@ def init_db():
         )''')
         conn.execute('CREATE INDEX IF NOT EXISTS idx_purchases_date ON purchases(date)')
         conn.execute('CREATE INDEX IF NOT EXISTS idx_purchases_supplier ON purchases(supplier)')
+        # 基础配置：供应商档案
+        conn.execute('''CREATE TABLE IF NOT EXISTS suppliers (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            name TEXT NOT NULL UNIQUE,
+            contact TEXT DEFAULT '',
+            phone TEXT DEFAULT '',
+            category TEXT DEFAULT '',
+            default_invoice TEXT DEFAULT '',
+            note TEXT DEFAULT '',
+            active INTEGER NOT NULL DEFAULT 1,
+            created_at TEXT DEFAULT (datetime('now','localtime'))
+        )''')
+        # 基础配置：品类 / 付款账户等通用字典（kind 区分）
+        conn.execute('''CREATE TABLE IF NOT EXISTS purchase_dicts (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            kind TEXT NOT NULL,
+            name TEXT NOT NULL,
+            sort INTEGER NOT NULL DEFAULT 0,
+            UNIQUE(kind, name)
+        )''')
         conn.commit()
         conn.close()
         _log('purchase_db 初始化完成')
@@ -302,21 +323,279 @@ def stats():
 
 @bp.route('/api/purchase/options', methods=['GET'])
 def options():
-    """供应商 / 品类 / 付款账户的已有取值（表单下拉建议用）"""
+    """供应商 / 品类 / 付款账户的已有取值（表单下拉建议用）
+
+    供应商：配置里「启用」的 + 历史采购记录里出现过但没建档的（兼容老数据），
+    后者标在 extra_suppliers 里，前端一起给建议。
+    """
     try:
         conn = _get_db()
-        suppliers = [r[0] for r in conn.execute(
+        configured = [r[0] for r in conn.execute(
+            'SELECT name FROM suppliers WHERE active=1 ORDER BY name')]
+        historic = [r[0] for r in conn.execute(
             'SELECT DISTINCT supplier FROM purchases ORDER BY supplier')]
+        extra = [n for n in historic if n not in configured]
+        suppliers = configured + extra
         categories = [r[0] for r in conn.execute(
-            "SELECT DISTINCT category FROM purchases WHERE category<>'' ORDER BY category")]
+            "SELECT name FROM purchase_dicts WHERE kind='category' ORDER BY sort, name")]
         accounts = [r[0] for r in conn.execute(
-            "SELECT DISTINCT pay_account FROM purchases WHERE pay_account<>'' ORDER BY pay_account")]
+            "SELECT name FROM purchase_dicts WHERE kind='account' ORDER BY sort, name")]
+        historic_categories = [r[0] for r in conn.execute(
+            "SELECT DISTINCT category FROM purchases WHERE category<>''")]
+        historic_accounts = [r[0] for r in conn.execute(
+            "SELECT DISTINCT pay_account FROM purchases WHERE pay_account<>''")]
+        categories += [n for n in historic_categories if n not in categories]
+        accounts += [n for n in historic_accounts if n not in accounts]
         conn.close()
         return jsonify({'success': True, 'data': {
-            'suppliers': suppliers, 'categories': categories,
-            'accounts': accounts, 'invoice_types': list(INVOICE_TYPES)}})
+            'suppliers': suppliers, 'extra_suppliers': extra,
+            'categories': categories, 'accounts': accounts,
+            'invoice_types': list(INVOICE_TYPES)}})
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)}), 400
+
+
+# ==================== 基础配置 ====================
+
+DICT_KINDS = ('category', 'account')
+
+
+def _supplier_rows(conn, keyword: str = '', active_only: bool = False) -> list[dict]:
+    """供应商档案 + 每家的采购统计（笔数 / 总额 / 未付）"""
+    where: list[str] = ['1=1']
+    params: list = []
+    if active_only:
+        where.append('active=1')
+    keyword = keyword.strip()
+    if keyword:
+        where.append('(s.name LIKE ? OR s.contact LIKE ? OR s.phone LIKE ?)')
+        like = f'%{keyword}%'
+        params.extend([like] * 3)
+    sql = (
+        'SELECT s.*, '
+        '(SELECT COUNT(*) FROM purchases p WHERE p.supplier = s.name) used_cnt, '
+        'COALESCE((SELECT SUM(p.total_amount) FROM purchases p WHERE p.supplier = s.name), 0) used_total, '
+        'COALESCE((SELECT SUM(p.total_amount - p.paid_amount) FROM purchases p '
+        'WHERE p.supplier = s.name), 0) used_unpaid '
+        f"FROM suppliers s WHERE {' AND '.join(where)} "
+        'ORDER BY s.active DESC, s.name')
+    return [_round_supplier(dict(r)) for r in conn.execute(sql, params).fetchall()]
+
+
+def _round_supplier(row: dict) -> dict:
+    row['used_total'] = _round2(row.get('used_total') or 0.0)
+    row['used_unpaid'] = _round2(row.get('used_unpaid') or 0.0)
+    return row
+
+
+def _supplier_payload(data: dict) -> dict:
+    """校验供应商字段，失败抛 ValueError"""
+    rec = {
+        'name': str(data.get('name') or '').strip()[:100],
+        'contact': str(data.get('contact') or '').strip()[:50],
+        'phone': str(data.get('phone') or '').strip()[:30],
+        'category': str(data.get('category') or '').strip()[:50],
+        'default_invoice': str(data.get('default_invoice') or '').strip(),
+        'note': str(data.get('note') or '').strip()[:200],
+        'active': 1 if str(data.get('active', 1)) not in ('0', 'false', 'False', '') else 0,
+    }
+    if not rec['name']:
+        raise ValueError('供应商名称不能为空')
+    if rec['default_invoice'] and rec['default_invoice'] not in INVOICE_TYPES:
+        raise ValueError('默认发票类型不合法')
+    return rec
+
+
+@bp.route('/api/purchase/suppliers', methods=['GET'])
+def list_suppliers():
+    try:
+        conn = _get_db()
+        rows = _supplier_rows(conn, request.args.get('q') or '',
+                              str(request.args.get('active_only') or '') == '1')
+        conn.close()
+        return jsonify({'success': True, 'data': rows})
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 400
+
+
+@bp.route('/api/purchase/suppliers', methods=['POST'])
+def create_supplier():
+    try:
+        rec = _supplier_payload(request.get_json(silent=True) or {})
+        conn = _get_db()
+        try:
+            cur = conn.execute(
+                '''INSERT INTO suppliers (name, contact, phone, category,
+                   default_invoice, note, active) VALUES (?,?,?,?,?,?,?)''',
+                (rec['name'], rec['contact'], rec['phone'], rec['category'],
+                 rec['default_invoice'], rec['note'], rec['active']))
+            conn.commit()
+            sid = cur.lastrowid
+        except sqlite3.IntegrityError:
+            conn.close()
+            return jsonify({'success': False, 'error': '该供应商名称已存在'}), 400
+        row = _supplier_rows(conn, rec['name'])[0]
+        conn.close()
+        _log(f'新增供应商 id={sid} name={rec["name"]}')
+        return jsonify({'success': True, 'data': row})
+    except ValueError as e:
+        return jsonify({'success': False, 'error': str(e)}), 400
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@bp.route('/api/purchase/suppliers/<int:sid>', methods=['POST'])
+def update_supplier(sid: int):
+    """编辑供应商；改名时可选同步历史采购记录（sync_history=1）"""
+    try:
+        data = request.get_json(silent=True) or {}
+        rec = _supplier_payload(data)
+        sync = str(data.get('sync_history', '')) in ('1', 'true', 'True')
+        conn = _get_db()
+        old = conn.execute('SELECT * FROM suppliers WHERE id=?', (sid,)).fetchone()
+        if not old:
+            conn.close()
+            return jsonify({'success': False, 'error': '供应商不存在'}), 404
+        try:
+            conn.execute(
+                '''UPDATE suppliers SET name=?, contact=?, phone=?, category=?,
+                   default_invoice=?, note=?, active=? WHERE id=?''',
+                (rec['name'], rec['contact'], rec['phone'], rec['category'],
+                 rec['default_invoice'], rec['note'], rec['active'], sid))
+            renamed = 0
+            if sync and old['name'] != rec['name']:
+                renamed = conn.execute(
+                    'UPDATE purchases SET supplier=? WHERE supplier=?',
+                    (rec['name'], old['name'])).rowcount
+            conn.commit()
+        except sqlite3.IntegrityError:
+            conn.close()
+            return jsonify({'success': False, 'error': '该供应商名称已存在'}), 400
+        row = _supplier_rows(conn, rec['name'])[0]
+        conn.close()
+        _log(f'编辑供应商 id={sid} name={rec["name"]} 同步历史={renamed}')
+        return jsonify({'success': True, 'data': row, 'renamed': renamed})
+    except ValueError as e:
+        return jsonify({'success': False, 'error': str(e)}), 400
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@bp.route('/api/purchase/suppliers/<int:sid>', methods=['DELETE'])
+def delete_supplier(sid: int):
+    """已有采购记录的供应商不能删（只能停用），避免历史台账失去归属"""
+    try:
+        conn = _get_db()
+        row = conn.execute('SELECT * FROM suppliers WHERE id=?', (sid,)).fetchone()
+        if not row:
+            conn.close()
+            return jsonify({'success': False, 'error': '供应商不存在'}), 404
+        used = conn.execute('SELECT COUNT(*) c FROM purchases WHERE supplier=?',
+                            (row['name'],)).fetchone()['c']
+        if used:
+            conn.close()
+            return jsonify({'success': False,
+                            'error': f'该供应商已有 {used} 笔采购记录，不能删除；请改为「停用」'}), 400
+        conn.execute('DELETE FROM suppliers WHERE id=?', (sid,))
+        conn.commit()
+        conn.close()
+        _log(f'删除供应商 id={sid} name={row["name"]}')
+        return jsonify({'success': True})
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@bp.route('/api/purchase/dicts', methods=['GET'])
+def list_dicts():
+    """品类 / 付款账户字典；kind=category|account，省略则一起返回"""
+    try:
+        kind = str(request.args.get('kind') or '').strip()
+        conn = _get_db()
+        if kind:
+            if kind not in DICT_KINDS:
+                conn.close()
+                return jsonify({'success': False, 'error': '字典类型不合法'}), 400
+            rows = [dict(r) for r in conn.execute(
+                'SELECT * FROM purchase_dicts WHERE kind=? ORDER BY sort, name', (kind,))]
+            conn.close()
+            return jsonify({'success': True, 'data': rows})
+        out = {k: [dict(r) for r in conn.execute(
+            'SELECT * FROM purchase_dicts WHERE kind=? ORDER BY sort, name', (k,))]
+            for k in DICT_KINDS}
+        conn.close()
+        return jsonify({'success': True, 'data': out})
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 400
+
+
+@bp.route('/api/purchase/dicts', methods=['POST'])
+def create_dict():
+    try:
+        data = request.get_json(silent=True) or {}
+        kind = str(data.get('kind') or '').strip()
+        name = str(data.get('name') or '').strip()[:50]
+        if kind not in DICT_KINDS:
+            raise ValueError('字典类型不合法')
+        if not name:
+            raise ValueError('名称不能为空')
+        conn = _get_db()
+        try:
+            cur = conn.execute(
+                'INSERT INTO purchase_dicts (kind, name, sort) VALUES (?,?,?)',
+                (kind, name, int(data.get('sort') or 0)))
+            conn.commit()
+            did = cur.lastrowid
+        except sqlite3.IntegrityError:
+            conn.close()
+            return jsonify({'success': False, 'error': '该名称已存在'}), 400
+        row = conn.execute('SELECT * FROM purchase_dicts WHERE id=?', (did,)).fetchone()
+        conn.close()
+        return jsonify({'success': True, 'data': dict(row)})
+    except ValueError as e:
+        return jsonify({'success': False, 'error': str(e)}), 400
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@bp.route('/api/purchase/dicts/<int:did>', methods=['POST'])
+def update_dict(did: int):
+    try:
+        data = request.get_json(silent=True) or {}
+        name = str(data.get('name') or '').strip()[:50]
+        if not name:
+            raise ValueError('名称不能为空')
+        conn = _get_db()
+        if not conn.execute('SELECT id FROM purchase_dicts WHERE id=?', (did,)).fetchone():
+            conn.close()
+            return jsonify({'success': False, 'error': '条目不存在'}), 404
+        try:
+            conn.execute('UPDATE purchase_dicts SET name=?, sort=? WHERE id=?',
+                         (name, int(data.get('sort') or 0), did))
+            conn.commit()
+        except sqlite3.IntegrityError:
+            conn.close()
+            return jsonify({'success': False, 'error': '该名称已存在'}), 400
+        row = conn.execute('SELECT * FROM purchase_dicts WHERE id=?', (did,)).fetchone()
+        conn.close()
+        return jsonify({'success': True, 'data': dict(row)})
+    except ValueError as e:
+        return jsonify({'success': False, 'error': str(e)}), 400
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@bp.route('/api/purchase/dicts/<int:did>', methods=['DELETE'])
+def delete_dict(did: int):
+    try:
+        conn = _get_db()
+        cur = conn.execute('DELETE FROM purchase_dicts WHERE id=?', (did,))
+        conn.commit()
+        conn.close()
+        if cur.rowcount == 0:
+            return jsonify({'success': False, 'error': '条目不存在'}), 404
+        return jsonify({'success': True})
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
 
 
 @bp.route('/api/purchase/export', methods=['GET'])

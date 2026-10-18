@@ -64,6 +64,22 @@ td.wrap { white-space:normal; word-break:break-all; min-width:110px; }
 .sum-row { display:flex; align-items:center; gap:8px; padding:6px 10px; background:var(--card-bg); border-radius:8px; margin-bottom:5px; box-shadow:0 1px 3px rgba(0,0,0,.04); font-size:12.5px; cursor:pointer; }
 .sum-row .name { flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; word-break:break-all; }
 .sum-row .val { font-weight:600; white-space:nowrap; }
+/* 配置面板 */
+.cfg-tabs { display:flex; gap:6px; margin-bottom:12px; }
+.cfg-tab { padding:8px 14px; border-radius:9px; font-size:13px; font-weight:600; border:1px solid var(--border); background:#fff; color:var(--text-secondary); cursor:pointer; min-height:44px; }
+.cfg-tab.on { background:var(--primary); border-color:var(--primary); color:#fff; }
+.cfg-form { background:#f8fafc; border-radius:10px; padding:10px; margin-bottom:10px; }
+.cfg-list { max-height:46vh; overflow-y:auto; }
+.cfg-item { display:flex; align-items:center; gap:8px; padding:8px 10px; background:#fff; border-radius:8px; margin-bottom:6px; box-shadow:0 1px 3px rgba(0,0,0,.04); font-size:12.5px; }
+.cfg-item.off { opacity:.5; }
+.cfg-item .nm { font-weight:600; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; word-break:break-all; }
+.cfg-item .meta { color:var(--text-secondary); font-size:11.5px; }
+.cfg-item .grow { flex:1; min-width:0; }
+.cfg-item .acts { display:flex; gap:4px; flex-shrink:0; }
+.tag-off { font-size:10.5px; background:#f1f5f9; color:#64748b; border-radius:8px; padding:1px 6px; }
+.sync-line { display:flex; align-items:center; gap:6px; font-size:12px; color:var(--text-secondary); margin-top:6px; }
+.sync-line input { width:16px; height:16px; }
+
 /* 弹窗 */
 .modal-overlay { position:fixed; inset:0; background:rgba(0,0,0,.4); z-index:200; display:none; align-items:center; justify-content:center; padding:20px; }
 .modal-overlay.show { display:flex; }
@@ -101,6 +117,7 @@ td.wrap { white-space:normal; word-break:break-all; min-width:110px; }
     <h1>采购台账</h1>
   </div>
   <div style="display:flex;gap:8px">
+    <button class="btn-outline btn-sm" style="min-height:36px" onclick="openConfig()">⚙ 配置</button>
     <button class="btn-outline btn-sm" style="min-height:36px" onclick="doExport()">导出CSV</button>
     <button class="btn-primary btn-sm" style="min-height:36px" onclick="openModal()">+ 新增采购</button>
   </div>
@@ -179,6 +196,56 @@ td.wrap { white-space:normal; word-break:break-all; min-width:110px; }
     </div>
   </div>
 </div>
+<div class="modal-overlay" id="cfgModal">
+  <div class="modal" style="max-width:560px">
+    <h4>基础配置</h4>
+    <div class="cfg-tabs">
+      <button class="cfg-tab on" id="tabSupplier" onclick="switchTab('supplier')">供应商</button>
+      <button class="cfg-tab" id="tabCategory" onclick="switchTab('category')">品类</button>
+      <button class="cfg-tab" id="tabAccount" onclick="switchTab('account')">付款账户</button>
+    </div>
+
+    <div id="cfgSupplier">
+      <div class="cfg-form">
+        <div class="form-row">
+          <div class="field"><label>供应商名称 *</label><input id="sName" placeholder="如 旺绿商贸"></div>
+          <div class="field"><label>联系人</label><input id="sContact" placeholder="如 张老板"></div>
+        </div>
+        <div class="form-row">
+          <div class="field"><label>电话</label><input id="sPhone" placeholder="选填"></div>
+          <div class="field"><label>主营品类</label><input id="sCategory" list="dlCategory" placeholder="如 生鲜"></div>
+        </div>
+        <div class="form-row">
+          <div class="field"><label>默认发票类型</label><select id="sInvoice"></select></div>
+          <div class="field"><label>备注</label><input id="sNote" placeholder="选填"></div>
+        </div>
+        <label class="sync-line" id="syncWrap" style="display:none"><input type="checkbox" id="sSync" checked>改名时同步更新历史采购记录</label>
+        <div class="modal-actions" style="margin-top:8px">
+          <button class="btn-outline" style="flex:0 0 90px" onclick="resetSupplierForm()">清空</button>
+          <button class="btn-primary" style="flex:1" onclick="saveSupplier()">保存供应商</button>
+        </div>
+      </div>
+      <div class="cfg-list" id="supplierList"></div>
+    </div>
+
+    <div id="cfgDict" style="display:none">
+      <div class="cfg-form">
+        <div class="form-row">
+          <div class="field"><label id="dictLabel">名称 *</label><input id="dName" placeholder="新增后可在采购表单里下拉选择"></div>
+        </div>
+        <div class="modal-actions" style="margin-top:8px">
+          <button class="btn-outline" style="flex:0 0 90px" onclick="resetDictForm()">清空</button>
+          <button class="btn-primary" style="flex:1" onclick="saveDict()">保存</button>
+        </div>
+      </div>
+      <div class="cfg-list" id="dictList"></div>
+    </div>
+
+    <div class="modal-actions">
+      <button class="btn-outline" style="flex:1" onclick="closeConfig()">关闭</button>
+    </div>
+  </div>
+</div>
 <div id="toast"></div>
 
 <script>
@@ -210,9 +277,25 @@ function loadOptions(){
       opts = d.data;
       fillSelect($('fInvoice'), [''].concat(opts.invoice_types), '全部发票类型');
       fillSelect($('mInvoice'), opts.invoice_types);
+      fillSelect($('sInvoice'), [''].concat(opts.invoice_types), '（不预设）');
       refreshDatalists();
     }
   });
+  fetch('/api/purchase/suppliers').then(function(r){ return r.json(); }).then(function(d){
+    if (!d.success) return;
+    supplierMap = {};
+    (d.data || []).forEach(function(s){ supplierMap[s.name] = s; });
+    refreshDatalists();
+    if ($('cfgModal').classList.contains('show')) renderSuppliers(d.data);
+  });
+}
+// 选到已建档供应商时，自动带出主营品类与默认发票类型
+function applySupplierPreset(){
+  var s = supplierMap[($('mSupplier').value || '').trim()];
+  if (!s) return;
+  if (!$('mCategory').value && s.category) $('mCategory').value = s.category;
+  if (s.default_invoice) $('mInvoice').value = s.default_invoice;
+  toast('已带出「' + s.name + '」的默认设置');
 }
 function refreshDatalists(){
   fillSelect($('fSupplier'), opts.suppliers, '全部供应商', $('fSupplier').value);
@@ -371,6 +454,147 @@ function resetFilter(){
   reload();
 }
 function doExport(){ window.open('/api/purchase/export?' + queryParams(), '_blank'); }
+
+/* ==================== 基础配置 ==================== */
+var cfgTab = 'supplier';
+var editSid = null, editDid = null;
+var supplierMap = {}, supplierRows = [], dictRows = [];
+
+function openConfig(){
+  $('cfgModal').classList.add('show');
+  loadSuppliers(); loadDicts();
+}
+function closeConfig(){ $('cfgModal').classList.remove('show'); resetSupplierForm(); resetDictForm(); }
+function switchTab(tab){
+  cfgTab = tab;
+  ['supplier','category','account'].forEach(function(t){
+    $('tab' + t.charAt(0).toUpperCase() + t.slice(1)).classList.toggle('on', t === tab);
+  });
+  $('cfgSupplier').style.display = tab === 'supplier' ? '' : 'none';
+  $('cfgDict').style.display = tab === 'supplier' ? 'none' : '';
+  $('dictLabel').textContent = (tab === 'category' ? '品类' : '付款账户') + '名称 *';
+  $('dName').placeholder = tab === 'category' ? '如 生鲜 / 调料' : '如 微信 / 农行卡';
+  resetDictForm();
+  if (tab !== 'supplier') loadDicts();
+}
+
+/* ---- 供应商 ---- */
+function loadSuppliers(){
+  fetch('/api/purchase/suppliers').then(function(r){ return r.json(); }).then(function(d){
+    if (d.success) { supplierRows = d.data; renderSuppliers(d.data); }
+  });
+}
+function renderSuppliers(rows){
+  supplierRows = rows || [];
+  supplierMap = {};
+  supplierRows.forEach(function(s){ supplierMap[s.name] = s; });
+  if (!supplierRows.length) { $('supplierList').innerHTML = '<div class="empty">还没有供应商，上面填一条保存即可</div>'; return; }
+  $('supplierList').innerHTML = supplierRows.map(function(s){
+    var meta = [s.contact, s.phone, s.category, s.default_invoice, s.note].filter(Boolean).join(' · ');
+    var stat = s.used_cnt ? (s.used_cnt + '笔 / ' + fmt(s.used_total) + ' / 未付 ' + fmt(s.used_unpaid)) : '暂无采购记录';
+    return '<div class="cfg-item' + (s.active ? '' : ' off') + '">'
+      + '<div class="grow"><div class="nm">' + esc(s.name)
+      + (s.active ? '' : ' <span class="tag-off">已停用</span>') + '</div>'
+      + '<div class="meta">' + esc(meta) + '</div><div class="meta">累计 ' + esc(stat) + '</div></div>'
+      + '<div class="acts"><button class="btn-outline btn-sm" onclick="editSupplier(' + s.id + ')">编辑</button>'
+      + '<button class="btn-outline btn-sm" onclick="toggleSupplier(' + s.id + ',' + s.active + ')">' + (s.active ? '停用' : '启用') + '</button>'
+      + '<button class="btn-sm btn-danger-sm" onclick="delSupplier(' + s.id + ')">删除</button></div></div>';
+  }).join('');
+}
+function resetSupplierForm(){
+  editSid = null;
+  ['sName','sContact','sPhone','sCategory','sNote'].forEach(function(id){ $(id).value = ''; });
+  $('sInvoice').value = '';
+  $('syncWrap').style.display = 'none';
+}
+function editSupplier(id){
+  var s = supplierRows.find(function(x){ return x.id === id; });
+  if (!s) return;
+  editSid = id;
+  $('sName').value = s.name; $('sContact').value = s.contact || '';
+  $('sPhone').value = s.phone || ''; $('sCategory').value = s.category || '';
+  $('sInvoice').value = s.default_invoice || ''; $('sNote').value = s.note || '';
+  $('syncWrap').style.display = 'flex';
+  $('cfgSupplier').scrollIntoView({ block: 'nearest' });
+}
+function saveSupplier(){
+  var payload = {
+    name: $('sName').value.trim(), contact: $('sContact').value.trim(),
+    phone: $('sPhone').value.trim(), category: $('sCategory').value.trim(),
+    default_invoice: $('sInvoice').value, note: $('sNote').value.trim(), active: 1
+  };
+  if (!payload.name) { toast('供应商名称不能为空'); return; }
+  if (editSid) payload.sync_history = $('sSync').checked ? 1 : 0;
+  var url = editSid ? '/api/purchase/suppliers/' + editSid : '/api/purchase/suppliers';
+  fetch(url, { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(payload) })
+    .then(function(r){ return r.json(); }).then(function(d){
+      if (!d.success) { toast(d.error || '保存失败'); return; }
+      toast(editSid ? '已更新' : '已添加供应商');
+      resetSupplierForm(); loadSuppliers(); loadOptions(); reload();
+    });
+}
+function toggleSupplier(id, active){
+  var s = supplierRows.find(function(x){ return x.id === id; });
+  if (!s) return;
+  fetch('/api/purchase/suppliers/' + id, { method: 'POST', headers: {'Content-Type':'application/json'},
+    body: JSON.stringify({ name: s.name, contact: s.contact, phone: s.phone, category: s.category,
+                           default_invoice: s.default_invoice, note: s.note, active: active ? 0 : 1 }) })
+    .then(function(r){ return r.json(); }).then(function(d){
+      if (d.success) { toast(active ? '已停用' : '已启用'); loadSuppliers(); loadOptions(); }
+      else toast(d.error || '操作失败');
+    });
+}
+function delSupplier(id){
+  if (!confirm('删除该供应商？（已有采购记录的供应商只能停用，不能删除）')) return;
+  fetch('/api/purchase/suppliers/' + id, { method: 'DELETE' }).then(function(r){ return r.json(); }).then(function(d){
+    if (d.success) { toast('已删除'); loadSuppliers(); loadOptions(); }
+    else alert(d.error || '删除失败');
+  });
+}
+
+/* ---- 品类 / 付款账户字典 ---- */
+function loadDicts(){
+  fetch('/api/purchase/dicts?kind=' + cfgTab).then(function(r){ return r.json(); }).then(function(d){
+    if (d.success) renderDicts(d.data);
+  });
+}
+function renderDicts(rows){
+  dictRows = rows || [];
+  if (!dictRows.length) { $('dictList').innerHTML = '<div class="empty">暂无条目，上面填一个保存即可</div>'; return; }
+  $('dictList').innerHTML = dictRows.map(function(r){
+    return '<div class="cfg-item"><div class="grow nm">' + esc(r.name) + '</div>'
+      + '<div class="acts"><button class="btn-outline btn-sm" onclick="editDict(' + r.id + ')">编辑</button>'
+      + '<button class="btn-sm btn-danger-sm" onclick="delDict(' + r.id + ')">删除</button></div></div>';
+  }).join('');
+}
+function resetDictForm(){ editDid = null; $('dName').value = ''; }
+function editDict(id){
+  var r = dictRows.find(function(x){ return x.id === id; });
+  if (!r) return;
+  editDid = id; $('dName').value = r.name;
+}
+function saveDict(){
+  var name = $('dName').value.trim();
+  if (!name) { toast('名称不能为空'); return; }
+  var url = editDid ? '/api/purchase/dicts/' + editDid : '/api/purchase/dicts';
+  fetch(url, { method: 'POST', headers: {'Content-Type':'application/json'},
+              body: JSON.stringify({ kind: cfgTab, name: name }) })
+    .then(function(r){ return r.json(); }).then(function(d){
+      if (!d.success) { toast(d.error || '保存失败'); return; }
+      toast(editDid ? '已更新' : '已添加');
+      resetDictForm(); loadDicts(); loadOptions();
+    });
+}
+function delDict(id){
+  if (!confirm('删除该条目？（历史采购记录里的文字不受影响）')) return;
+  fetch('/api/purchase/dicts/' + id, { method: 'DELETE' }).then(function(r){ return r.json(); }).then(function(d){
+    if (d.success) { toast('已删除'); loadDicts(); loadOptions(); }
+    else toast(d.error || '删除失败');
+  });
+}
+
+// 采购表单里选供应商时带出默认设置
+document.addEventListener('input', function(e){ if (e.target.id === 'mSupplier') applySupplierPreset(); });
 
 loadOptions();
 reload();
