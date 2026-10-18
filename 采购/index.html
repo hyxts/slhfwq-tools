@@ -232,52 +232,17 @@ td.empty::before { display:none; }
 .tag-off { font-size:10.5px; background:#f1f5f9; color:#64748b; border-radius:999px; padding:1px 7px; font-weight:700; }
 .sync-line { display:flex; align-items:center; gap:6px; font-size:12px; color:var(--text-secondary); margin-top:6px; }
 .sync-line input { width:16px; height:16px; }
-/* 表单分组 */
-.fset { border:1px solid var(--border); border-radius:10px; padding:10px 12px 4px; margin-bottom:10px; background:#fcfdfe; }
-.fset-lg { font-size:11.5px; font-weight:700; color:var(--primary); letter-spacing:.3px; margin-bottom:8px; display:flex; align-items:center; gap:6px; }
+/* 表单分组（新增/编辑：卡片弹窗内两列栅格） */
+.fset { border:1px solid var(--border); border-radius:10px; padding:12px 14px 6px; margin-bottom:10px; background:#fcfdfe; }
+.fset-lg { font-size:12px; font-weight:700; color:var(--primary); letter-spacing:.3px; margin-bottom:10px; display:flex; align-items:center; gap:6px; }
 .fset-lg::before { content:''; width:3px; height:12px; background:var(--primary); border-radius:2px; }
-/* ===== 整页开单（新增/编辑） ===== */
-.form-page { display:none; }
-.form-page.show { display:block; }
-.fp-head { position:sticky; top:0; z-index:99; background:#fff; border-bottom:1px solid var(--border); box-shadow:0 1px 3px rgba(15,23,42,.05); }
-.fp-head-in { max-width:1400px; margin:0 auto; padding:12px 16px; display:flex; align-items:center; gap:12px; }
-.fp-back { width:38px; height:38px; min-height:38px; padding:0; border-radius:10px; border:1px solid var(--border); background:#fff; color:var(--text-secondary); font-size:17px; }
-.fp-back:hover { border-color:var(--primary); color:var(--primary); }
-.fp-title { font-size:20px; font-weight:800; letter-spacing:.4px; }
-.fp-sub { font-size:12px; color:var(--text-secondary); margin-top:3px; }
-.fp-acts { margin-left:auto; display:flex; gap:8px; }
-.fp-body { max-width:1400px; margin:0 auto; padding:14px 16px 8px; display:grid; grid-template-columns:minmax(0,1fr) 330px; gap:14px; align-items:start; }
-.fp-main { display:flex; flex-direction:column; gap:12px; min-width:0; }
-.fp-card { background:#fff; border:1px solid var(--border); border-radius:var(--r); box-shadow:var(--shadow); }
-.fp-card-hd { padding:12px 16px; border-bottom:1px solid var(--border); font-size:13.5px; font-weight:700; display:flex; align-items:center; gap:8px; background:#fcfdfe; }
-.fp-card-hd .no { width:20px; height:20px; border-radius:6px; background:var(--primary-weak); color:var(--primary); font-size:11px; font-weight:800; display:inline-flex; align-items:center; justify-content:center; }
-.fp-card-bd { padding:14px 16px; display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:13px 16px; }
-.fp-card-bd .span2 { grid-column:1 / -1; }
-.fp-field label { display:block; font-size:12px; font-weight:600; color:var(--text-secondary); margin-bottom:5px; }
-.fp-field input, .fp-field select { width:100%; padding:10px 12px; border:1px solid var(--border); border-radius:10px; font-size:15px; min-height:46px; background:#fff; -webkit-appearance:none; font-family:inherit; color:var(--text); }
-.fp-field input:focus, .fp-field select:focus { outline:none; border-color:var(--primary); box-shadow:0 0 0 3px var(--primary-weak); }
-.fp-field .hint { font-size:11.5px; color:var(--text-thin); margin-top:4px; }
-.fp-field.big input { font-size:20px; font-weight:800; min-height:56px; font-variant-numeric:tabular-nums; }
-.fp-field.big label { color:var(--primary); }
-.fp-side { position:sticky; top:80px; display:flex; flex-direction:column; gap:10px; }
-.fp-sum { background:linear-gradient(160deg,#0e7490,#0b5f78); color:#fff; border-radius:var(--r); padding:16px; box-shadow:var(--shadow-lg); }
-.fp-sum .t { font-size:12px; opacity:.85; letter-spacing:.3px; }
-.fp-sum .v { font-size:30px; font-weight:800; letter-spacing:.5px; font-variant-numeric:tabular-nums; margin:4px 0 12px; line-height:1.1; }
-.fp-sum .rows { border-top:1px solid rgba(255,255,255,.28); padding-top:8px; font-size:12.5px; }
-.fp-sum .rows div { display:flex; justify-content:space-between; gap:10px; padding:3px 0; font-variant-numeric:tabular-nums; }
-.fp-sum .rows b { font-weight:700; }
-.fp-tip { background:#f8fafc; border:1px solid var(--border); border-radius:var(--r); padding:12px 14px; font-size:12px; color:var(--text-secondary); line-height:1.8; }
-.fp-tip .t { font-weight:700; color:var(--text); margin-bottom:4px; }
-.fp-foot { position:sticky; bottom:0; z-index:98; background:#fff; border-top:1px solid var(--border); padding:10px 16px; }
-.fp-foot-in { max-width:1400px; margin:0 auto; display:flex; gap:8px; align-items:center; }
-.fp-foot-in .grow { flex:1; }
-@media (max-width:900px){
-  .fp-body { grid-template-columns:1fr; }
-  .fp-side { position:static; }
-  .fp-card-bd { grid-template-columns:1fr; }
-}
-@media print {
-  .fp-head, .fp-foot { display:none !important; }
+.fgrid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:10px 12px; }
+.fgrid .span2 { grid-column:1 / -1; }
+.fgrid .field { min-width:0; }
+.big-input { font-size:19px !important; font-weight:800; min-height:52px; font-variant-numeric:tabular-nums; }
+.derived .hl b { color:var(--primary); font-size:15px; }
+@media (max-width:768px){
+  .fgrid { grid-template-columns:1fr; }
 }
 
 /* 弹窗 */
@@ -498,85 +463,60 @@ td.empty::before { display:none; }
   </div>
 </div>
 
-<!-- 新增 / 编辑：整页开单（不用小弹窗，字段给足空间，右侧实时结算） -->
-<div class="form-page" id="formPage">
-  <div class="fp-head">
-    <div class="fp-head-in">
-      <button class="fp-back" onclick="closeModal()" title="返回台账（Esc）">&larr;</button>
-      <div>
-        <div class="fp-title" id="fTitle">新增采购单</div>
-        <div class="fp-sub">按单据录入 · 退货与扣款自动冲减应付净额 · 选了税率的票种改金额会自动算税</div>
-      </div>
-      <div class="fp-acts">
-        <button class="btn-outline" onclick="closeModal()">取消</button>
-        <button class="btn-primary" id="btnSave" onclick="save()">保存</button>
-      </div>
+<!-- 新增 / 编辑：卡片弹窗（宽屏两列分组，底部实时结算条） -->
+<div class="modal-overlay" id="modal">
+  <div class="modal" style="max-width:820px">
+    <div class="modal-hd">
+      <h4 id="fTitle">新增采购单</h4>
+      <span class="grow"></span>
+      <button class="modal-x" onclick="closeModal()" title="关闭（Esc）">&times;</button>
     </div>
-  </div>
-
-  <div class="fp-body">
-    <div class="fp-main">
-      <div class="fp-card">
-        <div class="fp-card-hd"><span class="no">1</span>基础信息</div>
-        <div class="fp-card-bd">
-          <div class="fp-field"><label>日期 *</label><input type="date" id="mDate"></div>
-          <div class="fp-field"><label>单据号</label><input id="mBillNo" placeholder="如 20261008-01（不填可后补）"></div>
-          <div class="fp-field"><label>供应商名称 *</label><input id="mSupplier" list="dlSupplier" placeholder="如 旺绿商贸"><datalist id="dlSupplier"></datalist></div>
-          <div class="fp-field"><label>品类</label><input id="mCategory" list="dlCategory" placeholder="如 生鲜"><datalist id="dlCategory"></datalist></div>
-          <div class="fp-field span2"><label>采购内容摘要</label><input id="mSummary" maxlength="200" placeholder="如 猪肉/蔬菜一批"></div>
-          <div class="fp-field span2"><label>客户/门店（选填，用于按客户统计）</label><input id="mCustomer" list="dlCustomer" placeholder="如 一中食堂"><datalist id="dlCustomer"></datalist></div>
+    <div class="modal-bd">
+      <div class="fset">
+        <div class="fset-lg">1 · 基础信息</div>
+        <div class="fgrid">
+          <div class="field"><label>日期 *</label><input type="date" id="mDate"></div>
+          <div class="field"><label>单据号</label><input id="mBillNo" placeholder="如 20261008-01（不填可后补）"></div>
+          <div class="field"><label>供应商名称 *</label><input id="mSupplier" list="dlSupplier" placeholder="如 旺绿商贸"><datalist id="dlSupplier"></datalist></div>
+          <div class="field"><label>品类</label><input id="mCategory" list="dlCategory" placeholder="如 生鲜"><datalist id="dlCategory"></datalist></div>
+          <div class="field span2"><label>采购内容摘要</label><input id="mSummary" maxlength="200" placeholder="如 猪肉/蔬菜一批"></div>
+          <div class="field span2"><label>客户/门店（选填，用于按客户统计）</label><input id="mCustomer" list="dlCustomer" placeholder="如 一中食堂"><datalist id="dlCustomer"></datalist></div>
         </div>
       </div>
-      <div class="fp-card">
-        <div class="fp-card-hd"><span class="no">2</span>发票与税额</div>
-        <div class="fp-card-bd">
-          <div class="fp-field"><label>发票类型</label><select id="mInvoice" onchange="onInvoiceChange()"></select></div>
-          <div class="fp-field"><label>付款账户</label><input id="mPayAccount" list="dlAccount" placeholder="如 微信 / 农行卡"><datalist id="dlAccount"></datalist></div>
-          <div class="fp-field big"><label>采购总金额（含税 / 买价）*</label>
-            <input id="mTotal" type="number" step="0.01" min="0" inputmode="decimal" placeholder="0.00"></div>
-          <div class="fp-field"><label>进项税额</label><input id="mTax" type="number" step="0.01" min="0" inputmode="decimal" placeholder="0.00">
+      <div class="fset">
+        <div class="fset-lg">2 · 发票与税额</div>
+        <div class="fgrid">
+          <div class="field"><label>发票类型</label><select id="mInvoice" onchange="onInvoiceChange()"></select></div>
+          <div class="field"><label>付款账户</label><input id="mPayAccount" list="dlAccount" placeholder="如 微信 / 农行卡"><datalist id="dlAccount"></datalist></div>
+          <div class="field"><label>采购总金额（含税 / 买价）*</label>
+            <input id="mTotal" class="big-input" type="number" step="0.01" min="0" inputmode="decimal" placeholder="0.00"></div>
+          <div class="field"><label>进项税额</label><input id="mTax" type="number" step="0.01" min="0" inputmode="decimal" placeholder="0.00">
             <div id="taxHint" class="hint"></div></div>
         </div>
       </div>
-      <div class="fp-card">
-        <div class="fp-card-hd"><span class="no">3</span>退货 / 扣款 / 收付</div>
-        <div class="fp-card-bd">
-          <div class="fp-field"><label>退货金额</label><input id="mReturn" type="number" step="0.01" min="0" inputmode="decimal" placeholder="0.00（不新鲜退回）"></div>
-          <div class="fp-field"><label>扣款金额</label><input id="mDeduct" type="number" step="0.01" min="0" inputmode="decimal" placeholder="0.00（扣重 / 扣水）"></div>
-          <div class="fp-field"><label>已开金额</label><input id="mInvoiced" type="number" step="0.01" min="0" inputmode="decimal" placeholder="0.00"></div>
-          <div class="fp-field"><label>已付金额</label><input id="mPaid" type="number" step="0.01" min="0" inputmode="decimal" placeholder="0.00"></div>
+      <div class="fset">
+        <div class="fset-lg">3 · 退货 / 扣款 / 收付</div>
+        <div class="fgrid">
+          <div class="field"><label>退货金额</label><input id="mReturn" type="number" step="0.01" min="0" inputmode="decimal" placeholder="0.00（不新鲜退回）"></div>
+          <div class="field"><label>扣款金额</label><input id="mDeduct" type="number" step="0.01" min="0" inputmode="decimal" placeholder="0.00（扣重 / 扣水）"></div>
+          <div class="field"><label>已开金额</label><input id="mInvoiced" type="number" step="0.01" min="0" inputmode="decimal" placeholder="0.00"></div>
+          <div class="field"><label>已付金额</label><input id="mPaid" type="number" step="0.01" min="0" inputmode="decimal" placeholder="0.00"></div>
         </div>
       </div>
-    </div>
-
-    <div class="fp-side">
-      <div class="fp-sum">
-        <div class="t">应付净额</div>
-        <div class="v" id="dPayable">0.00</div>
-        <div class="rows">
-          <div><span>采购总金额</span><b id="dTotal">0.00</b></div>
-          <div><span>不含税成本</span><b id="dNet">0.00</b></div>
-          <div><span>退货 + 扣款</span><b id="dCut">0.00</b></div>
-          <div><span>已付金额</span><b id="dPaid">0.00</b></div>
-          <div><span>未付余额</span><b id="dUnpaid">0.00</b></div>
-        </div>
+      <div class="derived">
+        <span>采购总额 <b id="dTotal">0.00</b></span>
+        <span>不含税成本 <b id="dNet">0.00</b></span>
+        <span>退货+扣款 <b id="dCut">0.00</b></span>
+        <span>已付 <b id="dPaid">0.00</b></span>
+        <span class="hl">应付净额 <b id="dPayable">0.00</b></span>
+        <span class="hl">未付余额 <b id="dUnpaid">0.00</b></span>
       </div>
-      <div class="fp-tip">
-        <div class="t">填写说明</div>
-        <p>应付净额 = 采购总金额 − 退货 − 扣款</p>
-        <p>不含税成本 = 采购总金额 − 进项税额</p>
-        <p>票种带税率的，改金额自动重算税额；手动改过税额后不再覆盖。</p>
-        <p><b>Esc</b> 返回台账 · <b>Ctrl+S</b> 保存</p>
-      </div>
+      <div class="hint">应付净额 = 采购总金额 − 退货 − 扣款；票种带税率的，改金额会自动重算税额。</div>
     </div>
-  </div>
-
-  <div class="fp-foot">
-    <div class="fp-foot-in">
-      <button class="btn-outline" onclick="closeModal()">取消</button>
-      <button class="btn-outline" onclick="save(1)">保存并继续新增</button>
-      <span class="grow"></span>
-      <button class="btn-primary" style="min-width:132px" id="btnSaveFoot" onclick="save()">保存</button>
+    <div class="modal-ft">
+      <button class="btn-outline" style="flex:0 0 86px" onclick="closeModal()">取消</button>
+      <button class="btn-outline" onclick="save(1)">保存并继续</button>
+      <button class="btn-primary" style="flex:1;max-width:160px" id="btnSave" onclick="save()">保存</button>
     </div>
   </div>
 </div>
@@ -986,18 +926,8 @@ function renderRows(rows){
   }).join('');
 }
 
-/* 开单用整页，不用小卡片弹窗：工作台让位，页头/侧栏/底部操作条都在 */
-function showFormPage(){
-  $('formPage').classList.add('show');
-  $('workArea').style.display = 'none';
-  $('appbar').style.display = 'none';      // 开单页自带返回与保存，避免双层吸顶
-  window.scrollTo(0, 0);
-}
-function hideFormPage(){
-  $('formPage').classList.remove('show');
-  $('workArea').style.display = '';
-  $('appbar').style.display = '';
-}
+function showFormPage(){ $('modal').classList.add('show'); }
+function hideFormPage(){ $('modal').classList.remove('show'); }
 function openModal(id){
   editId = id || null;
   $('fTitle').textContent = id ? '编辑采购单' : '新增采购单';
@@ -1090,21 +1020,19 @@ function save(thenNew){
     invoiced_amount: $('mInvoiced').value, paid_amount: $('mPaid').value,
     pay_account: $('mPayAccount').value, customer: $('mCustomer').value
   };
-  [$('btnSave'), $('btnSaveFoot')].forEach(function(b){ if (b) b.disabled = true; });
+  $('btnSave').disabled = true;
   var url = editId ? '/api/purchase/records/' + editId : '/api/purchase/records';
   fetch(url, { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(payload) })
     .then(function(r){ return r.json().then(function(d){ return { ok: r.ok, d: d }; }); })
     .then(function(res){
-      [$('btnSave'), $('btnSaveFoot')].forEach(function(b){ if (b) b.disabled = false; });
+      $('btnSave').disabled = false;
       if (!res.d.success) { toast(res.d.error || '保存失败'); return; }
       loadOptions(); reload();
       if (thenNew) { openModal(null); toast('已保存，可继续录下一单'); }
       else { hideFormPage(); toast('已保存'); }
     })
-    .catch(function(){
-      [$('btnSave'), $('btnSaveFoot')].forEach(function(b){ if (b) b.disabled = false; });
-      toast('网络错误');
-    });
+    .catch(function(){ $('btnSave').disabled = false; toast('网络错误'); });
+
 }
 function del(id){
   if (!confirm('确定删除这条采购记录？不可恢复。')) return;
@@ -1621,22 +1549,22 @@ function markRecon(id, flag){
 }
 
 /* 键盘快捷键：开单页 Ctrl+S 保存 / Esc 返回；台账 N 新增、/ 聚焦搜索；点遮罩空白处关闭 */
-function formPageOpen(){ return $('formPage').classList.contains('show'); }
+function modalOpen(){ return $('modal').classList.contains('show'); }
 document.addEventListener('keydown', function(e){
   if ((e.ctrlKey || e.metaKey) && (e.key === 's' || e.key === 'S')) {
-    if (formPageOpen()) { e.preventDefault(); save(); }
+    if (modalOpen()) { e.preventDefault(); save(); }
     return;
   }
   var tag = (e.target.tagName || '').toUpperCase();
   if (tag === 'INPUT' || tag === 'SELECT' || tag === 'TEXTAREA') {
-    if (e.key === 'Escape') { if (formPageOpen()) closeModal(); else e.target.blur(); }
+    if (e.key === 'Escape') { if (modalOpen()) closeModal(); else e.target.blur(); }
     return;
   }
   if (e.key === 'Escape') { closeModal(); closeRecon(); closeConfig(); }
   else if (e.key === '/') { e.preventDefault(); $('fSearch').focus(); }
-  else if ((e.key === 'n' || e.key === 'N') && !formPageOpen()) { e.preventDefault(); openModal(); }
+  else if ((e.key === 'n' || e.key === 'N') && !modalOpen()) { e.preventDefault(); openModal(); }
 });
-[['reconModal', closeRecon], ['cfgModal', closeConfig]]
+[['modal', closeModal], ['reconModal', closeRecon], ['cfgModal', closeConfig]]
   .forEach(function(p){
     $(p[0]).addEventListener('click', function(e){ if (e.target === this) p[1](); });
   });
