@@ -813,6 +813,27 @@ class TestPurchase(unittest.TestCase):
         self.assertEqual(len(d6['items']), 1)
         self.assertEqual(d6['items'][0]['customer'], '二中食堂')
 
+        # 按日汇总：同一天的两笔合成一行，且按日期升序
+        d7 = self.client.get(url + '&group_by=day').get_json()['data']
+        days = d7['by_group']
+        self.assertEqual(len(days), 1)
+        self.assertEqual(days[0]['name'], '2026-10-06')
+        self.assertEqual(days[0]['cnt'], 2)
+        self.assertAlmostEqual(days[0]['total'], 1290.0, places=2)
+        self.assertAlmostEqual(days[0]['payable'], 1290.0, places=2)
+        self.assertAlmostEqual(days[0]['unpaid'], 1090.0, places=2)
+        # 明细粒度 detail=day 时强制按日期分组
+        d8 = self.client.get(url + '&detail=day&group_by=none').get_json()['data']
+        self.assertEqual(d8['group_by'], 'day')
+        self.assertEqual([g['name'] for g in d8['by_group']], ['2026-10-06'])
+
+        # 导出：按日汇总版 / 只出汇总版 都要能正常出 xlsx
+        for q in (url + '&detail=day', url + '&detail=none', url):
+            r = self.client.get('/api/purchase/reconcile/export?' + q.replace(
+                '/api/purchase/reconcile?', ''))
+            self.assertEqual(r.status_code, 200, q)
+            self.assertEqual(r.get_data()[:2], b'PK')
+
     def test_company_settings(self) -> None:
         """对账单抬头设置：保存后能读回（默认值不能丢）"""
         old = self.client.get('/api/purchase/settings').get_json()['data']

@@ -742,12 +742,15 @@ _GROUP_EXPR = {
 #   1) 筛选维度：供应商 / 品类 / 客户 / 票种 / 付款账户 / 付款状态 / 关键词（和台账口径一致）
 #   2) 汇总维度：对账单里按哪个维度出分组小计
 RECON_DIMS = {
+    'day': ('按日期', 'date'),
     'supplier': ('按供应商', 'supplier'),
     'category': ('按品类', 'category'),
     'customer': ('按客户/门店', 'customer'),
     'invoice': ('按发票类型', 'invoice_type'),
     'month': ('按月份', "substr(date,1,7)"),
 }
+# 日期类维度按时间正序（对账单要顺着日期看），其余按金额从大到小
+RECON_DIM_ORDER = {'day': 'name ASC', 'month': 'name ASC'}
 RECON_FILTER_KEYS = ('supplier', 'category', 'customer', 'invoice',
                      'pay_account', 'status', 'search')
 
@@ -887,10 +890,14 @@ def reconcile():
             opening_cnt = op_row['cnt']
 
         # 汇总维度：对账单里按哪个维度出分组小计（group_by=none 表示不分组）
+        # 明细粒度 detail=day（按日汇总出单）时强制按日期分组
         group_key = str(request.args.get('group_by') or 'supplier').strip()
+        if str(request.args.get('detail') or '').strip() == 'day':
+            group_key = 'day'
         by_group: list[dict] = []
         if group_key in RECON_DIMS:
             expr = RECON_DIMS[group_key][1]
+            order = RECON_DIM_ORDER.get(group_key, 'total DESC')
             by_group = [dict(r) for r in conn.execute(
                 f'''SELECT {expr} AS name, COUNT(*) cnt,
                     COALESCE(SUM(total_amount),0) total,
@@ -984,10 +991,15 @@ def reconcile_export():
         rows = conn.execute(
             f'SELECT * FROM purchases WHERE {w} ORDER BY date, id', params).fetchall()
         # 汇总维度小计（与页面上的 group_by 一致）
+        # 明细粒度：full=逐笔 / day=按日汇总 / none=只出汇总
+        detail = str(request.args.get('detail') or 'full').strip()
         group_key = str(request.args.get('group_by') or 'supplier').strip()
+        if detail == 'day':
+            group_key = 'day'
         by_group: list[dict] = []
         if group_key in RECON_DIMS:
             expr = RECON_DIMS[group_key][1]
+            order = RECON_DIM_ORDER.get(group_key, 'total DESC')
             by_group = [dict(r) for r in conn.execute(
                 f'''SELECT {expr} AS name, COUNT(*) cnt,
                     COALESCE(SUM(total_amount),0) total,
@@ -996,7 +1008,7 @@ def reconcile_export():
                     COALESCE(SUM(total_amount-return_amount-deduct_amount),0) payable,
                     COALESCE(SUM(paid_amount),0) paid,
                     COALESCE(SUM(total_amount-return_amount-deduct_amount-paid_amount),0) unpaid
-                    FROM purchases WHERE {w} GROUP BY name ORDER BY total DESC''',
+                    FROM purchases WHERE {w} GROUP BY name ORDER BY {order}''',
                 params).fetchall()]
         settle = ''
         if supplier:
@@ -1030,20 +1042,33 @@ def reconcile_export():
         if active:
             ws.append(['筛选口径', ' / '.join(f'{k}={v}' for k, v in active.items())])
         ws.append([])
-        ws.append(['日期', '单据号', '品类', '客户/门店', '采购内容摘要', '发票类型',
-                   '采购总金额', '进项税额', '不含税成本', '退货金额', '扣款金额',
-                   '应付净额', '已开金额', '已付金额', '未付余额', '付款账户',
-                   '付款状态', '已对账'])
-        head = ws.max_row
-        _style_header(ws, 18, head)
-        for d in items:
-            ws.append([d['date'], d['bill_no'], d['category'], d['customer'],
-                       d['summary'], d['invoice_type'], d['total_amount'],
-                       d['input_tax'], d['net_cost'], d['return_amount'],
-                       d['deduct_amount'], d['payable'], d['invoiced_amount'],
-                       d['paid_amount'], d['unpaid_balance'], d['pay_account'],
-                       d['pay_status'], '是' if d['reconciled'] else '否'])
-        _style_money(ws, head + 1, ws.max_row, (7, 8, 9, 10, 11, 12, 13, 14, 15))
+        if detail == 'day':                     # 按日汇总出单：一行一天
+            ws.append(['日期', '笔数', '采购总金额', '退货金额', '扣款金额',
+                       '应付净额', '已付金额', '未付余额'])
+            head = ws.max_row
+            _style_header(ws, 8, head)
+            for g in by_group:
+                ws.append([g['name'] or '（未填）', g['cnt'], g['total'], g['ret'],
+                           g['deduct'], g['payable'], g['paid'], g['unpaid']])
+            _style_money(ws, head + 1, ws.max_row, (3, 4, 5, 6, 7, 8))
+        elif detail == 'none':                  # 只给汇总，不列明细
+            ws.append(['（本单按汇总出单，未附明细）'])
+            ws.cell(row=ws.max_row, column=1).font = Font(bold=True)
+        else:                                   # 逐笔明细
+            ws.append(['日期', '单据号', '品类', '客户/门店', '采购内容摘要', '发票类型',
+                       '采购总金额', '进项税额', '不含税成本', '退货金额', '扣款金额',
+                       '应付净额', '已开金额', '已付金额', '未付余额', '付款账户',
+                       '付款状态', '已对账'])
+            head = ws.max_row
+            _style_header(ws, 18, head)
+            for d in items:
+                ws.append([d['date'], d['bill_no'], d['category'], d['customer'],
+                           d['summary'], d['invoice_type'], d['total_amount'],
+                           d['input_tax'], d['net_cost'], d['return_amount'],
+                           d['deduct_amount'], d['payable'], d['invoiced_amount'],
+                           d['paid_amount'], d['unpaid_balance'], d['pay_account'],
+                           d['pay_status'], '是' if d['reconciled'] else '否'])
+            _style_money(ws, head + 1, ws.max_row, (7, 8, 9, 10, 11, 12, 13, 14, 15))
         ws.append([])
         ws.append(['合计', '', '', f'{len(items)} 笔', '', '',
                    sum(d['total_amount'] for d in items),
@@ -1057,9 +1082,9 @@ def reconcile_export():
                    sum(d['unpaid_balance'] for d in items)])
         last = ws.max_row
         _style_money(ws, last, last, (7, 8, 9, 10, 11, 12, 13, 14, 15))
-        # 汇总维度小计（多维度对账时按品类/客户等分组看）
+        # 汇总维度小计（多维度对账时按品类/客户等分组看）；按日出单时明细本身就是小计，不重复
         dim_label = RECON_DIMS.get(group_key, ('', ''))[0]
-        if by_group:
+        if by_group and detail != 'day':
             ws.append([f'{dim_label}小计', '笔数', '采购额', '退货', '扣款', '应付净额', '已付', '未付'])
             gh = ws.max_row
             for g in by_group:

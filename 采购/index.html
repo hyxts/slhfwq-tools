@@ -428,12 +428,19 @@ td.empty::before { display:none; }
       <div class="filter-bar" style="margin-bottom:12px">
         <span class="f-label">汇总维度</span>
         <select id="rGroup" onchange="runRecon()">
-          <option value="supplier">按供应商分组小计</option>
+          <option value="day">按日期分组小计</option>
+          <option value="supplier" selected>按供应商分组小计</option>
           <option value="category">按品类分组小计</option>
           <option value="customer">按客户/门店分组小计</option>
           <option value="invoice">按发票类型分组小计</option>
           <option value="month">按月份分组小计</option>
           <option value="none">不分组（只出明细）</option>
+        </select>
+        <span class="f-label">明细粒度</span>
+        <select id="rDetail" onchange="runRecon()">
+          <option value="full" selected>逐笔明细</option>
+          <option value="day">按日汇总（一行一天）</option>
+          <option value="none">不显示明细</option>
         </select>
         <button class="btn-primary btn-sm" onclick="runRecon()">生成对账单</button>
         <button class="btn-outline btn-sm" onclick="resetRecon()">重置条件</button>
@@ -1298,7 +1305,7 @@ document.addEventListener('input', function(e){ if (e.target.id === 'mSupplier')
 /* 对账单的多维度条件：供应商/品类/客户/票种/状态/关键词 + 期间 + 汇总维度 */
 var RECON_FIELDS = { supplier: 'rSupplier', category: 'rCategory', customer: 'rCustomer',
                      invoice: 'rInvoice', status: 'rStatus', search: 'rSearch',
-                     start: 'rStart', end: 'rEnd', group_by: 'rGroup' };
+                     start: 'rStart', end: 'rEnd', group_by: 'rGroup', detail: 'rDetail' };
 function reconQs(){
   var p = new URLSearchParams();
   Object.keys(RECON_FIELDS).forEach(function(k){
@@ -1310,6 +1317,7 @@ function reconQs(){
 function resetRecon(){
   ['rCategory','rCustomer','rInvoice','rStatus','rSearch'].forEach(function(id){ $(id).value = ''; });
   $('rGroup').value = 'supplier';
+  $('rDetail').value = 'full';
   runRecon();
 }
 function openRecon(){
@@ -1361,6 +1369,28 @@ function cny(n){
   var jiao = Math.floor(cent / 10), fen = cent % 10;
   var tail = (jiao ? CN_NUM[jiao] + '角' : '') + (fen ? CN_NUM[fen] + '分' : '');
   return intToCn(yuan) + '元' + (tail || '整');
+}
+function detailMode(){ return ($('rDetail') && $('rDetail').value) || 'full'; }
+/* 按日汇总明细：生鲜每天送一批，对账常按「一天一行」看，而不是逐张单据 */
+function reconDayTable(d, s){
+  var rows = (d.by_group || []).map(function(g){
+    return '<tr><td>' + esc(g.name || '—') + '</td><td class="num">' + (g.cnt || 0) + '</td>'
+      + '<td class="num">' + fmt(g.total) + '</td>'
+      + '<td class="num">' + fmt(g.ret || 0) + '</td><td class="num">' + fmt(g.deduct || 0) + '</td>'
+      + '<td class="num">' + fmt(g.payable || 0) + '</td><td class="num">' + fmt(g.paid || 0) + '</td>'
+      + '<td class="num' + ((g.unpaid || 0) > 0 ? ' neg' : '') + '">' + fmt(g.unpaid || 0) + '</td></tr>';
+  }).join('');
+  return '<div class="doc-subttl">按日汇总</div>'
+    + '<div style="overflow-x:auto"><table class="recon-tbl"><thead><tr>'
+    + '<th>日期</th><th class="num">笔数</th><th class="num">采购额</th><th class="num">退货</th>'
+    + '<th class="num">扣款</th><th class="num">应付净额</th><th class="num">已付</th><th class="num">未付</th>'
+    + '</tr></thead><tbody>'
+    + (rows || '<tr><td colspan="8" class="empty">该期间没有采购记录</td></tr>')
+    + '</tbody><tfoot><tr><td>合计</td><td class="num">' + s.count + '</td>'
+    + '<td class="num">' + fmt(s.total) + '</td><td class="num">' + fmt(s.returned || 0) + '</td>'
+    + '<td class="num">' + fmt(s.deducted || 0) + '</td><td class="num">' + fmt(s.payable || 0) + '</td>'
+    + '<td class="num">' + fmt(s.paid) + '</td><td class="num">' + fmt(s.unpaid) + '</td>'
+    + '</tr></tfoot></table></div>';
 }
 function renderRecon(d){
   var s = d.summary, o = d.outstanding, prof = d.profile || {}, co = d.company || {};
@@ -1422,11 +1452,11 @@ function renderRecon(d){
     + fmt(d.closing || ((op.unpaid || 0) + (s.unpaid || 0))) + '</td></tr>'
     + '</table>';
 
-  /* 分组小计：按所选汇总维度（供应商/品类/客户/票种/月份）分别列一行 */
-  var dimName = { supplier: '供应商', category: '品类', customer: '客户/门店',
+  /* 分组小计：按所选汇总维度（日期/供应商/品类/客户/票种/月份）分别列一行 */
+  var dimName = { day: '日期', supplier: '供应商', category: '品类', customer: '客户/门店',
                   invoice: '发票类型', month: '月份' }[d.group_by] || '';
   var groupTbl = '';
-  if (dimName && (d.by_group || []).length) {
+  if (dimName && (d.by_group || []).length && detailMode() !== 'day') {
     groupTbl = '<div class="doc-subttl">按' + dimName + '小计</div>'
       + '<div style="overflow-x:auto"><table class="stat-tbl" style="min-width:560px"><thead><tr>'
       + '<th>' + dimName + '</th><th class="num">笔数</th><th class="num">采购额</th>'
@@ -1487,7 +1517,9 @@ function renderRecon(d){
     : note('按发票类型', d.by_invoice, function(r){ return esc(r.invoice_type) + ' ' + fmt(r.total); });
   var byMonth = d.group_by === 'month' ? ''
     : note('按月小计', d.by_month, function(r){ return esc(r.period) + ' ' + fmt(r.total); });
-  $('reconArea').innerHTML = head + parties + filterLine + meta + ledger + groupTbl + tbl
+  var mode = detailMode();
+  var detailBlock = mode === 'day' ? reconDayTable(d, s) : (mode === 'none' ? '' : tbl);
+  $('reconArea').innerHTML = head + parties + filterLine + meta + ledger + groupTbl + detailBlock
     + cap + terms + sign + byInv + byMonth + '</div>';
 }
 function markRecon(id, flag){
