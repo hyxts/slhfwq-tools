@@ -219,19 +219,48 @@ td.empty::before { display:none; }
 .mini-tbl tr.off td { opacity:.5; }
 .mini-wrap { overflow-x:auto; }
 @media print {
-    @page { size:A4; margin:12mm; }
-    body > header, .container, #cfgModal, #modal, #toast, .filter-bar, .modal-hd, .modal-ft { display:none !important; }
+    /* A4 纵向：Chrome 的打印预览会按这个尺寸预设，边距按纸张可印区留够 */
+    @page { size:A4 portrait; margin:14mm 12mm; }
+    html, body { background:#fff !important; }
+    /* 底色和浅灰表头要打得出来，同时去掉所有阴影（打印出来是脏边） */
+    * { -webkit-print-color-adjust:exact !important; print-color-adjust:exact !important;
+        box-shadow:none !important; text-shadow:none !important; }
+
+    body > header, .container, #cfgModal, #modal, #toast, .filter-bar, .modal-hd, .modal-ft,
+    .multi-bar, .btn-primary, .btn-outline { display:none !important; }
     /* 只放行对账单：不然新增采购的空白表单也会被一起打出来 */
     .modal-overlay { display:none !important; }
     #reconModal { position:static !important; display:block !important; background:#fff !important; padding:0 !important; }
-    .modal { max-width:none !important; box-shadow:none !important; padding:0 !important; max-height:none !important; overflow:visible !important; border:none !important; }
+    /* 没生成对账单时别打一张空白纸，改打主页面（beforeprint 时打标记） */
+    body.no-recon #reconModal { display:none !important; }
+    body.no-recon .container { display:block !important; }
+
+    .modal { max-width:none !important; padding:0 !important; max-height:none !important; overflow:visible !important; border:none !important; border-radius:0 !important; }
+    .modal-bd { padding:0 !important; overflow:visible !important; }
     #reconArea { max-height:none !important; overflow:visible !important; }
-    .doc { border:none !important; padding:0 !important; }
+    .doc { border:none !important; padding:0 !important; border-radius:0 !important; }
     .doc-tbl-wrap { overflow:visible !important; }
-    .recon-tbl th { background:#e2e8f0 !important; -webkit-print-color-adjust:exact; print-color-adjust:exact; }
-    .doc-sum .cell { -webkit-print-color-adjust:exact; print-color-adjust:exact; }
-    .recon-tbl tbody tr { page-break-inside:avoid; }
-    .doc-sign { page-break-inside:avoid; }
+    div[style*="overflow-x:auto"] { overflow:visible !important; }
+
+    /* 表格铺满纸宽并缩字号：14 列的明细表在 A4 竖向才放得下 */
+    .recon-tbl, .stat-tbl, .mini-tbl { width:100% !important; min-width:0 !important; font-size:9.5px !important; }
+    .recon-tbl th, .stat-tbl th { font-size:9.5px !important; padding:5px 6px !important; background:#e8eef5 !important; border-bottom:1px solid #94a3b8 !important; }
+    .recon-tbl td, .stat-tbl td { padding:4px 6px !important; border-bottom:1px solid #e2e8f0 !important; }
+    /* 屏上为省空间是 nowrap，纸上必须允许换行，否则长摘要会被裁掉 */
+    .recon-tbl td, .recon-tbl th, .stat-tbl td { white-space:normal !important; word-break:break-word; }
+    .recon-tbl tfoot td { font-weight:800; border-top:1px solid #334155 !important; }
+
+    /* 跨页：表头每页重复、合计行跟着走，行和小块别被拦腰截断 */
+    thead { display:table-header-group !important; }
+    tfoot { display:table-footer-group !important; }
+    tr, .doc-sign, .doc-foot, .doc-terms, .recon-cards { break-inside:avoid; page-break-inside:avoid; }
+    .doc-subttl { break-after:avoid; page-break-after:avoid; }
+
+    /* 逐笔明细最后的「核对」勾选框打出来没用还占一列（按日汇总表的末列是未付，不能动） */
+    .doc-tbl-wrap .recon-tbl th:last-child, .doc-tbl-wrap .recon-tbl td:last-child { display:none !important; }
+    .doc-chk { display:none !important; }
+    .doc-sign { margin-top:14px !important; font-size:11px !important; gap:16px !important; }
+    .doc-sign .line { height:26px; }
 }
 
 /* 配置面板 */
@@ -1482,7 +1511,20 @@ function openRecon(){
   runRecon();
 }
 function closeRecon(){ $('reconModal').classList.remove('show'); }
-function printRecon(){ if (!$('reconArea').innerHTML.trim()) { toast('先生成对账单'); return; } window.print(); }
+/* 存 PDF 时的默认文件名取自 document.title，所以打印前先临时改成「对账单_供应商_期间」 */
+function printRecon(){
+  if (!$('reconArea').innerHTML.trim()) { toast('先生成对账单'); return; }
+  var old = document.title;
+  var sup = ($('rSupplier').value || '全部供应商').replace(/[\\/:*?"<>|]/g, '');
+  document.title = '对账单_' + sup + '_' + ($('rStart').value || '') + '至' + ($('rEnd').value || '');
+  window.print();
+  setTimeout(function(){ document.title = old; }, 1000);
+}
+/* 没开对账单时按 Ctrl+P 应该打主页面，而不是打一张空白纸 */
+window.addEventListener('beforeprint', function(){
+  var empty = !$('reconModal').classList.contains('show') || !$('reconArea').innerHTML.trim();
+  document.body.classList.toggle('no-recon', empty);
+});
 function exportRecon(){ downloadFile('/api/purchase/reconcile/export?' + reconQs(), '对账单.xlsx'); }
 function runRecon(){
   fetch('/api/purchase/reconcile?' + reconQs()).then(function(r){ return r.json(); }).then(function(d){
