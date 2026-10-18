@@ -153,7 +153,7 @@ td.wrap { white-space:normal; word-break:break-all; min-width:110px; }
 </header>
 <input type="file" id="importFile" accept=".xlsx" style="display:none" onchange="uploadImport(this)">
 <div style="max-width:1400px;margin:6px auto 0;padding:0 12px;font-size:12px;color:var(--text-secondary)">
-  导入按列名识别、列顺序随意：先 <a href="#" onclick="downloadTemplate();return false" style="color:var(--primary);font-weight:600">下载 Excel 导入模板</a>，填好后点「导入Excel」；重复单据号自动跳过。
+  导入按列名识别、列顺序随意：先 <a href="/api/purchase/template" download="采购台账导入模板.xlsx" onclick="downloadTemplate();return false" style="color:var(--primary);font-weight:600">下载 Excel 导入模板</a>，填好后点「导入Excel」；重复单据号自动跳过。
 </div>
 <div class="container">
   <div class="stat-overview" id="statCards"></div>
@@ -267,7 +267,7 @@ td.wrap { white-space:normal; word-break:break-all; min-width:110px; }
     <div id="cfgSupplier">
       <div style="display:flex;gap:10px;align-items:center;margin-bottom:10px;font-size:12px">
         <button class="btn-outline btn-sm" onclick="doImportSuppliers()">导入Excel</button>
-        <a href="#" onclick="downloadSupplierTemplate();return false" style="color:var(--primary);font-weight:600">下载导入模板</a>
+        <a href="/api/purchase/suppliers/template" download="供应商导入模板.xlsx" onclick="downloadSupplierTemplate();return false" style="color:var(--primary);font-weight:600">下载导入模板</a>
         <span style="color:var(--text-secondary)">重名默认跳过；要覆盖已有档案请先勾选「覆盖」</span>
         <label style="display:flex;align-items:center;gap:4px;color:var(--text-secondary);margin-left:auto"><input type="checkbox" id="sImportMode" style="width:16px;height:16px">覆盖</label>
       </div>
@@ -623,9 +623,27 @@ function resetFilter(){
   curPage = 1;
   reload();
 }
-function doExport(){ window.open('/api/purchase/export?' + queryParams(), '_blank'); }
+/* 下载：用 fetch + blob 触发，避免被浏览器当弹窗拦截；失败一定会提示 */
+function downloadFile(url, filename){
+  fetch(url).then(function(r){
+    if (!r.ok) {
+      return r.json().catch(function(){}).then(function(d){
+        toast('下载失败：' + ((d && d.error) || ('HTTP ' + r.status)));
+      });
+    }
+    return r.blob().then(function(blob){
+      var a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = filename || '';
+      document.body.appendChild(a);
+      a.click();
+      setTimeout(function(){ URL.revokeObjectURL(a.href); a.remove(); }, 2000);
+    });
+  }).catch(function(e){ toast('下载失败：' + e); });
+}
+function doExport(){ downloadFile('/api/purchase/export?' + queryParams(), '采购台账.xlsx'); }
 function doImport(){ $('importFile').click(); }
-function downloadTemplate(){ window.open('/api/purchase/template', '_blank'); }
+function downloadTemplate(){ downloadFile('/api/purchase/template', '采购台账导入模板.xlsx'); }
 function uploadImport(input){
   var f = input.files && input.files[0];
   if (!f) return;
@@ -757,7 +775,9 @@ function delSupplier(id){
 }
 
 /* ---- 供应商导入 ---- */
-function downloadSupplierTemplate(){ window.open('/api/purchase/suppliers/template', '_blank'); }
+function downloadSupplierTemplate(){
+  downloadFile('/api/purchase/suppliers/template', '供应商导入模板.xlsx');
+}
 function doImportSuppliers(){ $('importSupplierFile').click(); }
 function uploadSuppliers(input){
   var f = input.files && input.files[0];
@@ -842,7 +862,7 @@ function openRecon(){
 }
 function closeRecon(){ $('reconModal').classList.remove('show'); }
 function printRecon(){ if (!$('reconArea').innerHTML.trim()) { toast('先生成对账单'); return; } window.print(); }
-function exportRecon(){ window.open('/api/purchase/reconcile/export?' + reconQs(), '_blank'); }
+function exportRecon(){ downloadFile('/api/purchase/reconcile/export?' + reconQs(), '对账单.xlsx'); }
 function runRecon(){
   fetch('/api/purchase/reconcile?' + reconQs()).then(function(r){ return r.json(); }).then(function(d){
     if (!d.success) { $('reconArea').innerHTML = '<div class="empty">' + esc(d.error || '生成失败') + '</div>'; return; }

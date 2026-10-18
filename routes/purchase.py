@@ -142,8 +142,14 @@ def _xlsx_response(wb, filename: str):
     out = io.BytesIO()
     wb.save(out)
     quoted = urllib.parse.quote(filename)
+    # 老浏览器不认 RFC5987 的 filename*，所以同时给一个纯英文兜底名
+    ascii_name = re.sub(r'[^A-Za-z0-9._-]', '_', filename)
+    if not re.search(r'[A-Za-z0-9]', filename.rsplit('.', 1)[0]):  # 纯中文名 → 通用兜底名
+        ascii_name = 'export.xlsx'
     return Response(out.getvalue(), mimetype=XLSX_MIME,
-                    headers={'Content-Disposition': f"attachment; filename*=UTF-8''{quoted}"})
+                    headers={'Content-Disposition':
+                             f"attachment; filename=\"{ascii_name}\"; "
+                             f"filename*=UTF-8''{quoted}"})
 
 
 def _style_header(ws, ncols: int, row: int = 1) -> None:
