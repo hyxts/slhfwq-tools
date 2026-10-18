@@ -778,6 +778,41 @@ class TestPurchase(unittest.TestCase):
         d = r.get_json()['data']
         self.assertIn('无票(不抵)', d['invoice_types'])
 
+    def test_recon_multi_dimension(self) -> None:
+        """对账单多维度：筛选（品类/客户/票种/状态/关键词）+ 汇总维度分组小计"""
+        base = {'date': '2026-10-06', 'supplier': '多维对账供应商'}
+        self._create(dict(base, category='蔬菜', customer='一中食堂',
+                          invoice_type='专票9%', total_amount=1090, paid_amount=0))
+        self._create(dict(base, category='肉类', customer='二中食堂',
+                          invoice_type='无票(不抵)', total_amount=200, paid_amount=200))
+        url = '/api/purchase/reconcile?supplier=多维对账供应商&start=2026-10-01&end=2026-10-31'
+
+        # 汇总维度：按品类 / 按客户 各出两组小计；group_by=none 只出明细
+        d = self.client.get(url + '&group_by=category').get_json()['data']
+        cats = {g['name']: g for g in d['by_group']}
+        self.assertEqual(set(cats), {'蔬菜', '肉类'})
+        self.assertAlmostEqual(cats['蔬菜']['total'], 1090.0, places=2)
+        self.assertAlmostEqual(cats['肉类']['unpaid'], 0.0, places=2)
+        d2 = self.client.get(url + '&group_by=customer').get_json()['data']
+        self.assertEqual({g['name'] for g in d2['by_group']}, {'一中食堂', '二中食堂'})
+        d3 = self.client.get(url + '&group_by=none').get_json()['data']
+        self.assertEqual(d3['by_group'], [])
+        self.assertEqual(len(d3['items']), 2)
+
+        # 筛选维度：只对「蔬菜」出单 → 明细、汇总、回显口径都跟着变
+        d4 = self.client.get(url + '&category=蔬菜').get_json()['data']
+        self.assertEqual(len(d4['items']), 1)
+        self.assertAlmostEqual(d4['summary']['total'], 1090.0, places=2)
+        self.assertEqual(d4['filters']['category'], '蔬菜')
+        # 状态维度：未付款只剩蔬菜那笔（肉类已付清）
+        d5 = self.client.get(url + '&status=未付款').get_json()['data']
+        self.assertEqual(len(d5['items']), 1)
+        self.assertEqual(d5['items'][0]['category'], '蔬菜')
+        # 关键词维度
+        d6 = self.client.get(url + '&search=二中').get_json()['data']
+        self.assertEqual(len(d6['items']), 1)
+        self.assertEqual(d6['items'][0]['customer'], '二中食堂')
+
     def test_company_settings(self) -> None:
         """对账单抬头设置：保存后能读回（默认值不能丢）"""
         old = self.client.get('/api/purchase/settings').get_json()['data']

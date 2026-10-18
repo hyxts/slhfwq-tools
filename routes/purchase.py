@@ -738,24 +738,65 @@ _GROUP_EXPR = {
 }
 
 
-def _period_where(args, extra_supplier: bool = True) -> tuple[list[str], list]:
-    """对账专用筛选：日期区间 + 供应商（不走 _filters 的品类/状态等条件）"""
+# 对账单的两种「多维度」：
+#   1) 筛选维度：供应商 / 品类 / 客户 / 票种 / 付款账户 / 付款状态 / 关键词（和台账口径一致）
+#   2) 汇总维度：对账单里按哪个维度出分组小计
+RECON_DIMS = {
+    'supplier': ('按供应商', 'supplier'),
+    'category': ('按品类', 'category'),
+    'customer': ('按客户/门店', 'customer'),
+    'invoice': ('按发票类型', 'invoice_type'),
+    'month': ('按月份', "substr(date,1,7)"),
+}
+RECON_FILTER_KEYS = ('supplier', 'category', 'customer', 'invoice',
+                     'pay_account', 'status', 'search')
+
+
+def _recon_filters(args, before: bool = False) -> tuple[list[str], list]:
+    """对账筛选：日期 + 供应商 / 品类 / 客户 / 票种 / 账户 / 状态 / 关键词
+
+    before=True 时日期条件换成 `date < start`（算「期初未付」用），其余维度照旧，
+    保证期初与本期口径一致；start 为空时不该调用（会查到全部记录，与本期重复）。
+    """
     where: list[str] = ['1=1']
     params: list = []
     start = str(args.get('start') or '').strip()
     end = str(args.get('end') or '').strip()
     if start and DATE_RE.match(start):
-        where.append('date >= ?')
+        where.append('date < ?' if before else 'date >= ?')
         params.append(start)
-    if end and DATE_RE.match(end):
+    if end and DATE_RE.match(end) and not before:
         where.append('date <= ?')
         params.append(end)
-    if extra_supplier:
-        supplier = str(args.get('supplier') or '').strip()
-        if supplier:
-            where.append('supplier = ?')
-            params.append(supplier)
+    for arg_key, col in (('supplier', 'supplier'), ('category', 'category'),
+                         ('customer', 'customer'), ('invoice', 'invoice_type'),
+                         ('pay_account', 'pay_account')):
+        v = str(args.get(arg_key) or '').strip()
+        if v:
+            where.append(f'{col} = ?')
+            params.append(v)
+    search = str(args.get('search') or '').strip()
+    if search:
+        where.append('(supplier LIKE ? OR category LIKE ? OR summary LIKE ? OR bill_no LIKE ? '
+                     'OR pay_account LIKE ? OR customer LIKE ?)')
+        params.extend([f'%{search}%'] * 6)
+    # 付款状态是派生字段，用 SQL 表达式过滤（应付净额 = 总额 - 退货 - 扣款）
+    status = str(args.get('status') or '').strip()
+    if status in ('未付款', '部分付款', '已付清'):
+        payable = 'total_amount - return_amount - deduct_amount'
+        unpaid_expr = f'({payable}) - paid_amount'
+        if status == '未付款':
+            where.append(f'{unpaid_expr} >= {payable} - 0.005')
+        elif status == '已付清':
+            where.append(f'{unpaid_expr} <= 0.005')
+        else:
+            where.append(f'{unpaid_expr} > 0.005 AND {unpaid_expr} < {payable} - 0.005')
     return where, params
+
+
+def _recon_active_filters(args) -> dict:
+    """当前生效的筛选维度（打印到对账单上，说明这单是按什么口径出的）"""
+    return {k: str(args.get(k) or '').strip() for k in RECON_FILTER_KEYS}
 
 
 @bp.route('/api/purchase/trends', methods=['GET'])
@@ -802,7 +843,7 @@ def reconcile():
     """
     try:
         supplier = str(request.args.get('supplier') or '').strip()
-        where, params = _period_where(request.args)
+        where, params = _recon_filters(request.args)
         w = ' AND '.join(where)
         conn = _get_db()
         rows = conn.execute(
@@ -831,21 +872,36 @@ def reconcile():
                 FROM purchases WHERE {w} GROUP BY period ORDER BY period''',
             params).fetchall()
 
-        # 期初未付：本期开始日之前的历史欠款（同供应商），往来对账要从上期结转开始
+        # 期初未付：本期开始日之前的历史欠款，往来对账要从上期结转开始。
+        # 用的是同一套筛选维度（供应商/品类/客户…），只有日期条件不同。
         opening_unpaid = 0.0
         opening_cnt = 0
         start_arg = str(request.args.get('start') or '').strip()
         if start_arg and DATE_RE.match(start_arg):
-            ow, op = ['date < ?'], [start_arg]
-            if supplier:
-                ow.append('supplier = ?')
-                op.append(supplier)
+            ow, op = _recon_filters(request.args, before=True)
             op_row = conn.execute(
                 f'''SELECT COUNT(*) cnt,
                     COALESCE(SUM(total_amount-return_amount-deduct_amount-paid_amount),0) unpaid
                     FROM purchases WHERE {' AND '.join(ow)}''', op).fetchone()
             opening_unpaid = op_row['unpaid']
             opening_cnt = op_row['cnt']
+
+        # 汇总维度：对账单里按哪个维度出分组小计（group_by=none 表示不分组）
+        group_key = str(request.args.get('group_by') or 'supplier').strip()
+        by_group: list[dict] = []
+        if group_key in RECON_DIMS:
+            expr = RECON_DIMS[group_key][1]
+            by_group = [dict(r) for r in conn.execute(
+                f'''SELECT {expr} AS name, COUNT(*) cnt,
+                    COALESCE(SUM(total_amount),0) total,
+                    COALESCE(SUM(input_tax),0) tax,
+                    COALESCE(SUM(return_amount),0) ret,
+                    COALESCE(SUM(deduct_amount),0) deduct,
+                    COALESCE(SUM(total_amount-return_amount-deduct_amount),0) payable,
+                    COALESCE(SUM(paid_amount),0) paid,
+                    COALESCE(SUM(total_amount-return_amount-deduct_amount-paid_amount),0) unpaid
+                    FROM purchases WHERE {w} GROUP BY name ORDER BY total DESC''',
+                params).fetchall()]
 
         # 该供应商全部历史的未付余额（对账看的是「还欠多少」，不只看本期）
         out_where, out_params = ['1=1'], []
@@ -900,6 +956,9 @@ def reconcile():
             'summary': summary,
             'opening': {'count': opening_cnt, 'unpaid': _round2(opening_unpaid)},
             'closing': _round2(opening_unpaid + unpaid_now),
+            'group_by': group_key,
+            'by_group': [_round_summary(r) for r in by_group],
+            'filters': _recon_active_filters(request.args),
             'by_invoice': [_round_summary(dict(r)) for r in by_invoice],
             'by_month': [_round_summary(dict(r)) for r in by_month],
             'outstanding': {
@@ -916,14 +975,29 @@ def reconcile():
 
 @bp.route('/api/purchase/reconcile/export', methods=['GET'])
 def reconcile_export():
-    """导出对账单 CSV：抬头（供应商/期间/生成时间）+ 逐笔明细 + 合计行"""
+    """导出对账单 xlsx：抬头 + 分组小计 + 逐笔明细 + 往来三段 + 签章行"""
     try:
         supplier = str(request.args.get('supplier') or '').strip()
-        where, params = _period_where(request.args)
+        where, params = _recon_filters(request.args)
         w = ' AND '.join(where)
         conn = _get_db()
         rows = conn.execute(
             f'SELECT * FROM purchases WHERE {w} ORDER BY date, id', params).fetchall()
+        # 汇总维度小计（与页面上的 group_by 一致）
+        group_key = str(request.args.get('group_by') or 'supplier').strip()
+        by_group: list[dict] = []
+        if group_key in RECON_DIMS:
+            expr = RECON_DIMS[group_key][1]
+            by_group = [dict(r) for r in conn.execute(
+                f'''SELECT {expr} AS name, COUNT(*) cnt,
+                    COALESCE(SUM(total_amount),0) total,
+                    COALESCE(SUM(return_amount),0) ret,
+                    COALESCE(SUM(deduct_amount),0) deduct,
+                    COALESCE(SUM(total_amount-return_amount-deduct_amount),0) payable,
+                    COALESCE(SUM(paid_amount),0) paid,
+                    COALESCE(SUM(total_amount-return_amount-deduct_amount-paid_amount),0) unpaid
+                    FROM purchases WHERE {w} GROUP BY name ORDER BY total DESC''',
+                params).fetchall()]
         settle = ''
         if supplier:
             p = conn.execute('SELECT settle_type FROM suppliers WHERE name=?',
@@ -951,6 +1025,10 @@ def reconcile_export():
         ws.append(['致（供应商）', supplier or '（全部供应商）', '', '生成时间', now_str()])
         ws.append(['对账期间', f"{start_arg or '最早'} 至 {end_arg or '最新'}",
                    '', '结算方式', settle or '未设置', '最迟付款日', due or '按约定'])
+        # 多维度筛选：把生效的口径写进单据，避免双方对不上数
+        active = {k: v for k, v in _recon_active_filters(request.args).items() if v}
+        if active:
+            ws.append(['筛选口径', ' / '.join(f'{k}={v}' for k, v in active.items())])
         ws.append([])
         ws.append(['日期', '单据号', '品类', '客户/门店', '采购内容摘要', '发票类型',
                    '采购总金额', '进项税额', '不含税成本', '退货金额', '扣款金额',
@@ -979,13 +1057,22 @@ def reconcile_export():
                    sum(d['unpaid_balance'] for d in items)])
         last = ws.max_row
         _style_money(ws, last, last, (7, 8, 9, 10, 11, 12, 13, 14, 15))
+        # 汇总维度小计（多维度对账时按品类/客户等分组看）
+        dim_label = RECON_DIMS.get(group_key, ('', ''))[0]
+        if by_group:
+            ws.append([f'{dim_label}小计', '笔数', '采购额', '退货', '扣款', '应付净额', '已付', '未付'])
+            gh = ws.max_row
+            for g in by_group:
+                ws.append([g['name'] or '（未填）', g['cnt'], g['total'], g['ret'],
+                           g['deduct'], g['payable'], g['paid'], g['unpaid']])
+                _style_money(ws, ws.max_row, ws.max_row, (3, 4, 5, 6, 7, 8))
+            ws.cell(row=gh, column=1).font = Font(bold=True)
+            ws.append([])
+
         # 往来三段：期初未付 + 本期应付 - 本期已付 = 期末未付
         opening_unpaid = 0.0
         if start_arg and DATE_RE.match(start_arg):
-            ow, op = ['date < ?'], [start_arg]
-            if supplier:
-                ow.append('supplier = ?')
-                op.append(supplier)
+            ow, op = _recon_filters(request.args, before=True)
             conn = _get_db()
             opening_unpaid = conn.execute(
                 f'''SELECT COALESCE(SUM(total_amount-return_amount-deduct_amount-paid_amount),0) u
@@ -1131,7 +1218,7 @@ def _supplier_rows(conn, keyword: str = '', active_only: bool = False) -> list[d
 
 def _round_summary(row: dict) -> dict:
     """把分组汇总里的金额统一保留两位，并补出不含税成本"""
-    for k in ('total', 'tax', 'invoiced', 'paid', 'unpaid'):
+    for k in ('total', 'tax', 'invoiced', 'paid', 'unpaid', 'ret', 'deduct', 'payable'):
         if k in row:
             row[k] = _round2(row[k] or 0.0)
     if 'total' in row and 'tax' in row:

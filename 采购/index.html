@@ -179,6 +179,8 @@ td.empty::before { display:none; }
 .doc-ledger tr.total td { border-top:1px solid var(--border-strong); border-bottom:2px solid var(--border-strong); font-weight:800; font-size:14.5px; padding:8px 10px; }
 .doc-ledger tr.total td.amt { color:var(--primary); }
 .doc-terms { font-size:11.5px; color:var(--text-secondary); line-height:1.75; margin-top:10px; background:#f8fafc; border:1px dashed var(--border); border-radius:8px; padding:8px 12px; }
+.doc-filter { font-size:11.5px; color:var(--text-secondary); background:#f8fafc; border:1px dashed var(--border); border-radius:8px; padding:6px 10px; margin-bottom:10px; }
+.doc-subttl { font-size:12.5px; font-weight:800; margin:14px 0 6px; padding-left:8px; border-left:3px solid var(--primary); }
 .doc-chk { width:15px; height:15px; accent-color:var(--primary); }
 .seq { color:var(--text-thin); font-variant-numeric:tabular-nums; }
 .doc-sign { display:grid; grid-template-columns:repeat(auto-fit,minmax(190px,1fr)); gap:24px; margin-top:20px; font-size:12.5px; color:var(--text-secondary); }
@@ -406,15 +408,37 @@ td.empty::before { display:none; }
       <button class="modal-x" onclick="closeRecon()" title="关闭">&times;</button>
     </div>
     <div class="modal-bd">
-      <div class="filter-bar" style="margin-bottom:12px">
-        <select id="rSupplier" style="min-width:150px"><option value="">全部供应商</option></select>
+      <div class="filter-bar" style="margin-bottom:8px">
+        <span class="f-label">供应商</span>
+        <select id="rSupplier" style="min-width:140px"></select>
         <span class="f-label">期间</span>
         <input type="date" id="rStart">
         <span style="color:var(--text-thin);font-size:12px">至</span>
         <input type="date" id="rEnd">
-        <button class="btn-primary btn-sm" onclick="runRecon()">生成对账单</button>
       </div>
-      <div id="reconArea" style="max-height:62vh;overflow-y:auto"></div>
+      <div class="filter-bar" style="margin-bottom:8px">
+        <span class="f-label">品类</span><select id="rCategory" onchange="runRecon()"></select>
+        <span class="f-label">客户/门店</span><select id="rCustomer" onchange="runRecon()"></select>
+        <span class="f-label">发票类型</span><select id="rInvoice" onchange="runRecon()"></select>
+        <span class="f-label">付款状态</span><select id="rStatus" onchange="runRecon()">
+          <option value="">全部</option><option>未付款</option><option>部分付款</option><option>已付清</option>
+        </select>
+        <input type="search" id="rSearch" placeholder="关键词：单号/摘要…" style="min-width:150px" onkeydown="if(event.key==='Enter')runRecon()">
+      </div>
+      <div class="filter-bar" style="margin-bottom:12px">
+        <span class="f-label">汇总维度</span>
+        <select id="rGroup" onchange="runRecon()">
+          <option value="supplier">按供应商分组小计</option>
+          <option value="category">按品类分组小计</option>
+          <option value="customer">按客户/门店分组小计</option>
+          <option value="invoice">按发票类型分组小计</option>
+          <option value="month">按月份分组小计</option>
+          <option value="none">不分组（只出明细）</option>
+        </select>
+        <button class="btn-primary btn-sm" onclick="runRecon()">生成对账单</button>
+        <button class="btn-outline btn-sm" onclick="resetRecon()">重置条件</button>
+      </div>
+      <div id="reconArea" style="max-height:58vh;overflow-y:auto"></div>
     </div>
     <div class="modal-ft">
       <button class="btn-outline" style="flex:1" onclick="printRecon()">打印 / 存为PDF</button>
@@ -1271,16 +1295,29 @@ function delDict(id){
 document.addEventListener('input', function(e){ if (e.target.id === 'mSupplier') applySupplierPreset(); });
 
 /* ==================== 对账报表 ==================== */
+/* 对账单的多维度条件：供应商/品类/客户/票种/状态/关键词 + 期间 + 汇总维度 */
+var RECON_FIELDS = { supplier: 'rSupplier', category: 'rCategory', customer: 'rCustomer',
+                     invoice: 'rInvoice', status: 'rStatus', search: 'rSearch',
+                     start: 'rStart', end: 'rEnd', group_by: 'rGroup' };
 function reconQs(){
   var p = new URLSearchParams();
-  if ($('rSupplier').value) p.set('supplier', $('rSupplier').value);
-  if ($('rStart').value) p.set('start', $('rStart').value);
-  if ($('rEnd').value) p.set('end', $('rEnd').value);
+  Object.keys(RECON_FIELDS).forEach(function(k){
+    var v = $(RECON_FIELDS[k]).value.trim();
+    if (v) p.set(k, v);
+  });
   return p.toString();
+}
+function resetRecon(){
+  ['rCategory','rCustomer','rInvoice','rStatus','rSearch'].forEach(function(id){ $(id).value = ''; });
+  $('rGroup').value = 'supplier';
+  runRecon();
 }
 function openRecon(){
   $('reconModal').classList.add('show');
-  fillSelect($('rSupplier'), (opts.suppliers || []), '全部供应商');
+  fillSelect($('rSupplier'), (opts.suppliers || []), '全部供应商', $('rSupplier').value);
+  fillSelect($('rCategory'), (opts.categories || []), '全部品类', $('rCategory').value);
+  fillSelect($('rCustomer'), (opts.customers || []), '全部客户', $('rCustomer').value);
+  fillSelect($('rInvoice'), [''].concat(opts.invoice_types || []), '全部发票类型', $('rInvoice').value);
   if (!$('rStart').value && !$('rEnd').value) {
     var now = new Date();
     $('rStart').value = now.getFullYear() + '-' + String(now.getMonth() + 1).padStart(2, '0') + '-01';
@@ -1351,6 +1388,15 @@ function renderRecon(d){
     + line('类型', [prof.s_type, prof.market].filter(Boolean).join(' / '))
     + '</div></div>';
 
+  /* 多维度筛选口径：写清这单是按什么条件出的，双方才对得上数 */
+  var f = d.filters || {};
+  var active = [['供应商', d.supplier], ['品类', f.category], ['客户/门店', f.customer],
+                ['发票类型', f.invoice], ['付款账户', f.pay_account], ['付款状态', f.status],
+                ['关键词', f.search]]
+    .filter(function(x){ return x[1]; }).map(function(x){ return x[0] + '：' + x[1]; });
+  var filterLine = active.length
+    ? '<div class="doc-filter">对账口径：' + esc(active.join(' · ')) + '</div>' : '';
+
   /* 账期信息条 */
   var meta = '<div class="doc-meta">'
     + '<div><span class="k">结算方式</span>' + esc(d.settle_type || '未设置') + '</div>'
@@ -1375,6 +1421,26 @@ function renderRecon(d){
     + '<tr class="total"><td>期末未付（应付合计）</td><td class="amt">'
     + fmt(d.closing || ((op.unpaid || 0) + (s.unpaid || 0))) + '</td></tr>'
     + '</table>';
+
+  /* 分组小计：按所选汇总维度（供应商/品类/客户/票种/月份）分别列一行 */
+  var dimName = { supplier: '供应商', category: '品类', customer: '客户/门店',
+                  invoice: '发票类型', month: '月份' }[d.group_by] || '';
+  var groupTbl = '';
+  if (dimName && (d.by_group || []).length) {
+    groupTbl = '<div class="doc-subttl">按' + dimName + '小计</div>'
+      + '<div style="overflow-x:auto"><table class="stat-tbl" style="min-width:560px"><thead><tr>'
+      + '<th>' + dimName + '</th><th class="num">笔数</th><th class="num">采购额</th>'
+      + '<th class="num">退货</th><th class="num">扣款</th><th class="num">应付净额</th>'
+      + '<th class="num">已付</th><th class="num">未付</th></tr></thead><tbody>'
+      + d.by_group.map(function(g){
+          return '<tr><td>' + esc(g.name || '（未填）') + '</td>'
+            + '<td class="num">' + g.cnt + '</td><td class="num">' + fmt(g.total) + '</td>'
+            + '<td class="num">' + fmt(g.ret || 0) + '</td><td class="num">' + fmt(g.deduct || 0) + '</td>'
+            + '<td class="num">' + fmt(g.payable || 0) + '</td><td class="num">' + fmt(g.paid || 0) + '</td>'
+            + '<td class="num' + ((g.unpaid || 0) > 0 ? ' neg' : '') + '">' + fmt(g.unpaid || 0) + '</td></tr>';
+        }).join('')
+      + '</tbody></table></div>';
+  }
 
   /* 明细：逐笔可勾选核对 */
   var items = d.items || [];
@@ -1416,9 +1482,13 @@ function renderRecon(d){
   var note = function(t, arr, f){ return (arr || []).length
     ? '<div style="font-size:11.5px;color:var(--text-secondary);margin-top:6px">' + t + '：'
       + arr.map(f).join(' · ') + '</div>' : ''; };
-  var byInv = note('按发票类型', d.by_invoice, function(r){ return esc(r.invoice_type) + ' ' + fmt(r.total); });
-  var byMonth = note('按月小计', d.by_month, function(r){ return esc(r.period) + ' ' + fmt(r.total); });
-  $('reconArea').innerHTML = head + parties + meta + ledger + tbl + cap + terms + sign + byInv + byMonth + '</div>';
+  // 分组小计已经展示了该维度，底部就不再重复
+  var byInv = d.group_by === 'invoice' ? ''
+    : note('按发票类型', d.by_invoice, function(r){ return esc(r.invoice_type) + ' ' + fmt(r.total); });
+  var byMonth = d.group_by === 'month' ? ''
+    : note('按月小计', d.by_month, function(r){ return esc(r.period) + ' ' + fmt(r.total); });
+  $('reconArea').innerHTML = head + parties + filterLine + meta + ledger + groupTbl + tbl
+    + cap + terms + sign + byInv + byMonth + '</div>';
 }
 function markRecon(id, flag){
   fetch('/api/purchase/records/' + id + '/reconcile', {
