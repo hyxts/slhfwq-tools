@@ -150,15 +150,13 @@ td.wrap { white-space:normal; word-break:break-all; min-width:110px; }
   <div style="display:flex;gap:8px;flex-wrap:wrap">
     <button class="btn-outline btn-sm" style="min-height:36px" onclick="openRecon()">对账报表</button>
     <button class="btn-outline btn-sm" style="min-height:36px" onclick="openConfig()">⚙ 配置</button>
+    <button class="btn-outline btn-sm" style="min-height:36px" title="下载 Excel 导入模板：按列名识别、列顺序随意" onclick="downloadTemplate()">导入模板</button>
     <button class="btn-outline btn-sm" style="min-height:36px" onclick="doImport()">导入Excel</button>
     <button class="btn-outline btn-sm" style="min-height:36px" onclick="doExport()">导出Excel</button>
     <button class="btn-primary btn-sm" style="min-height:36px" onclick="openModal()">+ 新增采购</button>
   </div>
 </header>
 <input type="file" id="importFile" accept=".xlsx" style="display:none" onchange="uploadImport(this)">
-<div style="max-width:1400px;margin:6px auto 0;padding:0 12px;font-size:12px;color:var(--text-secondary)">
-  导入按列名识别、列顺序随意：先 <a href="/api/purchase/template" download="采购台账导入模板.xlsx" onclick="downloadTemplate();return false" style="color:var(--primary);font-weight:600">下载 Excel 导入模板</a>，填好后点「导入Excel」；重复单据号自动跳过。
-</div>
 <div class="container">
   <div class="stat-overview" id="statCards"></div>
 
@@ -652,7 +650,7 @@ function downloadTemplate(){ downloadFile('/api/purchase/template', '采购台�
 function uploadImport(input){
   var f = input.files && input.files[0];
   if (!f) return;
-  if (!confirm('导入「' + f.name + '」？\n\n重复的单据号会自动跳过，不会覆盖已有记录。')) { input.value=''; return; }
+  if (!confirm('导入「' + f.name + '」？\n\n· 按列名识别，列顺序随意，不按模板排也能认\n· 重复的单据号会自动跳过，不会覆盖已有记录\n· 新供应商会自动建档')) { input.value=''; return; }
   var fd = new FormData();
   fd.append('file', f);
   fd.append('auto_supplier', '1');
