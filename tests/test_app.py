@@ -692,6 +692,86 @@ class TestPurchase(unittest.TestCase):
         self.assertEqual(len(d['data']), 5)
         self.assertIsNone(d['page_size'])
 
+    def test_invoice_tax_auto(self) -> None:
+        """票种带税率 → 进项税自动算；价税分离与计算抵扣两种算法不能混"""
+        # 专票9%：1090 是价税合计 → 税额 = 1090÷1.09×9% = 90
+        d = self._create({'date': '2026-10-01', 'supplier': '税率测试供应商',
+                          'invoice_type': '专票9%', 'total_amount': 1090})
+        self.assertAlmostEqual(d['input_tax'], 90.0, places=2)
+        self.assertAlmostEqual(d['net_cost'], 1000.0, places=2)
+        # 农产品收购发票：买价 1000 × 扣除率 9% = 90（是买价乘，不价税分离）
+        d = self._create({'date': '2026-10-01', 'supplier': '税率测试供应商',
+                          'invoice_type': '农产品收购发票', 'total_amount': 1000})
+        self.assertAlmostEqual(d['input_tax'], 90.0, places=2)
+        # 无票 / 免税 → 不抵扣
+        d = self._create({'date': '2026-10-01', 'supplier': '税率测试供应商',
+                          'invoice_type': '免税普票', 'total_amount': 500})
+        self.assertEqual(d['input_tax'], 0.0)
+        # 税额手填优先（票面和系统算的有差异时以票面为准）
+        d = self._create({'date': '2026-10-01', 'supplier': '税率测试供应商',
+                          'invoice_type': '专票13%', 'total_amount': 1130,
+                          'input_tax': 130})
+        self.assertEqual(d['input_tax'], 130.0)
+        # 老票种「专票」「普票」自动迁到「税额手填」，税额不动
+        d = self._create({'date': '2026-10-01', 'supplier': '税率测试供应商',
+                          'invoice_type': '专票', 'total_amount': 200, 'input_tax': 18})
+        self.assertEqual(d['invoice_type'], '专票(税额手填)')
+        self.assertEqual(d['input_tax'], 18.0)
+
+    def test_return_deduct_payable(self) -> None:
+        """生鲜常见退货 / 扣款：应付净额 = 采购额 − 退货 − 扣款"""
+        d = self._create({'date': '2026-10-02', 'supplier': '退货测试供应商',
+                          'invoice_type': '无票(不抵)', 'total_amount': 1000,
+                          'return_amount': 100, 'deduct_amount': 30, 'paid_amount': 500})
+        self.assertAlmostEqual(d['payable'], 870.0, places=2)
+        self.assertAlmostEqual(d['unpaid_balance'], 370.0, places=2)
+        self.assertEqual(d['pay_status'], '部分付款')
+
+        # 已付金额不能大于应付净额（原来是跟采购总额比，退货后会对不上）
+        r = self.client.post('/api/purchase/records', json={
+            'date': '2026-10-03', 'supplier': '退货测试供应商', 'invoice_type': '无票(不抵)',
+            'total_amount': 1000, 'deduct_amount': 300, 'paid_amount': 800})
+        self.assertEqual(r.status_code, 400)
+        self.assertIn('应付净额', r.get_json()['error'])
+
+        # 退货 + 扣款不能大于采购总额
+        r = self.client.post('/api/purchase/records', json={
+            'date': '2026-10-03', 'supplier': '退货测试供应商', 'invoice_type': '无票(不抵)',
+            'total_amount': 1000, 'return_amount': 700, 'deduct_amount': 400})
+        self.assertEqual(r.status_code, 400)
+        self.assertIn('退货金额', r.get_json()['error'])
+
+    def test_customer_dimension(self) -> None:
+        """客户/门店维度：落库 + 按客户统计 + 按客户筛选"""
+        self._create({'date': '2026-10-04', 'supplier': '客户测试供应商',
+                      'invoice_type': '无票(不抵)', 'total_amount': 100,
+                      'customer': '一中食堂'})
+        self._create({'date': '2026-10-04', 'supplier': '客户测试供应商',
+                      'invoice_type': '无票(不抵)', 'total_amount': 60,
+                      'customer': '一中食堂'})
+        self._create({'date': '2026-10-04', 'supplier': '客户测试供应商',
+                      'invoice_type': '无票(不抵)', 'total_amount': 40,
+                      'customer': '二中食堂'})
+        d = self.client.get('/api/purchase/stats').get_json()['data']
+        rows = {x['customer']: x for x in d['by_customer'] if x['customer']}
+        self.assertIn('一中食堂', rows)
+        self.assertAlmostEqual(rows['一中食堂']['total'], 160.0, places=2)
+        self.assertAlmostEqual(rows['二中食堂']['total'], 40.0, places=2)
+
+        r = self.client.get('/api/purchase/records?customer=一中食堂').get_json()
+        self.assertEqual(r['total'], 2)
+        self.assertTrue(all(x['customer'] == '一中食堂' for x in r['data']))
+
+        # 客户要能进字典（配置里维护）
+        r = self.client.post('/api/purchase/dicts', json={'kind': 'customer', 'name': '三中食堂'})
+        self.assertEqual(r.status_code, 200)
+        did = r.get_json()['data']['id']
+        try:
+            opts = self.client.get('/api/purchase/options').get_json()['data']
+            self.assertIn('三中食堂', opts['customers'])
+        finally:
+            self.client.delete(f'/api/purchase/dicts/{did}')
+
     def test_options(self) -> None:
         r = self.client.get('/api/purchase/options')
         self.assertEqual(r.status_code, 200)
@@ -906,12 +986,12 @@ class TestPurchaseConfig(unittest.TestCase):
             w = wb.active
             w.append(['供应商编码', '供应商名称', '供应商类型', '批发市场名称',
                       '经营地址', '法人/负责人', '联系方式', '主营品类',
-                      '默认发票类型', '备注'])
+                      '默认发票类型', '结算方式', '备注'])
             w.append(['', '配置测试供应商导入A', '个体', '恩施华硒', '旗峰大道1号',
-                      contact, '13900000000', '生鲜', '专票', ''])
+                      contact, '13900000000', '生鲜', '专票9%', '月结', ''])
             w.append(['GYS900', '配置测试供应商导入B', '批发市场', '清源路', '',
-                      '李老板', '', '调料', '乱写的票种', ''])
-            w.append(['', '', '', '', '', '', '', '', '', ''])   # 空行应被忽略
+                      '李老板', '', '调料', '乱写的票种', '乱写的结算', ''])
+            w.append(['', '', '', '', '', '', '', '', '', '', ''])   # 空行应被忽略
             buf = io.BytesIO()
             wb.save(buf)
             return buf.getvalue()
@@ -929,13 +1009,15 @@ class TestPurchaseConfig(unittest.TestCase):
                 self.client.get('/api/purchase/suppliers').get_json()['data']}
         a_row = rows['配置测试供应商导入A']
         self.assertEqual(a_row['contact'], '王老板')
-        self.assertEqual(a_row['default_invoice'], '专票')
+        self.assertEqual(a_row['default_invoice'], '专票9%')
+        self.assertEqual(a_row['settle_type'], '月结')       # 结算方式能导入
         self.assertEqual(a_row['s_type'], '个体')            # 新档案字段能导入
         self.assertEqual(a_row['market'], '恩施华硒')
         self.assertEqual(a_row['address'], '旗峰大道1号')
         self.assertRegex(a_row['code'], r'^GYS\d{3,}$')      # 编码留空自动生成
         self.assertEqual(rows['配置测试供应商导入B']['code'], 'GYS900')  # 指定编码生效
         self.assertEqual(rows['配置测试供应商导入B']['default_invoice'], '')  # 非法票种留空
+        self.assertEqual(rows['配置测试供应商导入B']['settle_type'], '')     # 非法结算方式留空
 
         d2 = upload(build('王老板'), 'skip').get_json()['data']
         self.assertEqual(d2['added'], 0)
@@ -1194,7 +1276,8 @@ class TestPurchaseExcel(unittest.TestCase):
         ws = load_workbook(io.BytesIO(body)).active
         self.assertEqual(ws.cell(row=1, column=1).value, '日期')
         self.assertEqual(ws.freeze_panes, 'A2')            # 表头冻结
-        self.assertEqual(ws.cell(row=2, column=7).number_format, '#,##0.00')
+        # 第 8 列是采购总金额（1日期 2单据号 3供应商 4客户 5品类 6摘要 7票种）
+        self.assertEqual(ws.cell(row=2, column=8).number_format, '#,##0.00')
 
     def test_import_roundtrip(self) -> None:
         """两行正常 + 一行金额非法 + 一行缺供应商；供应商自动建档"""

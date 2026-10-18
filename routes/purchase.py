@@ -47,9 +47,32 @@ _get_db = make_db(DB_FILE)
 
 _log = make_logger(os.path.join(DB_DIR, 'purchase.log'))
 
-INVOICE_TYPES = ('无票(不抵)', '专票', '普票')
 DATE_RE = re.compile(r'^\d{4}-\d{2}-\d{2}$')
 _EPS = 0.005          # 金额比较容差（分为单位以下忽略）
+
+# 发票类型（生鲜行业实际会碰到的票种）
+#   rate = 默认税率/扣除率(%)，mode = 进项税怎么算：
+#     'deduct'  价税分离（票面税额）：进项税 = 总额 ÷(1+率) × 率
+#     'compute' 计算抵扣（农产品收购发票）：进项税 = 买价 × 扣除率
+#     None      不自动算，税额手工填（老数据里的「专票」「普票」归到这里）
+_INVOICE_DEFS: tuple[tuple[str, float, str | None], ...] = (
+    ('无票(不抵)', 0.0, None),
+    ('免税普票', 0.0, None),
+    ('农产品收购发票', 9.0, 'compute'),
+    ('普票1%', 1.0, 'deduct'),
+    ('普票3%', 3.0, 'deduct'),
+    ('专票9%', 9.0, 'deduct'),
+    ('专票13%', 13.0, 'deduct'),
+    ('专票(税额手填)', 0.0, None),
+    ('普票(税额手填)', 0.0, None),
+)
+INVOICE_TYPES = tuple(n for n, _, _ in _INVOICE_DEFS)
+_INVOICE_DEF: dict[str, tuple[float, str | None]] = {n: (r, m) for n, r, m in _INVOICE_DEFS}
+# 老票种 → 新票种（init_db 里一次性迁移，税额不动）
+_INVOICE_MIGRATE = {'专票': '专票(税额手填)', '普票': '普票(税额手填)'}
+
+# 供应商结算方式（生鲜多为月结）
+SETTLE_TYPES = ('现结', '周结', '月结', '压批结')
 
 
 def _num(val, default: float = 0.0) -> float:
@@ -81,19 +104,24 @@ XLSX_MIME = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
 _HEAD_FILL = '1E3A8A'
 
 # 导出与导入共用的列名（顺序即台账顺序，导入时按名字认列，顺序无所谓）
-EXPORT_HEADERS = ['日期', '单据号', '供应商名称', '品类', '采购内容摘要', '发票类型',
-                  '采购总金额(含税/买价)', '进项税额', '不含税成本', '已开金额',
-                  '已付金额', '未付余额', '付款账户', '付款状态']
-_MONEY_IDX = (7, 8, 9, 10, 11, 12)          # 1-based：不含税成本是派生列，导入时忽略
+EXPORT_HEADERS = ['日期', '单据号', '供应商名称', '客户/门店', '品类', '采购内容摘要',
+                  '发票类型', '采购总金额(含税/买价)', '进项税额', '不含税成本',
+                  '退货金额', '扣款金额', '应付净额', '已开金额', '已付金额',
+                  '未付余额', '付款账户', '付款状态']
+# 1-based：金额列（不含税成本 / 应付净额 / 未付余额是派生列，导入时忽略）
+_MONEY_IDX = (8, 9, 10, 11, 12, 13, 14, 15, 16)
 
 # 导入时的列名别名（小写比较，中英文都认）
 _COL_ALIASES: dict[str, tuple[str, ...]] = {
     'date': ('日期', '采购日期', 'date'),
     'bill_no': ('单据号', '单号', '票号', 'bill_no', 'billno'),
     'supplier': ('供应商名称', '供应商', '往来单位', 'supplier'),
+    'customer': ('客户/门店', '客户', '门店', '送货客户', 'customer', 'client'),
     'category': ('品类', '类别', 'category'),
     'summary': ('采购内容摘要', '摘要', '内容', 'summary'),
     'invoice_type': ('发票类型', '票种', 'invoice_type'),
+    'return_amount': ('退货金额', '退货', '退货款', '退金额', 'return_amount'),
+    'deduct_amount': ('扣款金额', '扣款', '扣重', '扣水', '扣款/扣重', 'deduct_amount'),
     'total_amount': ('采购总金额(含税/买价)', '采购总金额', '总金额', '金额',
                      'total_amount', 'total'),
     'input_tax': ('进项税额', '进项税', '税额', 'input_tax'),
@@ -247,16 +275,40 @@ def _find_header(rows: list[tuple], aliases: dict[str, tuple[str, ...]] | None =
     return -1, {}
 
 
+def _calc_input_tax(total: float, invoice_type: str) -> float | None:
+    """按票种自动算进项税；票种不支持自动算（无票 / 税额手填）时返回 None
+
+    两种算法不一样，别混：
+    - 专票 / 普票是价税合计，要价税分离：  税 = 总额 ÷(1+率) × 率
+    - 农产品收购发票是计算抵扣：          税 = 买价 × 扣除率
+    """
+    d = _INVOICE_DEF.get(str(invoice_type or '').strip())
+    if not d:
+        return None
+    rate, mode = d
+    if rate <= 0 or not mode:
+        return None
+    if mode == 'deduct':
+        return _round2(total / (1 + rate / 100) * (rate / 100))
+    return _round2(total * rate / 100)          # compute：买价 × 扣除率
+
+
 def _validate(data: dict) -> dict:
-    """校验并规整一条采购记录，失败抛 ValueError（API 层转 400）"""
+    """校验并规整一条采购记录，失败抛 ValueError（API 层转 400）
+
+    税额规则：请求里没给 input_tax（空 / None）就按票种自动算；给了就以手填
+    为准（票面税额和系统算的有几分差异时以票面为准）。
+    """
+    inv = str(data.get('invoice_type') or '无票(不抵)').strip()
     rec = {
         'date': str(data.get('date') or '').strip(),
         'bill_no': str(data.get('bill_no') or '').strip()[:50],
         'supplier': str(data.get('supplier') or '').strip()[:100],
         'category': str(data.get('category') or '').strip()[:50],
         'summary': str(data.get('summary') or '').strip()[:200],
-        'invoice_type': str(data.get('invoice_type') or '无票(不抵)').strip(),
+        'invoice_type': _INVOICE_MIGRATE.get(inv, inv),   # 老票种 → 税额手填
         'pay_account': str(data.get('pay_account') or '').strip()[:50],
+        'customer': str(data.get('customer') or '').strip()[:50],
     }
     if not DATE_RE.match(rec['date']):
         raise ValueError('日期格式应为 YYYY-MM-DD')
@@ -264,22 +316,34 @@ def _validate(data: dict) -> dict:
         raise ValueError('供应商名称不能为空')
 
     total = _round2(_num(data.get('total_amount')))
-    tax = _round2(_num(data.get('input_tax')))
+    raw_tax = data.get('input_tax')
+    auto_tax = _calc_input_tax(total, rec['invoice_type'])
+    if raw_tax is None or str(raw_tax).strip() == '':
+        tax = auto_tax if auto_tax is not None else 0.0
+    else:
+        tax = _round2(_num(raw_tax))
+    ret = _round2(_num(data.get('return_amount')))
+    deduct = _round2(_num(data.get('deduct_amount')))
     invoiced = _round2(_num(data.get('invoiced_amount')))
     paid = _round2(_num(data.get('paid_amount')))
     if total <= 0:
         raise ValueError('采购总金额必须大于 0')
-    if tax < 0 or invoiced < 0 or paid < 0:
+    if min(tax, ret, deduct, invoiced, paid) < 0:
         raise ValueError('金额不能为负数')
+    if ret + deduct > total + _EPS:
+        raise ValueError('退货金额 + 扣款金额不能大于采购总金额')
     if tax > total + _EPS:
         raise ValueError('进项税额不能大于采购总金额')
     if invoiced > total + _EPS:
         raise ValueError('已开金额不能大于采购总金额')
-    if paid > total + _EPS:
-        raise ValueError('已付金额不能大于采购总金额')
+    payable = _round2(total - ret - deduct)
+    if paid > payable + _EPS:
+        raise ValueError('已付金额不能大于应付净额（采购额-退货-扣款）')
 
     rec['total_amount'] = total
     rec['input_tax'] = tax
+    rec['return_amount'] = ret
+    rec['deduct_amount'] = deduct
     rec['invoiced_amount'] = invoiced
     rec['paid_amount'] = paid
     if rec['invoice_type'] not in INVOICE_TYPES:
@@ -288,14 +352,22 @@ def _validate(data: dict) -> dict:
 
 
 def _with_derived(row: dict) -> dict:
-    """补上派生字段：不含税成本 / 未付余额 / 付款状态"""
+    """补上派生字段：不含税成本 / 应付净额 / 未付余额 / 付款状态
+
+    生鲜经常有不新鲜退货、扣水扣冰扣款，所以：
+        应付净额 = 采购额 − 退货 − 扣款
+        未付余额 = 应付净额 − 已付
+    """
     total = row.get('total_amount') or 0.0
+    ret = row.get('return_amount') or 0.0
+    deduct = row.get('deduct_amount') or 0.0
     row['net_cost'] = _round2(total - (row.get('input_tax') or 0.0))
-    row['unpaid_balance'] = _round2(total - (row.get('paid_amount') or 0.0))
+    row['payable'] = _round2(total - ret - deduct)
+    row['unpaid_balance'] = _round2(row['payable'] - (row.get('paid_amount') or 0.0))
     unpaid = row['unpaid_balance']
     if unpaid <= _EPS:
         row['pay_status'] = '已付清'
-    elif unpaid >= total - _EPS:
+    elif unpaid >= row['payable'] - _EPS:
         row['pay_status'] = '未付款'
     else:
         row['pay_status'] = '部分付款'
@@ -320,6 +392,9 @@ def init_db():
             invoiced_amount REAL DEFAULT 0,
             paid_amount REAL DEFAULT 0,
             pay_account TEXT DEFAULT '',
+            return_amount REAL DEFAULT 0,     -- 退货金额（不新鲜退回等）
+            deduct_amount REAL DEFAULT 0,     -- 扣款金额（扣重 / 扣水 / 缺斤少两）
+            customer TEXT DEFAULT '',         -- 客户 / 门店（按客户统计用）
             created_at TEXT DEFAULT (datetime('now','localtime'))
         )''')
         conn.execute('CREATE INDEX IF NOT EXISTS idx_purchases_date ON purchases(date)')
@@ -328,6 +403,15 @@ def init_db():
         cols = [r[1] for r in conn.execute('PRAGMA table_info(purchases)').fetchall()]
         if 'recon_at' not in cols:
             conn.execute("ALTER TABLE purchases ADD COLUMN recon_at TEXT DEFAULT ''")
+        # 退货 / 扣款 / 客户（老库补列）
+        for col, ddl in (('return_amount', 'REAL DEFAULT 0'),
+                         ('deduct_amount', 'REAL DEFAULT 0'),
+                         ('customer', "TEXT DEFAULT ''")):
+            if col not in cols:
+                conn.execute(f'ALTER TABLE purchases ADD COLUMN {col} {ddl}')
+        # 票种改造：老的「专票」「普票」没有税率信息，迁到「税额手填」，税额不动
+        for old, new in _INVOICE_MIGRATE.items():
+            conn.execute('UPDATE purchases SET invoice_type=? WHERE invoice_type=?', (new, old))
         # 基础配置：供应商档案
         conn.execute('''CREATE TABLE IF NOT EXISTS suppliers (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -340,6 +424,7 @@ def init_db():
             phone TEXT DEFAULT '',
             category TEXT DEFAULT '',
             default_invoice TEXT DEFAULT '',
+            settle_type TEXT DEFAULT '',      -- 结算方式：现结 / 周结 / 月结 / 压批结
             note TEXT DEFAULT '',
             active INTEGER NOT NULL DEFAULT 1,
             created_at TEXT DEFAULT (datetime('now','localtime'))
@@ -347,7 +432,8 @@ def init_db():
         # 供应商编码唯一（老库补列后建索引；空编码不参与唯一约束）
         scols = [r[1] for r in conn.execute('PRAGMA table_info(suppliers)').fetchall()]
         for col, ddl in (('code', "TEXT DEFAULT ''"), ('s_type', "TEXT DEFAULT ''"),
-                         ('market', "TEXT DEFAULT ''"), ('address', "TEXT DEFAULT ''")):
+                         ('market', "TEXT DEFAULT ''"), ('address', "TEXT DEFAULT ''"),
+                         ('settle_type', "TEXT DEFAULT ''")):
             if col not in scols:
                 conn.execute(f'ALTER TABLE suppliers ADD COLUMN {col} {ddl}')
         conn.execute('''CREATE UNIQUE INDEX IF NOT EXISTS idx_suppliers_code
@@ -376,6 +462,7 @@ def _filters(args) -> tuple[list[str], list]:
     supplier = str(args.get('supplier') or '').strip()
     category = str(args.get('category') or '').strip()
     invoice = str(args.get('invoice') or '').strip()
+    customer = str(args.get('customer') or '').strip()
     status = str(args.get('status') or '').strip()
     search = str(args.get('search') or '').strip()
     if start and DATE_RE.match(start):
@@ -393,19 +480,24 @@ def _filters(args) -> tuple[list[str], list]:
     if invoice:
         where.append('invoice_type = ?')
         params.append(invoice)
+    if customer:
+        where.append('customer = ?')
+        params.append(customer)
     if search:
-        where.append('(supplier LIKE ? OR category LIKE ? OR summary LIKE ? OR bill_no LIKE ? OR pay_account LIKE ?)')
+        where.append('(supplier LIKE ? OR category LIKE ? OR summary LIKE ? OR bill_no LIKE ? '
+                     'OR pay_account LIKE ? OR customer LIKE ?)')
         like = f'%{search}%'
-        params.extend([like] * 5)
-    # 付款状态是派生字段，用 SQL 表达式过滤
+        params.extend([like] * 6)
+    # 付款状态是派生字段，用 SQL 表达式过滤（应付净额 = 总额 - 退货 - 扣款）
     if status in ('未付款', '部分付款', '已付清'):
-        unpaid_expr = 'total_amount - paid_amount'
+        payable = 'total_amount - return_amount - deduct_amount'
+        unpaid_expr = f'({payable}) - paid_amount'
         if status == '未付款':
-            where.append(f'{unpaid_expr} >= total_amount - 0.005')
+            where.append(f'{unpaid_expr} >= {payable} - 0.005')
         elif status == '已付清':
             where.append(f'{unpaid_expr} <= 0.005')
         else:
-            where.append(f'{unpaid_expr} > 0.005 AND {unpaid_expr} < total_amount - 0.005')
+            where.append(f'{unpaid_expr} > 0.005 AND {unpaid_expr} < {payable} - 0.005')
     return where, params
 
 
@@ -455,12 +547,13 @@ def create_record():
         cur = conn.execute(
             '''INSERT INTO purchases (date, bill_no, supplier, category, summary,
                invoice_type, total_amount, input_tax, invoiced_amount,
-               paid_amount, pay_account)
-               VALUES (?,?,?,?,?,?,?,?,?,?,?)''',
+               paid_amount, pay_account, return_amount, deduct_amount, customer)
+               VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)''',
             (rec['date'], rec['bill_no'], rec['supplier'], rec['category'],
              rec['summary'], rec['invoice_type'], rec['total_amount'],
              rec['input_tax'], rec['invoiced_amount'], rec['paid_amount'],
-             rec['pay_account']))
+             rec['pay_account'], rec['return_amount'], rec['deduct_amount'],
+             rec['customer']))
         conn.commit()
         rid = cur.lastrowid
         row = conn.execute('SELECT * FROM purchases WHERE id=?', (rid,)).fetchone()
@@ -484,11 +577,13 @@ def update_record(rid: int):
         conn.execute(
             '''UPDATE purchases SET date=?, bill_no=?, supplier=?, category=?,
                summary=?, invoice_type=?, total_amount=?, input_tax=?,
-               invoiced_amount=?, paid_amount=?, pay_account=? WHERE id=?''',
+               invoiced_amount=?, paid_amount=?, pay_account=?,
+               return_amount=?, deduct_amount=?, customer=? WHERE id=?''',
             (rec['date'], rec['bill_no'], rec['supplier'], rec['category'],
              rec['summary'], rec['invoice_type'], rec['total_amount'],
              rec['input_tax'], rec['invoiced_amount'], rec['paid_amount'],
-             rec['pay_account'], rid))
+             rec['pay_account'], rec['return_amount'], rec['deduct_amount'],
+             rec['customer'], rid))
         conn.commit()
         row = conn.execute('SELECT * FROM purchases WHERE id=?', (rid,)).fetchone()
         conn.close()
@@ -521,16 +616,21 @@ def stats():
         where, params = _filters(request.args)
         w = ' AND '.join(where)
         conn = _get_db()
-        total = conn.execute(
+        agg = conn.execute(
             f'''SELECT COUNT(*) cnt, COALESCE(SUM(total_amount),0) total,
                 COALESCE(SUM(input_tax),0) tax, COALESCE(SUM(invoiced_amount),0) invoiced,
-                COALESCE(SUM(paid_amount),0) paid, COALESCE(SUM(total_amount-paid_amount),0) unpaid
+                COALESCE(SUM(return_amount),0) ret, COALESCE(SUM(deduct_amount),0) deduct,
+                COALESCE(SUM(total_amount-return_amount-deduct_amount),0) payable,
+                COALESCE(SUM(paid_amount),0) paid,
+                COALESCE(SUM(total_amount-return_amount-deduct_amount-paid_amount),0) unpaid
                 FROM purchases WHERE {w}''', params).fetchone()
         by_supplier = conn.execute(
             f'''SELECT supplier, COUNT(*) cnt, COALESCE(SUM(total_amount),0) total,
                 COALESCE(SUM(input_tax),0) tax, COALESCE(SUM(invoiced_amount),0) invoiced,
+                COALESCE(SUM(return_amount),0) ret, COALESCE(SUM(deduct_amount),0) deduct,
+                COALESCE(SUM(total_amount-return_amount-deduct_amount),0) payable,
                 COALESCE(SUM(paid_amount),0) paid,
-                COALESCE(SUM(total_amount-paid_amount),0) unpaid
+                COALESCE(SUM(total_amount-return_amount-deduct_amount-paid_amount),0) unpaid
                 FROM purchases WHERE {w} GROUP BY supplier
                 ORDER BY total DESC LIMIT 50''', params).fetchall()
         by_category = conn.execute(
@@ -541,18 +641,30 @@ def stats():
             f'''SELECT invoice_type, COUNT(*) cnt, COALESCE(SUM(total_amount),0) total
                 FROM purchases WHERE {w} GROUP BY invoice_type
                 ORDER BY total DESC''', params).fetchall()
+        by_customer = conn.execute(
+            f'''SELECT customer, COUNT(*) cnt, COALESCE(SUM(total_amount),0) total,
+                COALESCE(SUM(input_tax),0) tax,
+                COALESCE(SUM(total_amount-return_amount-deduct_amount),0) payable,
+                COALESCE(SUM(paid_amount),0) paid,
+                COALESCE(SUM(total_amount-return_amount-deduct_amount-paid_amount),0) unpaid
+                FROM purchases WHERE {w} GROUP BY customer
+                ORDER BY total DESC LIMIT 50''', params).fetchall()
         conn.close()
         return jsonify({'success': True, 'data': {
-            'count': total['cnt'],
-            'total': _round2(total['total']),
-            'tax': _round2(total['tax']),
-            'net_cost': _round2(total['total'] - total['tax']),
-            'invoiced': _round2(total['invoiced']),
-            'paid': _round2(total['paid']),
-            'unpaid': _round2(total['unpaid']),
+            'count': agg['cnt'],
+            'total': _round2(agg['total']),
+            'tax': _round2(agg['tax']),
+            'net_cost': _round2(agg['total'] - agg['tax']),
+            'returned': _round2(agg['ret']),
+            'deducted': _round2(agg['deduct']),
+            'payable': _round2(agg['payable']),
+            'invoiced': _round2(agg['invoiced']),
+            'paid': _round2(agg['paid']),
+            'unpaid': _round2(agg['unpaid']),
             'by_supplier': [_round_summary(dict(r)) for r in by_supplier],
             'by_category': [_round_summary(dict(r)) for r in by_category],
             'by_invoice': [_round_summary(dict(r)) for r in by_invoice],
+            'by_customer': [_round_summary(dict(r)) for r in by_customer],
         }})
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)}), 400
@@ -602,7 +714,8 @@ def trends():
             f'''SELECT {expr} AS period, COUNT(*) cnt,
                 COALESCE(SUM(total_amount),0) total, COALESCE(SUM(input_tax),0) tax,
                 COALESCE(SUM(invoiced_amount),0) invoiced, COALESCE(SUM(paid_amount),0) paid,
-                COALESCE(SUM(total_amount-paid_amount),0) unpaid
+                COALESCE(SUM(total_amount-return_amount-deduct_amount),0) payable,
+                COALESCE(SUM(total_amount-return_amount-deduct_amount-paid_amount),0) unpaid
                 FROM purchases WHERE {w} GROUP BY period ORDER BY period DESC''',
             params).fetchall()
         conn.close()
@@ -612,6 +725,7 @@ def trends():
             'rows': data,
             'count': sum(r['cnt'] for r in data),
             'total': _round2(sum(r['total'] for r in data)),
+            'payable': _round2(sum(r['payable'] for r in data)),
             'unpaid': _round2(sum(r['unpaid'] for r in data)),
         }})
     except Exception as e:
@@ -639,19 +753,22 @@ def reconcile():
         agg = conn.execute(
             f'''SELECT COUNT(*) cnt, COALESCE(SUM(total_amount),0) total,
                 COALESCE(SUM(input_tax),0) tax, COALESCE(SUM(invoiced_amount),0) invoiced,
+                COALESCE(SUM(return_amount),0) ret, COALESCE(SUM(deduct_amount),0) deduct,
+                COALESCE(SUM(total_amount-return_amount-deduct_amount),0) payable,
                 COALESCE(SUM(paid_amount),0) paid,
-                COALESCE(SUM(total_amount-paid_amount),0) unpaid,
+                COALESCE(SUM(total_amount-return_amount-deduct_amount-paid_amount),0) unpaid,
                 COALESCE(SUM(CASE WHEN recon_at<>"" THEN 1 ELSE 0 END),0) recon_cnt
                 FROM purchases WHERE {w}''', params).fetchone()
         by_invoice = conn.execute(
-            f'''SELECT invoice_type, COUNT(*) cnt, COALESCE(SUM(total_amount),0) total,
-                COALESCE(SUM(total_amount-paid_amount),0) unpaid
+            f'''SELECT invoice_type, COUNT(*) cnt, COALESCE(SUM(total_amount),0) total
                 FROM purchases WHERE {w} GROUP BY invoice_type ORDER BY total DESC''',
             params).fetchall()
         by_month = conn.execute(
             f'''SELECT substr(date,1,7) AS period, COUNT(*) cnt,
-                COALESCE(SUM(total_amount),0) total, COALESCE(SUM(paid_amount),0) paid,
-                COALESCE(SUM(total_amount-paid_amount),0) unpaid
+                COALESCE(SUM(total_amount),0) total,
+                COALESCE(SUM(total_amount-return_amount-deduct_amount),0) payable,
+                COALESCE(SUM(paid_amount),0) paid,
+                COALESCE(SUM(total_amount-return_amount-deduct_amount-paid_amount),0) unpaid
                 FROM purchases WHERE {w} GROUP BY period ORDER BY period''',
             params).fetchall()
 
@@ -662,7 +779,9 @@ def reconcile():
             out_params.append(supplier)
         outstanding = conn.execute(
             f'''SELECT COALESCE(SUM(total_amount),0) total, COALESCE(SUM(paid_amount),0) paid,
-                COALESCE(SUM(total_amount-paid_amount),0) unpaid, COUNT(*) cnt
+                COALESCE(SUM(total_amount-return_amount-deduct_amount),0) payable,
+                COALESCE(SUM(total_amount-return_amount-deduct_amount-paid_amount),0) unpaid,
+                COUNT(*) cnt
                 FROM purchases WHERE {' AND '.join(out_where)}''', out_params).fetchone()
 
         profile = None
@@ -673,15 +792,19 @@ def reconcile():
 
         total = _round2(agg['total'])
         invoiced = _round2(agg['invoiced'])
+        payable = _round2(agg['payable'])
         summary = {
             'count': agg['cnt'],
             'total': total,
             'tax': _round2(agg['tax']),
             'net_cost': _round2(total - agg['tax']),
+            'returned': _round2(agg['ret']),             # 退货
+            'deducted': _round2(agg['deduct']),          # 扣款（扣重/扣水等）
+            'payable': payable,                          # 应付净额 = 采购额-退货-扣款
             'invoiced': invoiced,
             'uninvoiced': _round2(total - invoiced),     # 待开票
             'paid': _round2(agg['paid']),
-            'unpaid': _round2(agg['unpaid']),
+            'unpaid': _round2(payable - agg['paid']),
             'recon_cnt': agg['recon_cnt'],
             'unrecon_cnt': agg['cnt'] - agg['recon_cnt'],
         }
@@ -698,6 +821,7 @@ def reconcile():
             'outstanding': {
                 'count': outstanding['cnt'],
                 'total': _round2(outstanding['total']),
+                'payable': _round2(outstanding['payable']),
                 'paid': _round2(outstanding['paid']),
                 'unpaid': _round2(outstanding['unpaid']),
             },
@@ -716,6 +840,11 @@ def reconcile_export():
         conn = _get_db()
         rows = conn.execute(
             f'SELECT * FROM purchases WHERE {w} ORDER BY date, id', params).fetchall()
+        settle = ''
+        if supplier:
+            p = conn.execute('SELECT settle_type FROM suppliers WHERE name=?',
+                             (supplier,)).fetchone()
+            settle = (p['settle_type'] if p else '') or ''
         conn.close()
         items = [_with_derived(dict(r)) for r in rows]
 
@@ -729,33 +858,39 @@ def reconcile_export():
         ws['A1'].font = Font(bold=True, size=14)
         ws.append(['供应商', supplier or '（全部供应商）', '生成时间', now_str()])
         ws.append(['对账期间', f"{request.args.get('start') or '最早'} 至 "
-                               f"{request.args.get('end') or '最新'}"])
+                               f"{request.args.get('end') or '最新'}",
+                   '结算方式', settle or '未设置'])
         ws.append([])
-        ws.append(['日期', '单据号', '品类', '采购内容摘要', '发票类型', '采购总金额',
-                   '进项税额', '不含税成本', '已开金额', '已付金额', '未付余额',
-                   '付款账户', '付款状态', '已对账'])
+        ws.append(['日期', '单据号', '品类', '客户/门店', '采购内容摘要', '发票类型',
+                   '采购总金额', '进项税额', '不含税成本', '退货金额', '扣款金额',
+                   '应付净额', '已开金额', '已付金额', '未付余额', '付款账户',
+                   '付款状态', '已对账'])
         head = ws.max_row
-        _style_header(ws, 14, head)
+        _style_header(ws, 18, head)
         for d in items:
-            ws.append([d['date'], d['bill_no'], d['category'], d['summary'],
-                       d['invoice_type'], d['total_amount'], d['input_tax'],
-                       d['net_cost'], d['invoiced_amount'], d['paid_amount'],
-                       d['unpaid_balance'], d['pay_account'], d['pay_status'],
-                       '是' if d['reconciled'] else '否'])
-        _style_money(ws, head + 1, ws.max_row, (6, 7, 8, 9, 10, 11))
+            ws.append([d['date'], d['bill_no'], d['category'], d['customer'],
+                       d['summary'], d['invoice_type'], d['total_amount'],
+                       d['input_tax'], d['net_cost'], d['return_amount'],
+                       d['deduct_amount'], d['payable'], d['invoiced_amount'],
+                       d['paid_amount'], d['unpaid_balance'], d['pay_account'],
+                       d['pay_status'], '是' if d['reconciled'] else '否'])
+        _style_money(ws, head + 1, ws.max_row, (7, 8, 9, 10, 11, 12, 13, 14, 15))
         ws.append([])
-        ws.append(['合计', '', '', f'{len(items)} 笔', '',
+        ws.append(['合计', '', '', f'{len(items)} 笔', '', '',
                    sum(d['total_amount'] for d in items),
                    sum(d['input_tax'] for d in items),
                    sum(d['net_cost'] for d in items),
+                   sum(d['return_amount'] for d in items),
+                   sum(d['deduct_amount'] for d in items),
+                   sum(d['payable'] for d in items),
                    sum(d['invoiced_amount'] for d in items),
                    sum(d['paid_amount'] for d in items),
                    sum(d['unpaid_balance'] for d in items)])
         last = ws.max_row
-        _style_money(ws, last, last, (6, 7, 8, 9, 10, 11))
-        for c in range(1, 15):
+        _style_money(ws, last, last, (7, 8, 9, 10, 11, 12, 13, 14, 15))
+        for c in range(1, 19):
             ws.cell(row=last, column=c).font = Font(bold=True)
-        _set_widths(ws, [12, 14, 10, 26, 12, 13, 12, 13, 12, 12, 12, 12, 10, 8])
+        _set_widths(ws, [12, 14, 10, 12, 26, 14, 13, 12, 13, 11, 11, 13, 12, 12, 12, 12, 10, 8])
         name = (f"对账单_{supplier or '全部'}_{request.args.get('start') or ''}_"
                 f"{request.args.get('end') or ''}.xlsx")
         return _xlsx_response(wb, name)
@@ -808,18 +943,27 @@ def options():
             "SELECT DISTINCT pay_account FROM purchases WHERE pay_account<>''")]
         categories += [n for n in historic_categories if n not in categories]
         accounts += [n for n in historic_accounts if n not in accounts]
+        customers = [r[0] for r in conn.execute(
+            "SELECT name FROM purchase_dicts WHERE kind='customer' ORDER BY sort, name")]
+        historic_customers = [r[0] for r in conn.execute(
+            "SELECT DISTINCT customer FROM purchases WHERE customer<>''")]
+        customers += [n for n in historic_customers if n not in customers]
         conn.close()
         return jsonify({'success': True, 'data': {
             'suppliers': suppliers, 'extra_suppliers': extra,
             'categories': categories, 'accounts': accounts,
-            'invoice_types': list(INVOICE_TYPES)}})
+            'customers': customers,
+            'invoice_types': list(INVOICE_TYPES),
+            'invoice_defs': [{'name': n, 'rate': r, 'mode': m or ''}
+                             for n, r, m in _INVOICE_DEFS],
+            'settle_types': list(SETTLE_TYPES)}})
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)}), 400
 
 
 # ==================== 基础配置 ====================
 
-DICT_KINDS = ('category', 'account')
+DICT_KINDS = ('category', 'account', 'customer')
 
 
 def _supplier_rows(conn, keyword: str = '', active_only: bool = False) -> list[dict]:
@@ -882,19 +1026,24 @@ def _supplier_payload(data: dict) -> dict:
         'phone': str(data.get('phone') or '').strip()[:30],
         'category': str(data.get('category') or '').strip()[:50],
         'default_invoice': str(data.get('default_invoice') or '').strip(),
+        'settle_type': str(data.get('settle_type') or '').strip()[:10],
         'note': str(data.get('note') or '').strip()[:200],
         'active': 1 if str(data.get('active', 1)) not in ('0', 'false', 'False', '') else 0,
     }
     if not rec['name']:
         raise ValueError('供应商名称不能为空')
+    rec['default_invoice'] = _INVOICE_MIGRATE.get(rec['default_invoice'],
+                                                  rec['default_invoice'])
     if rec['default_invoice'] and rec['default_invoice'] not in INVOICE_TYPES:
         raise ValueError('默认发票类型不合法')
+    if rec['settle_type'] and rec['settle_type'] not in SETTLE_TYPES:
+        raise ValueError('结算方式只能是：' + ' / '.join(SETTLE_TYPES))
     return rec
 
 
 # 供应商档案导入用的列名（与采购记录的表分开）
 _SUPPLIER_HEADERS = ['供应商编码', '供应商名称', '供应商类型', '批发市场名称', '经营地址',
-                     '法人/负责人', '联系方式', '主营品类', '默认发票类型', '备注']
+                     '法人/负责人', '联系方式', '主营品类', '默认发票类型', '结算方式', '备注']
 _SUPPLIER_ALIASES: dict[str, tuple[str, ...]] = {
     'code': ('供应商编码', '编码', '编号', 'code'),
     'name': ('供应商名称', '供应商', '单位名称', '名称', 'name', 'supplier'),
@@ -905,6 +1054,7 @@ _SUPPLIER_ALIASES: dict[str, tuple[str, ...]] = {
     'phone': ('联系方式', '电话', '手机', '联系电话', 'phone', 'tel'),
     'category': ('主营品类', '品类', '类别', 'category'),
     'default_invoice': ('默认发票类型', '发票类型', '票种', 'default_invoice'),
+    'settle_type': ('结算方式', '结账方式', '账期', '结算', 'settle_type'),
     'note': ('备注', '说明', 'note'),
 }
 
@@ -936,11 +1086,12 @@ def create_supplier():
         try:
             cur = conn.execute(
                 '''INSERT INTO suppliers (name, code, s_type, market, address,
-                   contact, phone, category, default_invoice, note, active)
-                   VALUES (?,?,?,?,?,?,?,?,?,?,?)''',
+                   contact, phone, category, default_invoice, settle_type, note, active)
+                   VALUES (?,?,?,?,?,?,?,?,?,?,?,?)''',
                 (rec['name'], rec['code'], rec['s_type'], rec['market'],
                  rec['address'], rec['contact'], rec['phone'], rec['category'],
-                 rec['default_invoice'], rec['note'], rec['active']))
+                 rec['default_invoice'], rec['settle_type'], rec['note'],
+                 rec['active']))
             conn.commit()
             sid = cur.lastrowid
         except sqlite3.IntegrityError:
@@ -976,11 +1127,12 @@ def update_supplier(sid: int):
         try:
             conn.execute(
                 '''UPDATE suppliers SET name=?, code=?, s_type=?, market=?, address=?,
-                   contact=?, phone=?, category=?, default_invoice=?, note=?, active=?
-                   WHERE id=?''',
+                   contact=?, phone=?, category=?, default_invoice=?, settle_type=?,
+                   note=?, active=? WHERE id=?''',
                 (rec['name'], rec['code'], rec['s_type'], rec['market'],
                  rec['address'], rec['contact'], rec['phone'], rec['category'],
-                 rec['default_invoice'], rec['note'], rec['active'], sid))
+                 rec['default_invoice'], rec['settle_type'], rec['note'],
+                 rec['active'], sid))
             renamed = 0
             if sync and old['name'] != rec['name']:
                 renamed = conn.execute(
@@ -1037,14 +1189,15 @@ def supplier_template():
         ws.append(_SUPPLIER_HEADERS)
         _style_header(ws, len(_SUPPLIER_HEADERS))
         ws.append(['GYS001', '示例供应商', '个体', '恩施华硒', '恩施华硒农产品市场3号',
-                   '张老板', '13800000000', '生鲜', '专票', '示例行，导入前请删除'])
+                   '张老板', '13800000000', '生鲜', '农产品收购发票', '月结',
+                   '示例行，导入前请删除'])
         ws.cell(row=2, column=2).font = Font(color='9CA3AF', italic=True)
         ws.append(['填写说明：只有「供应商名称」必填，其余选填；「供应商编码」留空会自动按'
                    ' GYS001 顺序生成；「供应商类型」建议填 个体/批发市场/公司/其他；'
-                   '默认发票类型只能填 无票(不抵)/专票/普票，填错或不填会自动留空；'
+                   '「结算方式」填 现结/周结/月结/压批结；默认发票类型填错或不填会自动留空；'
                    '重名的默认跳过，要覆盖已存在的请在导入时选「更新」。'])
         ws.cell(row=3, column=1).font = Font(color='6B7280', size=10)
-        _set_widths(ws, [12, 20, 12, 16, 26, 12, 14, 12, 14, 22])
+        _set_widths(ws, [12, 20, 12, 16, 26, 12, 14, 12, 16, 10, 22])
         return _xlsx_response(wb, '供应商导入模板.xlsx')
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)}), 400
@@ -1093,8 +1246,12 @@ def import_suppliers():
             if not name or name == '示例供应商':
                 continue
             invoice = _cell_text(cell('default_invoice'))
+            invoice = _INVOICE_MIGRATE.get(invoice, invoice)
             if invoice and invoice not in INVOICE_TYPES:
                 invoice = ''                       # 票种写错就留空，不让整行失败
+            settle = _cell_text(cell('settle_type'))
+            if settle and settle not in SETTLE_TYPES:
+                settle = ''                        # 结算方式同理，写错留空
             rec = {
                 'name': name,
                 'code': _cell_text(cell('code'))[:30],
@@ -1105,6 +1262,7 @@ def import_suppliers():
                 'phone': _cell_text(cell('phone'))[:30],
                 'category': _cell_text(cell('category'))[:50],
                 'default_invoice': invoice,
+                'settle_type': settle,
                 'note': _cell_text(cell('note'))[:200],
             }
             old = conn.execute('SELECT id FROM suppliers WHERE name=?', (name,)).fetchone()
@@ -1114,11 +1272,12 @@ def import_suppliers():
                     continue
                 conn.execute(
                     '''UPDATE suppliers SET code=?, s_type=?, market=?, address=?,
-                       contact=?, phone=?, category=?, default_invoice=?, note=?
-                       WHERE id=?''',
+                       contact=?, phone=?, category=?, default_invoice=?, settle_type=?,
+                       note=? WHERE id=?''',
                     (rec['code'], rec['s_type'], rec['market'], rec['address'],
                      rec['contact'], rec['phone'], rec['category'],
-                     rec['default_invoice'], rec['note'], old['id']))
+                     rec['default_invoice'], rec['settle_type'], rec['note'],
+                     old['id']))
                 updated.append(old['id'])
                 continue
             if not rec['code']:
@@ -1130,11 +1289,11 @@ def import_suppliers():
                 continue
             cur = conn.execute(
                 '''INSERT INTO suppliers (name, code, s_type, market, address,
-                   contact, phone, category, default_invoice, note, active)
-                   VALUES (?,?,?,?,?,?,?,?,?,?,1)''',
+                   contact, phone, category, default_invoice, settle_type, note, active)
+                   VALUES (?,?,?,?,?,?,?,?,?,?,?,1)''',
                 (rec['name'], rec['code'], rec['s_type'], rec['market'],
                  rec['address'], rec['contact'], rec['phone'], rec['category'],
-                 rec['default_invoice'], rec['note']))
+                 rec['default_invoice'], rec['settle_type'], rec['note']))
             added.append(cur.lastrowid)
         conn.commit()
         conn.close()
@@ -1264,17 +1423,21 @@ def export_excel():
         ws.append(EXPORT_HEADERS)
         _style_header(ws, len(EXPORT_HEADERS))
         for d in items:
-            ws.append([d['date'], d['bill_no'], d['supplier'], d['category'],
-                       d['summary'], d['invoice_type'], d['total_amount'],
-                       d['input_tax'], d['net_cost'], d['invoiced_amount'],
-                       d['paid_amount'], d['unpaid_balance'], d['pay_account'],
-                       d['pay_status']])
+            ws.append([d['date'], d['bill_no'], d['supplier'], d['customer'],
+                       d['category'], d['summary'], d['invoice_type'],
+                       d['total_amount'], d['input_tax'], d['net_cost'],
+                       d['return_amount'], d['deduct_amount'], d['payable'],
+                       d['invoiced_amount'], d['paid_amount'], d['unpaid_balance'],
+                       d['pay_account'], d['pay_status']])
         if items:
             _style_money(ws, 2, ws.max_row, _MONEY_IDX)
-            ws.append(['合计', '', f'{len(items)} 笔', '', '', '',
+            ws.append(['合计', '', f'{len(items)} 笔', '', '', '', '',
                        sum(d['total_amount'] for d in items),
                        sum(d['input_tax'] for d in items),
                        sum(d['net_cost'] for d in items),
+                       sum(d['return_amount'] for d in items),
+                       sum(d['deduct_amount'] for d in items),
+                       sum(d['payable'] for d in items),
                        sum(d['invoiced_amount'] for d in items),
                        sum(d['paid_amount'] for d in items),
                        sum(d['unpaid_balance'] for d in items)])
@@ -1282,7 +1445,7 @@ def export_excel():
             _style_money(ws, last, last, _MONEY_IDX)
             for c in range(1, len(EXPORT_HEADERS) + 1):
                 ws.cell(row=last, column=c).font = Font(bold=True)
-        _set_widths(ws, [12, 14, 20, 10, 28, 12, 18, 12, 13, 12, 12, 12, 12, 10])
+        _set_widths(ws, [12, 14, 20, 12, 10, 28, 14, 18, 12, 13, 11, 11, 13, 12, 12, 12, 12, 10])
         return _xlsx_response(wb, f'采购台账_{now_str()[:10]}.xlsx')
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)}), 400
@@ -1300,14 +1463,16 @@ def download_template():
         ws.title = '采购台账'
         ws.append(EXPORT_HEADERS)
         _style_header(ws, len(EXPORT_HEADERS))
-        ws.append(['2026-01-01', 'CG-0001', '示例供应商', '生鲜', '示例行，导入前请删除本行',
-                   '专票', 1130.00, 130.00, 1000.00, 0, 1130.00, 0, '微信', '已付清'])
+        ws.append(['2026-01-01', 'CG-0001', '示例供应商', '一中食堂', '生鲜',
+                   '示例行，导入前请删除本行', '专票9%', 1130.00, '', '',
+                   0, 30.00, '', 0, 1100.00, '', '微信', '部分付款'])
         ws.cell(row=2, column=3).font = Font(color='9CA3AF', italic=True)
         _style_money(ws, 2, 2, _MONEY_IDX)
         ws.append(['填写说明：日期写 2026-01-01 这种格式；金额只填数字，不要带 ¥ 和千分位；'
-                   '不含税成本与未付余额是自动算的，填了也会被忽略。'])
+                   '进项税额留空会按票种自动算（农产品收购发票按买价×9%计算抵扣，'
+                   '专票/普票价税分离）；不含税成本、应付净额、未付余额是自动算的，填了也会忽略。'])
         ws.cell(row=3, column=1).font = Font(color='6B7280', size=10)
-        _set_widths(ws, [12, 14, 20, 10, 28, 12, 18, 12, 13, 12, 12, 12, 12, 10])
+        _set_widths(ws, [12, 14, 20, 12, 10, 28, 14, 18, 12, 13, 11, 11, 13, 12, 12, 12, 12, 10])
         return _xlsx_response(wb, '采购台账导入模板.xlsx')
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)}), 400
@@ -1359,12 +1524,18 @@ def import_excel():
                 'summary': _cell_text(cell('summary')),
                 'invoice_type': _cell_text(cell('invoice_type')),
                 'pay_account': _cell_text(cell('pay_account')),
+                'customer': _cell_text(cell('customer')),
             }
             if data['supplier'] == '示例供应商':               # 模板自带的示例行
                 continue
             try:
                 data['total_amount'] = _cell_money(cell('total_amount'))
-                data['input_tax'] = _cell_money(cell('input_tax'))
+                # 税额列留空 → 交给 _validate 按票种自动算
+                tax_cell = cell('input_tax')
+                if tax_cell is not None and str(tax_cell).strip() != '':
+                    data['input_tax'] = _cell_money(tax_cell)
+                data['return_amount'] = _cell_money(cell('return_amount'))
+                data['deduct_amount'] = _cell_money(cell('deduct_amount'))
                 data['invoiced_amount'] = _cell_money(cell('invoiced_amount'))
                 data['paid_amount'] = _cell_money(cell('paid_amount'))
                 rec = _validate(data)
@@ -1392,11 +1563,13 @@ def import_excel():
             cur = conn.execute(
                 '''INSERT INTO purchases (date, bill_no, supplier, category, summary,
                    invoice_type, total_amount, input_tax, invoiced_amount,
-                   paid_amount, pay_account) VALUES (?,?,?,?,?,?,?,?,?,?,?)''',
+                   paid_amount, pay_account, return_amount, deduct_amount, customer)
+                   VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)''',
                 (rec['date'], rec['bill_no'], rec['supplier'], rec['category'],
                  rec['summary'], rec['invoice_type'], rec['total_amount'],
                  rec['input_tax'], rec['invoiced_amount'], rec['paid_amount'],
-                 rec['pay_account']))
+                 rec['pay_account'], rec['return_amount'], rec['deduct_amount'],
+                 rec['customer']))
             imported.append(cur.lastrowid)
             if auto_supplier and rec['supplier']:
                 conn.execute(
