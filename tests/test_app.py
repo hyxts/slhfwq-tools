@@ -539,6 +539,135 @@ class TestLedgerExtAPI(unittest.TestCase):
         self.assertIsInstance(d.get('data'), list)
 
 
+class TestPurchase(unittest.TestCase):
+    """采购台账模块测试（需要登录会话）"""
+
+    client: FlaskClient = None
+    _created_ids: list[int] = []
+
+    @classmethod
+    @override
+    def setUpClass(cls) -> None:
+        cls.client = app.test_client()
+        app.config['TESTING'] = True
+        with cls.client.session_transaction() as sess:  # type: ignore[attr-defined]
+            sess['auth'] = True
+        cls._rate_json: int = app_mod.RATE_LIMIT_MAX_JSON
+        cls._rate_html: int = app_mod.RATE_LIMIT_MAX_HTML
+        app_mod.RATE_LIMIT_MAX_JSON = 100000
+        app_mod.RATE_LIMIT_MAX_HTML = 100000
+
+    @classmethod
+    @override
+    def tearDownClass(cls) -> None:
+        app_mod.RATE_LIMIT_MAX_JSON = cls._rate_json
+        app_mod.RATE_LIMIT_MAX_HTML = cls._rate_html
+        for rid in cls._created_ids:
+            cls.client.delete(f'/api/purchase/records/{rid}')
+
+    def _create(self, payload: dict) -> dict:
+        r = self.client.post('/api/purchase/records', json=payload)
+        self.assertEqual(r.status_code, 200, r.get_data(as_text=True))
+        data = r.get_json()['data']
+        type(self)._created_ids.append(data['id'])
+        return data
+
+    def test_page_accessible(self) -> None:
+        r = self.client.get('/purchase')
+        self.assertEqual(r.status_code, 200)
+        self.assertIn('采购台账', r.get_data(as_text=True))
+
+    def test_manifest(self) -> None:
+        r = self.client.get('/purchase/manifest.json')
+        self.assertEqual(r.status_code, 200)
+        self.assertEqual(r.get_json().get('short_name'), '采购台账')
+
+    def test_crud_and_derived(self) -> None:
+        """新增 → 派生字段（不含税成本/未付余额/付款状态）→ 编辑 → 删除"""
+        rec = self._create({'date': '2026-10-10', 'bill_no': 'T-001',
+                            'supplier': '测试供应商甲', 'category': '测试品类',
+                            'summary': '测试摘要', 'invoice_type': '专票',
+                            'total_amount': 1000, 'input_tax': 90,
+                            'invoiced_amount': 500, 'paid_amount': 0,
+                            'pay_account': '测试账户'})
+        self.assertEqual(rec['net_cost'], 910.0)
+        self.assertEqual(rec['unpaid_balance'], 1000.0)
+        self.assertEqual(rec['pay_status'], '未付款')
+
+        rid = rec['id']
+        r = self.client.post(f'/api/purchase/records/{rid}',
+                             json={'date': '2026-10-10', 'supplier': '测试供应商甲',
+                                   'invoice_type': '专票', 'total_amount': 1000,
+                                   'input_tax': 90, 'paid_amount': 400})
+        self.assertEqual(r.status_code, 200)
+        upd = r.get_json()['data']
+        self.assertEqual(upd['unpaid_balance'], 600.0)
+        self.assertEqual(upd['pay_status'], '部分付款')
+
+        r = self.client.post(f'/api/purchase/records/{rid}',
+                             json={'date': '2026-10-10', 'supplier': '测试供应商甲',
+                                   'total_amount': 1000, 'paid_amount': 1000})
+        self.assertEqual(r.get_json()['data']['pay_status'], '已付清')
+
+        r = self.client.delete(f'/api/purchase/records/{rid}')
+        self.assertEqual(r.status_code, 200)
+        type(self)._created_ids.remove(rid)
+
+    def test_invalid_params(self) -> None:
+        cases: list[dict] = [
+            {'date': '2026-10-10'},                                   # 缺供应商
+            {'date': '2026-10-10', 'supplier': '某', 'total_amount': 0},   # 金额必须 > 0
+            {'date': '2026/10/10', 'supplier': '某', 'total_amount': 10},  # 日期格式
+            {'date': '2026-10-10', 'supplier': '某', 'total_amount': 10,
+             'input_tax': 99},                                        # 进项税 > 总额
+            {'date': '2026-10-10', 'supplier': '某', 'total_amount': 10,
+             'paid_amount': -1},                                      # 负数
+            {'supplier': '某', 'total_amount': 10},                   # 缺日期
+        ]
+        for payload in cases:
+            r = self.client.post('/api/purchase/records', json=payload)
+            self.assertEqual(r.status_code, 400, str(payload))
+            self.assertFalse(r.get_json()['success'])
+
+    def test_stats_and_filters(self) -> None:
+        a = self._create({'date': '2026-10-11', 'supplier': '测试供应商乙',
+                          'category': '测试品类', 'invoice_type': '无票(不抵)',
+                          'total_amount': 200.5, 'input_tax': 0, 'paid_amount': 200.5})
+        b = self._create({'date': '2026-10-12', 'supplier': '测试供应商乙',
+                          'category': '测试品类2', 'invoice_type': '专票',
+                          'total_amount': 99.5, 'paid_amount': 0})
+        r = self.client.get('/api/purchase/stats?supplier=测试供应商乙')
+        self.assertEqual(r.status_code, 200)
+        s = r.get_json()['data']
+        self.assertEqual(s['count'], 2)
+        self.assertEqual(s['total'], 300.0)
+        self.assertEqual(s['unpaid'], 99.5)
+        self.assertEqual(s['net_cost'], 300.0)
+        self.assertEqual(len(s['by_supplier']), 1)
+
+        r = self.client.get('/api/purchase/records?supplier=测试供应商乙&status=已付清')
+        ids = [x['id'] for x in r.get_json()['data']]
+        self.assertIn(a['id'], ids)
+        self.assertNotIn(b['id'], ids)
+
+        r = self.client.get('/api/purchase/export?supplier=测试供应商乙')
+        self.assertEqual(r.status_code, 200)
+        self.assertIn('测试供应商乙'.encode('utf-8'), r.get_data())
+
+    def test_options(self) -> None:
+        r = self.client.get('/api/purchase/options')
+        self.assertEqual(r.status_code, 200)
+        d = r.get_json()['data']
+        self.assertIn('无票(不抵)', d['invoice_types'])
+
+    def test_anonymous_blocked(self) -> None:
+        anon = app.test_client()
+        self.assertNotEqual(
+            anon.post('/api/purchase/records', json={'date': '2026-10-10',
+                                                     'supplier': 'x',
+                                                     'total_amount': 1}).status_code, 200)
+
+
 class TestRateLimiting(unittest.TestCase):
     """速率限制测试"""
 

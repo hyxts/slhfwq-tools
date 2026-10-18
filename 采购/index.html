@@ -1,0 +1,379 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=1.0, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="采购台账">
+<meta name="theme-color" content="#f8fafc">
+<link rel="apple-touch-icon" href="/purchase/icon-192.svg">
+<link rel="icon" type="image/svg+xml" href="/purchase/icon-512.svg">
+<link rel="manifest" href="/purchase/manifest.json">
+<title>采购台账</title>
+<style>
+:root {
+    --primary:#0e7490; --primary-weak:#e0f2f7; --bg:#f0f2f5; --card-bg:#ffffff;
+    --text:#1e293b; --text-secondary:#64748b; --border:#e2e8f0;
+    --success:#10b981; --danger:#dc2626; --warn:#d97706;
+    --shadow:0 2px 8px rgba(0,0,0,.06);
+}
+* { margin:0; padding:0; box-sizing:border-box; }
+body { font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif; background:var(--bg); color:var(--text); -webkit-text-size-adjust:100%; -webkit-font-smoothing:antialiased; padding-top:env(safe-area-inset-top); padding-left:env(safe-area-inset-left); padding-right:env(safe-area-inset-right); padding-bottom:calc(16px + env(safe-area-inset-bottom)); }
+body::before { content:''; position:fixed; top:0; left:0; right:0; height:env(safe-area-inset-top); background:var(--card-bg); z-index:101; pointer-events:none; }
+@media (hover:hover){ .btn-primary:hover { opacity:.9; } .row:hover { background:#f8fafc; } }
+header { background:var(--card-bg); border-bottom:1px solid #e2e8f0; padding:12px 16px; position:sticky; top:0; z-index:100; display:flex; align-items:center; justify-content:space-between; }
+.header-left { display:flex; align-items:center; gap:8px; }
+.back { display:flex; align-items:center; justify-content:center; color:#64748b; font-size:20px; min-width:44px; min-height:44px; text-decoration:none; }
+header h1 { font-size:17px; font-weight:700; }
+.container { max-width:1400px; margin:0 auto; padding:12px 16px; }
+.card { background:var(--card-bg); border-radius:12px; box-shadow:var(--shadow); padding:16px; margin-bottom:12px; }
+button { padding:10px 20px; border:none; border-radius:10px; font-size:14px; font-weight:600; cursor:pointer; min-height:44px; }
+.btn-primary { background:var(--primary); color:#fff; }
+.btn-outline { background:transparent; border:1px solid var(--border); color:var(--text); }
+.btn-sm { padding:4px 10px; font-size:12px; min-height:auto; border-radius:8px; }
+.btn-danger-sm { background:#fee2e2; color:var(--danger); }
+/* 统计 */
+.stat-overview { display:grid; grid-template-columns:repeat(auto-fit,minmax(130px,1fr)); gap:8px; margin-bottom:12px; }
+.stat-card { background:var(--card-bg); border-radius:10px; padding:12px; box-shadow:0 1px 4px rgba(0,0,0,.06); }
+.s-label { font-size:11px; color:var(--text-secondary); margin-bottom:4px; }
+.s-value { font-size:18px; font-weight:700; }
+.s-value.warn { color:var(--warn); }
+.s-value.primary { color:var(--primary); }
+/* 筛选栏 */
+.filter-bar { display:flex; gap:8px; align-items:center; flex-wrap:wrap; margin-bottom:12px; }
+.filter-bar input, .filter-bar select { padding:8px 10px; border:1px solid var(--border); border-radius:10px; font-size:13px; background:var(--card-bg); min-height:44px; }
+.filter-bar input[type=date], .filter-bar input[type=search] { min-height:44px; }
+/* 表格 */
+.table-wrap { overflow-x:auto; border:1px solid #c8cdd3; border-radius:10px; background:#fff; }
+table { border-collapse:collapse; width:100%; font-size:12.5px; min-width:1080px; }
+thead th { position:sticky; top:0; background:#0e7490; color:#fff; padding:8px 8px; text-align:left; white-space:nowrap; font-weight:600; }
+tbody td { padding:7px 8px; border-bottom:1px solid #f1f5f9; white-space:nowrap; }
+td.num { text-align:right; font-variant-numeric:tabular-nums; }
+td.wrap { white-space:normal; word-break:break-all; min-width:110px; }
+.badge { font-size:10.5px; padding:2px 8px; border-radius:10px; font-weight:600; white-space:nowrap; }
+.badge.none { background:#f1f5f9; color:#64748b; }
+.badge.part { background:#fef3c7; color:#b45309; }
+.badge.done { background:#dcfce7; color:#16a34a; }
+.badge.inv { background:#e0f2f7; color:#0e7490; }
+.row-actions { display:flex; gap:4px; }
+.empty { text-align:center; color:var(--text-secondary); padding:28px 0; font-size:13px; }
+/* 汇总 */
+.sum-sec { margin-top:12px; display:grid; grid-template-columns:repeat(auto-fit,minmax(260px,1fr)); gap:12px; }
+.sum-sec h4 { font-size:13px; font-weight:600; margin-bottom:8px; }
+.sum-row { display:flex; align-items:center; gap:8px; padding:6px 10px; background:var(--card-bg); border-radius:8px; margin-bottom:5px; box-shadow:0 1px 3px rgba(0,0,0,.04); font-size:12.5px; cursor:pointer; }
+.sum-row .name { flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; word-break:break-all; }
+.sum-row .val { font-weight:600; white-space:nowrap; }
+/* 弹窗 */
+.modal-overlay { position:fixed; inset:0; background:rgba(0,0,0,.4); z-index:200; display:none; align-items:center; justify-content:center; padding:20px; }
+.modal-overlay.show { display:flex; }
+.modal { background:var(--card-bg); border-radius:14px; padding:20px; width:100%; max-width:440px; max-height:85vh; overflow-y:auto; }
+.modal h4 { font-size:16px; font-weight:600; margin-bottom:14px; }
+.form-row { display:flex; gap:8px; margin-bottom:8px; }
+.field { flex:1; }
+.field label { display:block; font-size:11px; color:var(--text-secondary); margin-bottom:2px; }
+.field input, .field select { width:100%; padding:10px 12px; border:1px solid var(--border); border-radius:10px; font-size:16px; background:var(--card-bg); -webkit-appearance:none; min-height:44px; }
+.field input:focus, .field select:focus { outline:none; border-color:var(--primary); }
+.derived { display:flex; gap:12px; font-size:12px; color:var(--text-secondary); background:var(--primary-weak); border-radius:8px; padding:8px 12px; margin-bottom:8px; }
+.derived b { color:var(--primary); }
+.modal-actions { display:flex; gap:8px; margin-top:10px; }
+#toast { position:fixed; left:50%; transform:translateX(-50%); bottom:80px; background:#1e293b; color:#fff; padding:10px 20px; border-radius:10px; font-size:13px; z-index:300; display:none; max-width:80vw; word-break:break-all; }
+@media (max-width:768px){
+    .container { max-width:100vw; padding:10px 12px; }
+    .table-head { display:none; }
+    .table-wrap { border:none; background:transparent; overflow:visible; }
+    table { min-width:0; display:block; }
+    thead { display:none; }
+    tbody { display:block; }
+    .row { display:block; background:var(--card-bg); border-radius:10px; box-shadow:0 1px 4px rgba(0,0,0,.05); padding:10px 12px; margin-bottom:8px; }
+    tbody td { display:flex; justify-content:space-between; gap:10px; border-bottom:1px dashed #f1f5f9; padding:5px 0; white-space:normal; }
+    tbody td::before { content:attr(data-l); color:var(--text-secondary); font-size:11.5px; flex-shrink:0; }
+    tbody td:last-child { border-bottom:none; justify-content:flex-end; }
+    td.num { text-align:right; }
+    td.wrap { min-width:0; }
+}
+</style>
+</head>
+<body>
+<header>
+  <div class="header-left">
+    <a class="back" href="/nav" title="返回导航" onclick="if(document.referrer.includes('/nav')){history.back();return false}">&larr;</a>
+    <h1>采购台账</h1>
+  </div>
+  <div style="display:flex;gap:8px">
+    <button class="btn-outline btn-sm" style="min-height:36px" onclick="doExport()">导出CSV</button>
+    <button class="btn-primary btn-sm" style="min-height:36px" onclick="openModal()">+ 新增采购</button>
+  </div>
+</header>
+<div class="container">
+  <div class="stat-overview" id="statCards"></div>
+
+  <div class="card">
+    <div class="filter-bar">
+      <input type="date" id="fStart" onchange="reload()">
+      <span style="color:var(--text-secondary);font-size:12px">至</span>
+      <input type="date" id="fEnd" onchange="reload()">
+      <select id="fSupplier" onchange="reload()"><option value="">全部供应商</option></select>
+      <select id="fCategory" onchange="reload()"><option value="">全部品类</option></select>
+      <select id="fInvoice" onchange="reload()"></select>
+      <select id="fStatus" onchange="reload()">
+        <option value="">全部状态</option><option>未付款</option><option>部分付款</option><option>已付清</option>
+      </select>
+      <input type="search" id="fSearch" placeholder="搜索单号/摘要/账户…" style="flex:1;min-width:140px" onkeydown="if(event.key==='Enter')reload()">
+      <button class="btn-outline btn-sm" style="min-height:44px" onclick="resetFilter()">重置</button>
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead><tr>
+          <th>日期</th><th>单据号</th><th>供应商名称</th><th>品类</th><th>采购内容摘要</th>
+          <th>发票类型</th><th style="text-align:right">采购总金额</th><th style="text-align:right">进项税额</th>
+          <th style="text-align:right">不含税成本</th><th style="text-align:right">已开金额</th>
+          <th style="text-align:right">已付金额</th><th style="text-align:right">未付余额</th>
+          <th>付款账户</th><th>付款状态</th><th>操作</th>
+        </tr></thead>
+        <tbody id="tbody"><tr><td colspan="15" class="empty">加载中…</td></tr></tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="sum-sec">
+    <div class="card" style="margin:0"><h4>按供应商汇总（前 20）</h4><div id="sumSupplier"></div></div>
+    <div class="card" style="margin:0"><h4>按品类汇总</h4><div id="sumCategory"></div></div>
+    <div class="card" style="margin:0"><h4>按发票类型汇总</h4><div id="sumInvoice"></div></div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="modal">
+  <div class="modal">
+    <h4 id="modalTitle">新增采购</h4>
+    <div class="form-row">
+      <div class="field"><label>日期 *</label><input type="date" id="mDate"></div>
+      <div class="field"><label>单据号</label><input id="mBillNo" placeholder="如 20261008-01"></div>
+    </div>
+    <div class="form-row">
+      <div class="field"><label>供应商名称 *</label><input id="mSupplier" list="dlSupplier" placeholder="如 旺绿商贸"><datalist id="dlSupplier"></datalist></div>
+      <div class="field"><label>品类</label><input id="mCategory" list="dlCategory" placeholder="如 生鲜"><datalist id="dlCategory"></datalist></div>
+    </div>
+    <div class="form-row">
+      <div class="field"><label>采购内容摘要</label><input id="mSummary" maxlength="200" placeholder="如 猪肉/蔬菜一批"></div>
+    </div>
+    <div class="form-row">
+      <div class="field"><label>发票类型</label><select id="mInvoice"></select></div>
+      <div class="field"><label>付款账户</label><input id="mPayAccount" list="dlAccount" placeholder="如 微信/银行卡"><datalist id="dlAccount"></datalist></div>
+    </div>
+    <div class="form-row">
+      <div class="field"><label>采购总金额(含税/买价) *</label><input id="mTotal" type="number" step="0.01" min="0" inputmode="decimal" placeholder="0.00"></div>
+      <div class="field"><label>进项税额</label><input id="mTax" type="number" step="0.01" min="0" inputmode="decimal" placeholder="0.00"></div>
+    </div>
+    <div class="form-row">
+      <div class="field"><label>已开金额</label><input id="mInvoiced" type="number" step="0.01" min="0" inputmode="decimal" placeholder="0.00"></div>
+      <div class="field"><label>已付金额</label><input id="mPaid" type="number" step="0.01" min="0" inputmode="decimal" placeholder="0.00"></div>
+    </div>
+    <div class="derived">
+      <span>不含税成本 <b id="dNet">0.00</b></span>
+      <span>未付余额 <b id="dUnpaid">0.00</b></span>
+    </div>
+    <div class="modal-actions">
+      <button class="btn-outline" style="flex:1" onclick="closeModal()">取消</button>
+      <button class="btn-primary" style="flex:1" id="btnSave" onclick="save()">保存</button>
+    </div>
+  </div>
+</div>
+<div id="toast"></div>
+
+<script>
+var $ = function(id){ return document.getElementById(id); };
+var opts = { suppliers: [], categories: [], accounts: [], invoice_types: ['无票(不抵)','专票','普票'] };
+var editId = null;
+
+function toast(msg){
+  var t = $('toast'); t.textContent = msg; t.style.display = 'block';
+  clearTimeout(t._tm); t._tm = setTimeout(function(){ t.style.display = 'none'; }, 2200);
+}
+function fmt(v){ return (Number(v) || 0).toFixed(2); }
+function esc(s){ return String(s == null ? '' : s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+
+function fillSelect(sel, list, allLabel, cur){
+  sel.innerHTML = '';
+  if (allLabel !== undefined) {
+    var o0 = document.createElement('option'); o0.value = ''; o0.textContent = allLabel; sel.appendChild(o0);
+  }
+  list.forEach(function(v){
+    var o = document.createElement('option'); o.value = v; o.textContent = v; sel.appendChild(o);
+  });
+  if (cur) sel.value = cur;
+}
+
+function loadOptions(){
+  fetch('/api/purchase/options').then(function(r){ return r.json(); }).then(function(d){
+    if (d.success) {
+      opts = d.data;
+      fillSelect($('fInvoice'), [''].concat(opts.invoice_types), '全部发票类型');
+      fillSelect($('mInvoice'), opts.invoice_types);
+      refreshDatalists();
+    }
+  });
+}
+function refreshDatalists(){
+  fillSelect($('fSupplier'), opts.suppliers, '全部供应商', $('fSupplier').value);
+  fillSelect($('fCategory'), opts.categories, '全部品类', $('fCategory').value);
+  ['dlSupplier','dlCategory','dlAccount'].forEach(function(id){ $(id).innerHTML = ''; });
+  opts.suppliers.forEach(function(v){ $('dlSupplier').insertAdjacentHTML('beforeend','<option value="'+esc(v)+'">'); });
+  opts.categories.forEach(function(v){ $('dlCategory').insertAdjacentHTML('beforeend','<option value="'+esc(v)+'">'); });
+  opts.accounts.forEach(function(v){ $('dlAccount').insertAdjacentHTML('beforeend','<option value="'+esc(v)+'">'); });
+}
+
+function queryParams(){
+  var p = new URLSearchParams();
+  if ($('fStart').value) p.set('start', $('fStart').value);
+  if ($('fEnd').value) p.set('end', $('fEnd').value);
+  if ($('fSupplier').value) p.set('supplier', $('fSupplier').value);
+  if ($('fCategory').value) p.set('category', $('fCategory').value);
+  if ($('fInvoice').value) p.set('invoice', $('fInvoice').value);
+  if ($('fStatus').value) p.set('status', $('fStatus').value);
+  if ($('fSearch').value.trim()) p.set('search', $('fSearch').value.trim());
+  return p.toString();
+}
+function reload(){
+  var qs = queryParams();
+  fetch('/api/purchase/records?' + qs).then(function(r){ return r.json(); }).then(function(d){
+    if (!d.success) { toast(d.error || '加载失败'); return; }
+    renderRows(d.data);
+  });
+  fetch('/api/purchase/stats?' + qs).then(function(r){ return r.json(); }).then(function(d){
+    if (!d.success) return;
+    renderStats(d.data);
+  });
+}
+function renderStats(s){
+  var cards = [
+    ['笔数', s.count, ''],
+    ['采购总金额', fmt(s.total), 'primary'],
+    ['进项税额', fmt(s.tax), ''],
+    ['不含税成本', fmt(s.net_cost), ''],
+    ['已开金额', fmt(s.invoiced), ''],
+    ['未付余额', fmt(s.unpaid), s.unpaid > 0 ? 'warn' : '']
+  ];
+  $('statCards').innerHTML = cards.map(function(c){
+    return '<div class="stat-card"><div class="s-label">'+c[0]+'</div><div class="s-value '+c[2]+'">'+c[1]+'</div></div>';
+  }).join('');
+  $('sumSupplier').innerHTML = s.by_supplier.length ? s.by_supplier.map(function(r){
+    return '<div class="sum-row" onclick="pickSupplier(\'' + esc(r.supplier).replace(/'/g,"\\'") + '\')"><span class="name">'+esc(r.supplier)+'</span><span class="val">'+fmt(r.total)+'<span style="color:var(--text-secondary);font-weight:400"> / '+r.cnt+'笔</span></span></div>';
+  }).join('') : '<div class="empty">无数据</div>';
+  $('sumCategory').innerHTML = s.by_category.length ? s.by_category.map(function(r){
+    return '<div class="sum-row"><span class="name">'+esc(r.category || '（未填）')+'</span><span class="val">'+fmt(r.total)+' / '+r.cnt+'笔</span></div>';
+  }).join('') : '<div class="empty">无数据</div>';
+  $('sumInvoice').innerHTML = s.by_invoice.length ? s.by_invoice.map(function(r){
+    return '<div class="sum-row"><span class="name">'+esc(r.invoice_type)+'</span><span class="val">'+fmt(r.total)+' / '+r.cnt+'笔</span></div>';
+  }).join('') : '<div class="empty">无数据</div>';
+}
+function pickSupplier(name){ $('fSupplier').value = name; reload(); }
+
+function statusBadge(s){
+  var cls = s === '已付清' ? 'done' : (s === '部分付款' ? 'part' : 'none');
+  return '<span class="badge '+cls+'">'+s+'</span>';
+}
+function invBadge(v){ return '<span class="badge inv">'+esc(v)+'</span>'; }
+
+function renderRows(rows){
+  var tb = $('tbody');
+  if (!rows.length) { tb.innerHTML = '<tr><td colspan="15" class="empty">暂无记录，点右上角「新增采购」开始记账</td></tr>'; return; }
+  tb.innerHTML = rows.map(function(r){
+    var cells = [
+      ['日期', esc(r.date), ''],
+      ['单据号', esc(r.bill_no), ''],
+      ['供应商', esc(r.supplier), 'wrap'],
+      ['品类', esc(r.category), ''],
+      ['摘要', esc(r.summary), 'wrap'],
+      ['发票', invBadge(r.invoice_type), ''],
+      ['总金额', fmt(r.total_amount), 'num'],
+      ['进项税', fmt(r.input_tax), 'num'],
+      ['不含税', fmt(r.net_cost), 'num'],
+      ['已开', fmt(r.invoiced_amount), 'num'],
+      ['已付', fmt(r.paid_amount), 'num'],
+      ['未付', fmt(r.unpaid_balance), 'num'],
+      ['账户', esc(r.pay_account), ''],
+      ['状态', statusBadge(r.pay_status), '']
+    ];
+    var acts = '<div class="row-actions"><button class="btn-outline btn-sm" onclick="openModal('+r.id+')">编辑</button>'
+             + '<button class="btn-sm btn-danger-sm" onclick="del('+r.id+')">删除</button></div>';
+    return '<tr class="row">' + cells.map(function(c){
+      return '<td class="'+c[2]+'" data-l="'+c[0]+'">'+c[1]+'</td>';
+    }).join('') + '<td data-l="操作">'+acts+'</td></tr>';
+  }).join('');
+}
+
+function openModal(id){
+  editId = id || null;
+  $('modalTitle').textContent = id ? '编辑采购' : '新增采购';
+  $('mDate').value = new Date().toISOString().slice(0, 10);
+  ['mBillNo','mSupplier','mCategory','mSummary','mPayAccount'].forEach(function(id){ $(id).value=''; });
+  ['mTotal','mTax','mInvoiced','mPaid'].forEach(function(id){ $(id).value=''; });
+  $('mInvoice').value = opts.invoice_types[0];
+  updateDerived();
+  if (id) {
+    fetch('/api/purchase/records?search=&limit=5000').then(function(r){ return r.json(); }).then(function(d){
+      var rec = (d.data || []).find(function(x){ return x.id === id; });
+      if (!rec) { toast('记录不存在'); return; }
+      $('mDate').value = rec.date; $('mBillNo').value = rec.bill_no;
+      $('mSupplier').value = rec.supplier; $('mCategory').value = rec.category;
+      $('mSummary').value = rec.summary; $('mInvoice').value = rec.invoice_type;
+      $('mPayAccount').value = rec.pay_account;
+      $('mTotal').value = rec.total_amount; $('mTax').value = rec.input_tax;
+      $('mInvoiced').value = rec.invoiced_amount; $('mPaid').value = rec.paid_amount;
+      updateDerived();
+    });
+  }
+  $('modal').classList.add('show');
+}
+function closeModal(){ $('modal').classList.remove('show'); }
+function updateDerived(){
+  var total = parseFloat($('mTotal').value) || 0;
+  var tax = parseFloat($('mTax').value) || 0;
+  var paid = parseFloat($('mPaid').value) || 0;
+  $('dNet').textContent = (total - tax).toFixed(2);
+  $('dUnpaid').textContent = (total - paid).toFixed(2);
+}
+['mTotal','mTax','mPaid'].forEach(function(id){ document.addEventListener('input', function(e){ if (e.target.id === id) updateDerived(); }); });
+
+function save(){
+  var payload = {
+    date: $('mDate').value, bill_no: $('mBillNo').value,
+    supplier: $('mSupplier').value, category: $('mCategory').value,
+    summary: $('mSummary').value, invoice_type: $('mInvoice').value,
+    total_amount: $('mTotal').value, input_tax: $('mTax').value,
+    invoiced_amount: $('mInvoiced').value, paid_amount: $('mPaid').value,
+    pay_account: $('mPayAccount').value
+  };
+  $('btnSave').disabled = true;
+  var url = editId ? '/api/purchase/records/' + editId : '/api/purchase/records';
+  fetch(url, { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(payload) })
+    .then(function(r){ return r.json().then(function(d){ return { ok: r.ok, d: d }; }); })
+    .then(function(res){
+      $('btnSave').disabled = false;
+      if (!res.d.success) { toast(res.d.error || '保存失败'); return; }
+      closeModal(); toast('已保存');
+      loadOptions(); reload();
+    })
+    .catch(function(){ $('btnSave').disabled = false; toast('网络错误'); });
+}
+function del(id){
+  if (!confirm('确定删除这条采购记录？不可恢复。')) return;
+  fetch('/api/purchase/records/' + id, { method: 'DELETE' }).then(function(r){ return r.json(); }).then(function(d){
+    if (d.success) { toast('已删除'); loadOptions(); reload(); }
+    else toast(d.error || '删除失败');
+  });
+}
+function resetFilter(){
+  ['fStart','fEnd','fSearch'].forEach(function(id){ $(id).value=''; });
+  $('fSupplier').value = ''; $('fCategory').value = '';
+  $('fInvoice').value = ''; $('fStatus').value = '';
+  reload();
+}
+function doExport(){ window.open('/api/purchase/export?' + queryParams(), '_blank'); }
+
+loadOptions();
+reload();
+</script>
+</body>
+</html>
