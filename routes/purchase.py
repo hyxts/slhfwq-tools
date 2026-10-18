@@ -17,6 +17,19 @@ import os
 import re
 import sqlite3
 import urllib.parse
+
+# Excel 读写（openpyxl 已在 requirements.txt）。服务器万一没装，只在用到
+# Excel 的接口报错，不让整个采购模块挂掉。
+try:
+    from openpyxl import Workbook, load_workbook
+    from openpyxl.styles import Alignment, Font, PatternFill
+    from openpyxl.utils import get_column_letter
+    EXCEL_OK = True
+    EXCEL_ERR = ''
+except Exception as _e:                      # pragma: no cover - 依赖缺失时
+    EXCEL_OK = False
+    EXCEL_ERR = str(_e)
+    Workbook = load_workbook = None          # type: ignore[assignment]
 from flask import Blueprint, Response, jsonify, request, send_from_directory
 
 from .utils import make_db, make_logger
@@ -56,6 +69,130 @@ def _round2(v: float) -> float:
 def now_str() -> str:
     """对账时间等展示用的本地时间串"""
     return datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+
+
+# ---------------- Excel 读写（导出 / 模板 / 导入） ----------------
+
+XLSX_MIME = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+_HEAD_FILL = '1E3A8A'
+
+# 导出与导入共用的列名（顺序即台账顺序，导入时按名字认列，顺序无所谓）
+EXPORT_HEADERS = ['日期', '单据号', '供应商名称', '品类', '采购内容摘要', '发票类型',
+                  '采购总金额(含税/买价)', '进项税额', '不含税成本', '已开金额',
+                  '已付金额', '未付余额', '付款账户', '付款状态']
+_MONEY_IDX = (7, 8, 9, 10, 11, 12)          # 1-based：不含税成本是派生列，导入时忽略
+
+# 导入时的列名别名（小写比较，中英文都认）
+_COL_ALIASES: dict[str, tuple[str, ...]] = {
+    'date': ('日期', '采购日期', 'date'),
+    'bill_no': ('单据号', '单号', '票号', 'bill_no', 'billno'),
+    'supplier': ('供应商名称', '供应商', '往来单位', 'supplier'),
+    'category': ('品类', '类别', 'category'),
+    'summary': ('采购内容摘要', '摘要', '内容', 'summary'),
+    'invoice_type': ('发票类型', '票种', 'invoice_type'),
+    'total_amount': ('采购总金额(含税/买价)', '采购总金额', '总金额', '金额',
+                     'total_amount', 'total'),
+    'input_tax': ('进项税额', '进项税', '税额', 'input_tax'),
+    'invoiced_amount': ('已开金额', '已开票金额', '开票金额', 'invoiced_amount'),
+    'paid_amount': ('已付金额', '已付', '付款金额', 'paid_amount'),
+    'pay_account': ('付款账户', '账户', '付款方式', 'pay_account'),
+}
+
+
+def _xlsx_response(wb, filename: str):
+    out = io.BytesIO()
+    wb.save(out)
+    quoted = urllib.parse.quote(filename)
+    return Response(out.getvalue(), mimetype=XLSX_MIME,
+                    headers={'Content-Disposition': f"attachment; filename*=UTF-8''{quoted}"})
+
+
+def _style_header(ws, ncols: int, row: int = 1) -> None:
+    """表头：深底白字加粗 + 冻结该行"""
+    fill = PatternFill('solid', fgColor=_HEAD_FILL)
+    for c in range(1, ncols + 1):
+        cell = ws.cell(row=row, column=c)
+        cell.font = Font(bold=True, color='FFFFFF', size=11)
+        cell.fill = fill
+        cell.alignment = Alignment(horizontal='center', vertical='center')
+    ws.freeze_panes = f'A{row + 1}'
+
+
+def _style_money(ws, first_row: int, last_row: int, cols: tuple[int, ...]) -> None:
+    for r in range(first_row, last_row + 1):
+        for c in cols:
+            ws.cell(row=r, column=c).number_format = '#,##0.00'
+
+
+def _set_widths(ws, widths: list[int]) -> None:
+    for i, w in enumerate(widths, start=1):
+        ws.column_dimensions[get_column_letter(i)].width = w
+
+
+def _cell_text(v) -> str:
+    """单元格 → 文本（Excel 里的日期会被 openpyxl 读成 datetime）"""
+    if v is None:
+        return ''
+    if isinstance(v, (datetime.datetime, datetime.date)):
+        return v.strftime('%Y-%m-%d')
+    return str(v).strip()
+
+
+def _cell_date(v) -> str:
+    """单元格 → YYYY-MM-DD；认 datetime、2026-10-01、2026/10/1、20261001"""
+    if isinstance(v, (datetime.datetime, datetime.date)):
+        return v.strftime('%Y-%m-%d')
+    s = str(v or '').strip()
+    if not s:
+        return ''
+    s = s.split(' ')[0].replace('/', '-').replace('.', '-') \
+         .replace('年', '-').replace('月', '-').replace('日', '')
+    if re.match(r'^\d{8}$', s):
+        s = f'{s[:4]}-{s[4:6]}-{s[6:]}'
+    return s
+
+
+def _cell_money(v) -> float:
+    """单元格 → 数字；认 1234.5、¥1,234.50、'1 234'（非法抛 ValueError）"""
+    if v is None or v == '':
+        return 0.0
+    if isinstance(v, bool):
+        raise ValueError('金额不是数字')
+    if isinstance(v, (int, float)):
+        return float(v)
+    s = str(v).strip().replace('¥', '').replace('￥', '').replace(',', '') \
+        .replace('，', '').replace(' ', '').replace('元', '')
+    if not s:
+        return 0.0
+    try:
+        return float(s)
+    except ValueError:
+        raise ValueError(f'「{v}」不是有效金额')
+
+
+def _map_header(cells) -> dict[str, int]:
+    """表头行 → {字段: 列下标}"""
+    found: dict[str, int] = {}
+    for idx, val in enumerate(cells):
+        key = _cell_text(val).lower()
+        if not key:
+            continue
+        for field, names in _COL_ALIASES.items():
+            if field in found:
+                continue
+            if key in names or key in [n.lower() for n in names]:
+                found[field] = idx
+                break
+    return found
+
+
+def _find_header(rows: list[tuple]) -> tuple[int, dict[str, int]]:
+    """在前 10 行里找表头：必须同时能认出日期、供应商、采购总金额"""
+    for i, row in enumerate(rows[:10]):
+        m = _map_header(row)
+        if 'date' in m and 'supplier' in m and 'total_amount' in m:
+            return i, m
+    return -1, {}
 
 
 def _validate(data: dict) -> dict:
@@ -496,42 +633,46 @@ def reconcile_export():
         conn.close()
         items = [_with_derived(dict(r)) for r in rows]
 
-        buf = io.StringIO()
-        writer = csv.writer(buf)
-        writer.writerow(['对账单'])
-        writer.writerow(['供应商', supplier or '（全部供应商）'])
-        writer.writerow(['对账期间', f"{request.args.get('start') or '最早'} 至 "
-                                     f"{request.args.get('end') or '最新'}"])
-        writer.writerow(['生成时间', now_str()])
-        writer.writerow([])
-        writer.writerow(['日期', '单据号', '品类', '采购内容摘要', '发票类型',
-                         '采购总金额', '进项税额', '不含税成本', '已开金额',
-                         '已付金额', '未付余额', '付款账户', '付款状态', '已对账'])
+        if not EXCEL_OK:
+            return jsonify({'success': False,
+                            'error': f'服务器缺少 openpyxl，无法导出 Excel：{EXCEL_ERR}'}), 500
+        wb = Workbook()
+        ws = wb.active
+        ws.title = '对账单'
+        ws.append(['采购对账单'])
+        ws['A1'].font = Font(bold=True, size=14)
+        ws.append(['供应商', supplier or '（全部供应商）', '生成时间', now_str()])
+        ws.append(['对账期间', f"{request.args.get('start') or '最早'} 至 "
+                               f"{request.args.get('end') or '最新'}"])
+        ws.append([])
+        ws.append(['日期', '单据号', '品类', '采购内容摘要', '发票类型', '采购总金额',
+                   '进项税额', '不含税成本', '已开金额', '已付金额', '未付余额',
+                   '付款账户', '付款状态', '已对账'])
+        head = ws.max_row
+        _style_header(ws, 14, head)
         for d in items:
-            writer.writerow([d['date'], d['bill_no'], d['category'], d['summary'],
-                             d['invoice_type'], f"{d['total_amount']:.2f}",
-                             f"{d['input_tax']:.2f}", f"{d['net_cost']:.2f}",
-                             f"{d['invoiced_amount']:.2f}", f"{d['paid_amount']:.2f}",
-                             f"{d['unpaid_balance']:.2f}", d['pay_account'],
-                             d['pay_status'], '是' if d['reconciled'] else '否'])
-        writer.writerow([])
-        writer.writerow(['合计', '', '', f"{len(items)} 笔", '',
-                         f"{sum(d['total_amount'] for d in items):.2f}",
-                         f"{sum(d['input_tax'] for d in items):.2f}",
-                         f"{sum(d['net_cost'] for d in items):.2f}",
-                         f"{sum(d['invoiced_amount'] for d in items):.2f}",
-                         f"{sum(d['paid_amount'] for d in items):.2f}",
-                         f"{sum(d['unpaid_balance'] for d in items):.2f}"])
-        out = io.BytesIO()
-        out.write(b'\xef\xbb\xbf')
-        out.write(buf.getvalue().encode('utf-8'))
-        name = f"对账单_{supplier or '全部'}_{request.args.get('start') or ''}_" \
-               f"{request.args.get('end') or ''}.csv"
-        quoted = urllib.parse.quote(name)
-        return Response(
-            out.getvalue(), mimetype='text/csv',
-            headers={'Content-Disposition':
-                     f"attachment; filename*=UTF-8''{quoted}"})
+            ws.append([d['date'], d['bill_no'], d['category'], d['summary'],
+                       d['invoice_type'], d['total_amount'], d['input_tax'],
+                       d['net_cost'], d['invoiced_amount'], d['paid_amount'],
+                       d['unpaid_balance'], d['pay_account'], d['pay_status'],
+                       '是' if d['reconciled'] else '否'])
+        _style_money(ws, head + 1, ws.max_row, (6, 7, 8, 9, 10, 11))
+        ws.append([])
+        ws.append(['合计', '', '', f'{len(items)} 笔', '',
+                   sum(d['total_amount'] for d in items),
+                   sum(d['input_tax'] for d in items),
+                   sum(d['net_cost'] for d in items),
+                   sum(d['invoiced_amount'] for d in items),
+                   sum(d['paid_amount'] for d in items),
+                   sum(d['unpaid_balance'] for d in items)])
+        last = ws.max_row
+        _style_money(ws, last, last, (6, 7, 8, 9, 10, 11))
+        for c in range(1, 15):
+            ws.cell(row=last, column=c).font = Font(bold=True)
+        _set_widths(ws, [12, 14, 10, 26, 12, 13, 12, 13, 12, 12, 12, 12, 10, 8])
+        name = (f"对账单_{supplier or '全部'}_{request.args.get('start') or ''}_"
+                f"{request.args.get('end') or ''}.xlsx")
+        return _xlsx_response(wb, name)
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)}), 400
 
@@ -844,34 +985,178 @@ def delete_dict(did: int):
 
 
 @bp.route('/api/purchase/export', methods=['GET'])
-def export_csv():
-    """导出 CSV（UTF-8 BOM，Excel 直接打开不乱码），列与 Excel 台账一致"""
+def export_excel():
+    """导出 Excel（.xlsx）：跟随当前筛选，列与原台账一致，带合计行"""
     try:
+        if not EXCEL_OK:
+            return jsonify({'success': False,
+                            'error': f'服务器缺少 openpyxl，无法导出 Excel：{EXCEL_ERR}'}), 500
         where, params = _filters(request.args)
         conn = _get_db()
         rows = conn.execute(
             f"SELECT * FROM purchases WHERE {' AND '.join(where)} "
             f"ORDER BY date, id", params).fetchall()
         conn.close()
-        buf = io.StringIO()
-        writer = csv.writer(buf)
-        writer.writerow(['日期', '单据号', '供应商名称', '品类', '采购内容摘要', '发票类型',
-                         '采购总金额(含税/买价)', '进项税额', '不含税成本',
-                         '已开金额', '已付金额', '未付余额', '付款账户', '付款状态'])
-        for r in rows:
-            d = _with_derived(dict(r))
-            writer.writerow([d['date'], d['bill_no'], d['supplier'], d['category'],
-                             d['summary'], d['invoice_type'], f"{d['total_amount']:.2f}",
-                             f"{d['input_tax']:.2f}", f"{d['net_cost']:.2f}",
-                             f"{d['invoiced_amount']:.2f}", f"{d['paid_amount']:.2f}",
-                             f"{d['unpaid_balance']:.2f}", d['pay_account'], d['pay_status']])
-        out = io.BytesIO()
-        out.write(b'\xef\xbb\xbf')
-        out.write(buf.getvalue().encode('utf-8'))
-        return Response(
-            out.getvalue(),
-            mimetype='text/csv',
-            headers={'Content-Disposition': 'attachment; filename="purchase.csv"'})
+        items = [_with_derived(dict(r)) for r in rows]
+
+        wb = Workbook()
+        ws = wb.active
+        ws.title = '采购台账'
+        ws.append(EXPORT_HEADERS)
+        _style_header(ws, len(EXPORT_HEADERS))
+        for d in items:
+            ws.append([d['date'], d['bill_no'], d['supplier'], d['category'],
+                       d['summary'], d['invoice_type'], d['total_amount'],
+                       d['input_tax'], d['net_cost'], d['invoiced_amount'],
+                       d['paid_amount'], d['unpaid_balance'], d['pay_account'],
+                       d['pay_status']])
+        if items:
+            _style_money(ws, 2, ws.max_row, _MONEY_IDX)
+            ws.append(['合计', '', f'{len(items)} 笔', '', '', '',
+                       sum(d['total_amount'] for d in items),
+                       sum(d['input_tax'] for d in items),
+                       sum(d['net_cost'] for d in items),
+                       sum(d['invoiced_amount'] for d in items),
+                       sum(d['paid_amount'] for d in items),
+                       sum(d['unpaid_balance'] for d in items)])
+            last = ws.max_row
+            _style_money(ws, last, last, _MONEY_IDX)
+            for c in range(1, len(EXPORT_HEADERS) + 1):
+                ws.cell(row=last, column=c).font = Font(bold=True)
+        _set_widths(ws, [12, 14, 20, 10, 28, 12, 18, 12, 13, 12, 12, 12, 12, 10])
+        return _xlsx_response(wb, f'采购台账_{now_str()[:10]}.xlsx')
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 400
+
+
+@bp.route('/api/purchase/template', methods=['GET'])
+def download_template():
+    """导入模板：只有表头 + 一行示例（导入时会自动跳过示例行）"""
+    try:
+        if not EXCEL_OK:
+            return jsonify({'success': False,
+                            'error': f'服务器缺少 openpyxl：{EXCEL_ERR}'}), 500
+        wb = Workbook()
+        ws = wb.active
+        ws.title = '采购台账'
+        ws.append(EXPORT_HEADERS)
+        _style_header(ws, len(EXPORT_HEADERS))
+        ws.append(['2026-01-01', 'CG-0001', '示例供应商', '生鲜', '示例行，导入前请删除本行',
+                   '专票', 1130.00, 130.00, 1000.00, 0, 1130.00, 0, '微信', '已付清'])
+        ws.cell(row=2, column=3).font = Font(color='9CA3AF', italic=True)
+        _style_money(ws, 2, 2, _MONEY_IDX)
+        ws.append(['填写说明：日期写 2026-01-01 这种格式；金额只填数字，不要带 ¥ 和千分位；'
+                   '不含税成本与未付余额是自动算的，填了也会被忽略。'])
+        ws.cell(row=3, column=1).font = Font(color='6B7280', size=10)
+        _set_widths(ws, [12, 14, 20, 10, 28, 12, 18, 12, 13, 12, 12, 12, 12, 10])
+        return _xlsx_response(wb, '采购台账导入模板.xlsx')
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 400
+
+
+@bp.route('/api/purchase/import', methods=['POST'])
+def import_excel():
+    """导入 Excel（.xlsx）
+
+    - 前 10 行里找表头（须能认出「日期 / 供应商 / 采购总金额」，列名支持常见别名）
+    - 逐行校验，一行出错只跳过该行，不影响其余行
+    - 重复判定：有单据号按单据号，没有就按 日期+供应商+金额 组合
+    - auto_supplier=1（默认）时，新供应商自动建档到配置里
+    """
+    try:
+        if not EXCEL_OK:
+            return jsonify({'success': False,
+                            'error': f'服务器缺少 openpyxl，无法导入 Excel：{EXCEL_ERR}'}), 500
+        f = request.files.get('file')
+        if f is None or not f.filename:
+            return jsonify({'success': False, 'error': '请选择要导入的 .xlsx 文件'}), 400
+        if not f.filename.lower().endswith('.xlsx'):
+            return jsonify({'success': False,
+                            'error': '只支持 .xlsx（Excel 2007 及以后）；老版 .xls 请先另存为 .xlsx'}), 400
+        try:
+            wb = load_workbook(io.BytesIO(f.read()), data_only=True, read_only=True)
+        except Exception:
+            return jsonify({'success': False,
+                            'error': '文件解析失败，请下载导入模板按格式填写'}), 400
+        ws = wb.active
+        rows = [tuple(r) for r in ws.iter_rows(values_only=True)][:5001]
+        head_idx, colmap = _find_header(rows)
+        if head_idx < 0:
+            return jsonify({'success': False,
+                            'error': '没认出表头（至少要能找到「日期」「供应商名称」「采购总金额」'
+                                     '三列），请先下载导入模板'}), 400
+        auto_supplier = str(request.form.get('auto_supplier', '1')) != '0'
+        conn = _get_db()
+        imported: list[int] = []
+        skipped: list[dict] = []
+        errors: list[dict] = []
+
+        for i, row in enumerate(rows[head_idx + 1:], start=head_idx + 2):
+            def cell(field: str):
+                idx = colmap.get(field)
+                return row[idx] if idx is not None and idx < len(row) else None
+            if not any(c is not None and str(c).strip() for c in row):
+                continue                                   # 空行
+            data = {
+                'date': _cell_date(cell('date')),
+                'bill_no': _cell_text(cell('bill_no')),
+                'supplier': _cell_text(cell('supplier')),
+                'category': _cell_text(cell('category')),
+                'summary': _cell_text(cell('summary')),
+                'invoice_type': _cell_text(cell('invoice_type')),
+                'pay_account': _cell_text(cell('pay_account')),
+            }
+            if data['supplier'] == '示例供应商':               # 模板自带的示例行
+                continue
+            try:
+                data['total_amount'] = _cell_money(cell('total_amount'))
+                data['input_tax'] = _cell_money(cell('input_tax'))
+                data['invoiced_amount'] = _cell_money(cell('invoiced_amount'))
+                data['paid_amount'] = _cell_money(cell('paid_amount'))
+                rec = _validate(data)
+            except ValueError as e:
+                errors.append({'row': i, 'reason': str(e),
+                               'supplier': data['supplier'] or '（空）'})
+                continue
+
+            # 重复判定
+            if rec['bill_no']:
+                dup = conn.execute(
+                    'SELECT id FROM purchases WHERE bill_no=?', (rec['bill_no'],)).fetchone()
+            else:
+                dup = conn.execute(
+                    '''SELECT id FROM purchases WHERE date=? AND supplier=?
+                       AND total_amount=? AND paid_amount=?''',
+                    (rec['date'], rec['supplier'], rec['total_amount'],
+                     rec['paid_amount'])).fetchone()
+            if dup:
+                skipped.append({'row': i, 'id': dup['id'],
+                                'supplier': rec['supplier'],
+                                'reason': f"单据号 {rec['bill_no'] or '（无）'} 已存在"})
+                continue
+
+            cur = conn.execute(
+                '''INSERT INTO purchases (date, bill_no, supplier, category, summary,
+                   invoice_type, total_amount, input_tax, invoiced_amount,
+                   paid_amount, pay_account) VALUES (?,?,?,?,?,?,?,?,?,?,?)''',
+                (rec['date'], rec['bill_no'], rec['supplier'], rec['category'],
+                 rec['summary'], rec['invoice_type'], rec['total_amount'],
+                 rec['input_tax'], rec['invoiced_amount'], rec['paid_amount'],
+                 rec['pay_account']))
+            imported.append(cur.lastrowid)
+            if auto_supplier and rec['supplier']:
+                conn.execute(
+                    'INSERT OR IGNORE INTO suppliers (name, active) VALUES (?, 1)',
+                    (rec['supplier'],))
+        conn.commit()
+        conn.close()
+        _log(f'导入 Excel：成功 {len(imported)} 行 / 跳过 {len(skipped)} 行 / '
+             f'错误 {len(errors)} 行')
+        return jsonify({'success': True, 'data': {
+            'imported': len(imported), 'imported_ids': imported,
+            'skipped': len(skipped), 'errors': errors[:50],
+            'skipped_detail': skipped[:50],
+        }})
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)}), 400
 

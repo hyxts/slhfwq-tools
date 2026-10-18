@@ -7,6 +7,7 @@
 运行方式: python -m pytest tests/ -v
 或: python tests/test_app.py
 """
+import io
 import sys
 import os
 import unittest
@@ -656,7 +657,8 @@ class TestPurchase(unittest.TestCase):
 
         r = self.client.get('/api/purchase/export?supplier=测试供应商乙')
         self.assertEqual(r.status_code, 200)
-        self.assertIn('测试供应商乙'.encode('utf-8'), r.get_data())
+        self.assertIn('spreadsheetml', r.headers.get('Content-Type', ''))
+        self.assertEqual(r.get_data()[:2], b'PK')     # 导出的是 xlsx（zip 头）
 
     def test_options(self) -> None:
         r = self.client.get('/api/purchase/options')
@@ -953,11 +955,13 @@ class TestPurchaseStatsAndReconcile(unittest.TestCase):
         r = self.client.post(f'/api/purchase/records/{rid}/reconcile', json={'reconciled': 0})
         self.assertFalse(r.get_json()['data']['reconciled'])
 
-        csv_bytes = self.client.get('/api/purchase/reconcile/export?supplier=对账测试供应商'
-                                    '&start=2026-10-01&end=2026-10-31').get_data()
-        self.assertIn('对账单'.encode('utf-8'), csv_bytes)
-        self.assertIn('对账测试供应商'.encode('utf-8'), csv_bytes)
-        self.assertIn('合计'.encode('utf-8'), csv_bytes)
+        xlsx = self.client.get('/api/purchase/reconcile/export?supplier=对账测试供应商'
+                               '&start=2026-10-01&end=2026-10-31').get_data()
+        self.assertEqual(xlsx[:2], b'PK')              # 对账单同样是 xlsx
+        from openpyxl import load_workbook
+        ws = load_workbook(io.BytesIO(xlsx)).active
+        self.assertEqual(ws.cell(row=1, column=1).value, '采购对账单')
+        self.assertEqual(ws.cell(row=2, column=2).value, '对账测试供应商')
 
         r = self.client.post('/api/purchase/records/999999/reconcile', json={'reconciled': 1})
         self.assertEqual(r.status_code, 404)
@@ -966,6 +970,160 @@ class TestPurchaseStatsAndReconcile(unittest.TestCase):
         anon = app.test_client()
         self.assertNotEqual(anon.get('/api/purchase/trends?group=month').status_code, 200)
         self.assertNotEqual(anon.get('/api/purchase/reconcile').status_code, 200)
+
+
+class TestPurchaseExcel(unittest.TestCase):
+    """采购台账的 Excel 导出 / 模板 / 导入（需要登录会话）"""
+
+    client: FlaskClient = None
+    _record_ids: list[int] = []
+    _supplier_ids: list[int] = []
+
+    @classmethod
+    @override
+    def setUpClass(cls) -> None:
+        cls.client = app.test_client()
+        app.config['TESTING'] = True
+        with cls.client.session_transaction() as sess:  # type: ignore[attr-defined]
+            sess['auth'] = True
+        cls._rate_json: int = app_mod.RATE_LIMIT_MAX_JSON
+        cls._rate_html: int = app_mod.RATE_LIMIT_MAX_HTML
+        app_mod.RATE_LIMIT_MAX_JSON = 100000
+        app_mod.RATE_LIMIT_MAX_HTML = 100000
+        cls._clean_leftovers()
+
+    @classmethod
+    def _clean_leftovers(cls) -> None:
+        from urllib.parse import quote
+        for r in cls.client.get(
+                '/api/purchase/records?search=' + quote('导入测试')).get_json()['data']:
+            cls.client.delete(f'/api/purchase/records/{r["id"]}')
+        for s in cls.client.get('/api/purchase/suppliers').get_json()['data']:
+            if s['name'].startswith('导入测试'):
+                cls.client.delete(f'/api/purchase/suppliers/{s["id"]}')
+
+    @classmethod
+    @override
+    def tearDownClass(cls) -> None:
+        # 先清数据再恢复限流（规范 7.43）
+        for rid in cls._record_ids:
+            cls.client.delete(f'/api/purchase/records/{rid}')
+        for sid in cls._supplier_ids:
+            cls.client.delete(f'/api/purchase/suppliers/{sid}')
+        app_mod.RATE_LIMIT_MAX_JSON = cls._rate_json
+        app_mod.RATE_LIMIT_MAX_HTML = cls._rate_html
+
+    def _xlsx(self, rows: list[list]) -> bytes:
+        from openpyxl import Workbook
+        wb = Workbook()
+        ws = wb.active
+        for r in rows:
+            ws.append(r)
+        buf = io.BytesIO()
+        wb.save(buf)
+        return buf.getvalue()
+
+    def _upload(self, payload: bytes, name: str = 'test.xlsx'):
+        return self.client.post(
+            '/api/purchase/import',
+            data={'file': (io.BytesIO(payload), name), 'auto_supplier': '1'},
+            content_type='multipart/form-data')
+
+    def test_template_is_xlsx(self) -> None:
+        r = self.client.get('/api/purchase/template')
+        self.assertEqual(r.status_code, 200)
+        self.assertIn('spreadsheetml', r.headers.get('Content-Type', ''))
+        self.assertEqual(r.get_data()[:2], b'PK')          # xlsx 就是 zip
+        from openpyxl import load_workbook
+        ws = load_workbook(io.BytesIO(r.get_data())).active
+        self.assertEqual(ws.cell(row=1, column=3).value, '供应商名称')
+
+    def test_export_is_xlsx(self) -> None:
+        rec = self.client.post('/api/purchase/records', json={
+            'date': '2026-10-06', 'supplier': '导入测试导出用',
+            'invoice_type': '专票', 'total_amount': 226, 'input_tax': 26,
+            'paid_amount': 100})
+        type(self)._record_ids.append(rec.get_json()['data']['id'])
+        r = self.client.get('/api/purchase/export')
+        self.assertEqual(r.status_code, 200)
+        self.assertIn('spreadsheetml', r.headers.get('Content-Type', ''))
+        body = r.get_data()
+        self.assertEqual(body[:2], b'PK')
+        # CSV 已弃用：导出不再是纯文本
+        self.assertNotIn(b'\xef\xbb\xbf', body[:4])
+        from openpyxl import load_workbook
+        ws = load_workbook(io.BytesIO(body)).active
+        self.assertEqual(ws.cell(row=1, column=1).value, '日期')
+        self.assertEqual(ws.freeze_panes, 'A2')            # 表头冻结
+        self.assertEqual(ws.cell(row=2, column=7).number_format, '#,##0.00')
+
+    def test_import_roundtrip(self) -> None:
+        """两行正常 + 一行金额非法 + 一行缺供应商；供应商自动建档"""
+        xlsx = self._xlsx([
+            ['日期', '供应商名称', '采购总金额', '单据号', '品类', '发票类型', '进项税额'],
+            ['2026/10/01', '导入测试供应商A', '¥1,130.00', 'IMP-001', '生鲜', '专票', 130],
+            ['2026-10-02', '导入测试供应商B', 500, 'IMP-002', '调料', '无票(不抵)', 0],
+            ['2026-10-03', '导入测试供应商C', 'abc', 'IMP-003', '生鲜', '专票', 0],
+            ['2026-10-04', '', 100, 'IMP-004', '生鲜', '专票', 0],
+        ])
+        r = self._upload(xlsx)
+        self.assertEqual(r.status_code, 200)
+        d = r.get_json()['data']
+        self.assertEqual(d['imported'], 2)
+        self.assertEqual(d['skipped'], 0)
+        self.assertEqual(len(d['errors']), 2)
+        self.assertTrue(any('金额' in e['reason'] for e in d['errors']))
+        type(self)._record_ids.extend(d['imported_ids'])
+
+        recs = self.client.get('/api/purchase/records?supplier=导入测试供应商A').get_json()['data']
+        self.assertEqual(len(recs), 1)
+        self.assertEqual(recs[0]['total_amount'], 1130.0)     # ¥1,130.00 被还原成数字
+        self.assertEqual(recs[0]['net_cost'], 1000.0)
+        self.assertEqual(recs[0]['date'], '2026-10-01')       # 2026/10/01 被规范成标准格式
+
+        # 新供应商自动进了配置
+        names = [s['name'] for s in self.client.get('/api/purchase/suppliers').get_json()['data']]
+        self.assertIn('导入测试供应商A', names)
+        for s in self.client.get('/api/purchase/suppliers').get_json()['data']:
+            if s['name'].startswith('导入测试'):
+                type(self)._supplier_ids.append(s['id'])
+
+        # 再导一次：两条都因单据号重复被跳过，不会被覆盖
+        d2 = self._upload(xlsx).get_json()['data']
+        self.assertEqual(d2['imported'], 0)
+        self.assertEqual(d2['skipped'], 2)
+
+    def test_import_template_has_no_sample_rows(self) -> None:
+        """模板自带的示例行不能被当成真实数据导入"""
+        r = self._upload(self.client.get('/api/purchase/template').get_data(),
+                         'template.xlsx')
+        self.assertEqual(r.status_code, 200)
+        self.assertEqual(r.get_json()['data']['imported'], 0)
+
+    def test_import_rejects_bad_files(self) -> None:
+        r = self._upload(b'not an excel at all', 'a.xls')
+        self.assertEqual(r.status_code, 400)
+        self.assertIn('.xlsx', r.get_json()['error'])
+
+        r = self._upload(b'hello', 'a.xlsx')               # 后缀对但内容不是 xlsx
+        self.assertEqual(r.status_code, 400)
+
+        r = self._upload(self._xlsx([['姓名', '年龄'], ['张三', 18]]))   # 认不出表头
+        self.assertEqual(r.status_code, 400)
+        self.assertIn('表头', r.get_json()['error'])
+
+        r = self.client.post('/api/purchase/import',
+                             data={}, content_type='multipart/form-data')
+        self.assertEqual(r.status_code, 400)
+
+    def test_excel_anonymous_blocked(self) -> None:
+        anon = app.test_client()
+        self.assertNotEqual(anon.get('/api/purchase/export').status_code, 200)
+        self.assertNotEqual(anon.get('/api/purchase/template').status_code, 200)
+        self.assertNotEqual(
+            anon.post('/api/purchase/import',
+                      data={'file': (io.BytesIO(b'x'), 'a.xlsx')},
+                      content_type='multipart/form-data').status_code, 200)
 
 
 class TestRateLimiting(unittest.TestCase):

@@ -143,13 +143,18 @@ td.wrap { white-space:normal; word-break:break-all; min-width:110px; }
     <a class="back" href="/nav" title="返回导航" onclick="if(document.referrer.includes('/nav')){history.back();return false}">&larr;</a>
     <h1>采购台账</h1>
   </div>
-  <div style="display:flex;gap:8px">
+  <div style="display:flex;gap:8px;flex-wrap:wrap">
     <button class="btn-outline btn-sm" style="min-height:36px" onclick="openRecon()">对账报表</button>
     <button class="btn-outline btn-sm" style="min-height:36px" onclick="openConfig()">⚙ 配置</button>
-    <button class="btn-outline btn-sm" style="min-height:36px" onclick="doExport()">导出CSV</button>
+    <button class="btn-outline btn-sm" style="min-height:36px" onclick="doImport()">导入Excel</button>
+    <button class="btn-outline btn-sm" style="min-height:36px" onclick="doExport()">导出Excel</button>
     <button class="btn-primary btn-sm" style="min-height:36px" onclick="openModal()">+ 新增采购</button>
   </div>
 </header>
+<input type="file" id="importFile" accept=".xlsx" style="display:none" onchange="uploadImport(this)">
+<div style="max-width:1400px;margin:6px auto 0;padding:0 12px;font-size:12px;color:var(--text-secondary)">
+  导入按列名识别、列顺序随意：先 <a href="#" onclick="downloadTemplate();return false" style="color:var(--primary);font-weight:600">下载 Excel 导入模板</a>，填好后点「导入Excel」；重复单据号自动跳过。
+</div>
 <div class="container">
   <div class="stat-overview" id="statCards"></div>
 
@@ -206,7 +211,7 @@ td.wrap { white-space:normal; word-break:break-all; min-width:110px; }
     </div>
     <div class="modal-actions" style="margin-bottom:10px">
       <button class="btn-outline" style="flex:1" onclick="printRecon()">打印 / 存为PDF</button>
-      <button class="btn-outline" style="flex:1" onclick="exportRecon()">导出CSV</button>
+      <button class="btn-outline" style="flex:1" onclick="exportRecon()">导出Excel</button>
       <button class="btn-outline" style="flex:1" onclick="closeRecon()">关闭</button>
     </div>
     <div id="reconArea" class="cfg-list" style="max-height:60vh"></div>
@@ -566,6 +571,33 @@ function resetFilter(){
   reload();
 }
 function doExport(){ window.open('/api/purchase/export?' + queryParams(), '_blank'); }
+function doImport(){ $('importFile').click(); }
+function downloadTemplate(){ window.open('/api/purchase/template', '_blank'); }
+function uploadImport(input){
+  var f = input.files && input.files[0];
+  if (!f) return;
+  if (!/\\.xlsx$/i.test(f.name)) { alert('只支持 .xlsx（Excel 2007 及以后）；老版 .xls 请另存为 .xlsx'); input.value=''; return; }
+  if (!confirm('导入「' + f.name + '」？\n\n重复的单据号会自动跳过，不会覆盖已有记录。')) { input.value=''; return; }
+  var fd = new FormData();
+  fd.append('file', f);
+  fd.append('auto_supplier', '1');
+  toast('正在导入…');
+  fetch('/api/purchase/import', { method: 'POST', body: fd })
+    .then(function(r){ return r.json(); }).then(function(d){
+      input.value = '';
+      if (!d.success) { alert(d.error || '导入失败'); return; }
+      var r = d.data;
+      var msg = '导入完成：成功 ' + r.imported + ' 条';
+      if (r.skipped) msg += '\n跳过重复 ' + r.skipped + ' 条';
+      if (r.errors && r.errors.length) {
+        msg += '\n' + r.errors.length + ' 行未导入，例如第 ' + r.errors[0].row
+             + ' 行（' + r.errors[0].supplier + '）：' + r.errors[0].reason;
+      }
+      alert(msg);
+      loadOptions(); reload();
+    })
+    .catch(function(){ input.value=''; alert('导入失败：网络或文件异常'); });
+}
 
 /* ==================== 基础配置 ==================== */
 var cfgTab = 'supplier';
