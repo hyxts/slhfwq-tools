@@ -834,6 +834,38 @@ class TestPurchase(unittest.TestCase):
             self.assertEqual(r.status_code, 200, q)
             self.assertEqual(r.get_data()[:2], b'PK')
 
+    def test_multi_select_filters(self) -> None:
+        """分析支持多选：多个供应商 / 多个具体日期可以同时筛，并能叠加"""
+        for day, sup, amt in (('2026-10-06', '多选甲', 100), ('2026-10-07', '多选乙', 200),
+                              ('2026-10-08', '多选丙', 300)):
+            self._create({'date': day, 'supplier': sup, 'total_amount': amt})
+
+        # 多选供应商（逗号分隔）
+        d = self.client.get('/api/purchase/stats?supplier=多选甲,多选乙').get_json()['data']
+        self.assertEqual({x['supplier'] for x in d['by_supplier']}, {'多选甲', '多选乙'})
+        self.assertEqual(d['count'], 2)
+        # 多选具体日期
+        d2 = self.client.get('/api/purchase/stats?dates=2026-10-06,2026-10-08').get_json()['data']
+        self.assertEqual(d2['count'], 2)
+        self.assertAlmostEqual(d2['total'], 400.0, places=2)
+        # 两个维度叠加：供应商 ∩ 日期
+        d3 = self.client.get(
+            '/api/purchase/stats?supplier=多选甲,多选丙&dates=2026-10-06').get_json()['data']
+        self.assertEqual(d3['count'], 1)
+        self.assertEqual(d3['by_supplier'][0]['supplier'], '多选甲')
+        # 日期不合法 → 忽略，退回起止区间
+        d4 = self.client.get(
+            '/api/purchase/stats?dates=xxx&start=2026-10-06&end=2026-10-07').get_json()['data']
+        self.assertEqual(d4['count'], 2)
+        # 按日趋势、明细、导出都吃同一套参数
+        t = self.client.get(
+            '/api/purchase/trends?group=day&dates=2026-10-06,2026-10-08').get_json()['data']
+        self.assertEqual(sorted(r['period'] for r in t['rows']), ['2026-10-06', '2026-10-08'])
+        recs = self.client.get('/api/purchase/records?supplier=多选甲,多选乙').get_json()['data']
+        self.assertEqual(len(recs), 2)
+        self.assertEqual(self.client.get(
+            '/api/purchase/export?supplier=多选甲,多选乙').status_code, 200)
+
     def test_company_settings(self) -> None:
         """对账单抬头设置：保存后能读回（默认值不能丢）"""
         old = self.client.get('/api/purchase/settings').get_json()['data']

@@ -180,6 +180,22 @@ td.empty::before { display:none; }
 .doc-ledger tr.total td.amt { color:var(--primary); }
 .doc-terms { font-size:11.5px; color:var(--text-secondary); line-height:1.75; margin-top:10px; background:#f8fafc; border:1px dashed var(--border); border-radius:8px; padding:8px 12px; }
 .doc-filter { font-size:11.5px; color:var(--text-secondary); background:#f8fafc; border:1px dashed var(--border); border-radius:8px; padding:6px 10px; margin-bottom:10px; }
+/* ===== 多选筛选（供应商 + 具体日期） ===== */
+.multi-pick { border-bottom:1px dashed var(--border); }
+.multi-bar { display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
+.multi-bar input[type=date] { min-height:32px; padding:5px 8px; border:1px solid var(--border); border-radius:8px; font-size:13px; font-family:inherit; color:var(--text); }
+.multi-chips { display:flex; gap:6px; flex-wrap:wrap; }
+.multi-chips:not(:empty) { margin-top:8px; }
+.mchip { display:inline-flex; align-items:center; gap:6px; padding:5px 11px; border-radius:999px; border:1px solid var(--border); background:#fff; font-size:12px; color:var(--text-secondary); cursor:pointer; min-height:30px; }
+.mchip:hover { border-color:var(--primary); color:var(--primary); }
+.mchip.on { background:var(--primary-weak); border-color:var(--primary); color:var(--primary); font-weight:600; }
+.mchip .x { font-weight:800; color:var(--text-thin); font-size:13px; }
+.mchip .x:hover { color:var(--danger); }
+.mp-panel { margin-top:8px; border:1px solid var(--border); border-radius:10px; background:#fcfdfe; padding:10px; }
+.mp-hd { display:flex; align-items:center; gap:8px; margin-bottom:8px; font-size:12.5px; font-weight:700; }
+.mp-hd .grow { flex:1; }
+.mp-list { display:flex; gap:6px; flex-wrap:wrap; max-height:190px; overflow-y:auto; }
+.mp-empty { font-size:12px; color:var(--text-thin); }
 .doc-subttl { font-size:12.5px; font-weight:800; margin:14px 0 6px; padding-left:8px; border-left:3px solid var(--primary); }
 .doc-chk { width:15px; height:15px; accent-color:var(--primary); }
 .seq { color:var(--text-thin); font-variant-numeric:tabular-nums; }
@@ -362,6 +378,19 @@ td.empty::before { display:none; }
         <button class="cfg-tab" id="dimCustomer" onclick="setDim('customer')">按客户</button>
         <button class="cfg-tab" id="dimInvoice" onclick="setDim('invoice')">按发票类型</button>
       </div>
+    </div>
+    <div class="card-bd multi-pick">
+      <div class="multi-bar">
+        <span class="f-label">多选条件</span>
+        <button class="btn-outline btn-sm" onclick="toggleSupPick()">选择供应商<span id="supPickCount"></span></button>
+        <span class="f-label">按日多选</span>
+        <input type="date" id="mDay">
+        <button class="btn-outline btn-sm" onclick="addMultiDay()">加入</button>
+        <button class="btn-outline btn-sm" onclick="clearMulti()">清空多选</button>
+        <span class="hint">可同时选多个供应商 + 挑具体几天，KPI、这张分析表和下面明细会一起变</span>
+      </div>
+      <div id="supPick"></div>
+      <div class="multi-chips" id="multiChips"></div>
     </div>
     <div class="card-bd"><div id="statTable"></div></div>
   </div>
@@ -659,6 +688,7 @@ function loadOptions(){
       (opts.invoice_defs || []).forEach(function(x){ INV_DEF[x.name] = x; });
       onInvoiceChange();
       refreshDatalists();
+      renderMultiChips();          // 多选条件的 chips 区（初始为空）
     }
   });
   fetch('/api/purchase/suppliers').then(function(r){ return r.json(); }).then(function(d){
@@ -691,13 +721,83 @@ function queryParams(){
   var p = new URLSearchParams();
   if ($('fStart').value) p.set('start', $('fStart').value);
   if ($('fEnd').value) p.set('end', $('fEnd').value);
-  if ($('fSupplier').value) p.set('supplier', $('fSupplier').value);
+  // 多选供应商优先于明细栏的单选（多选是有意识的精确筛选）
+  if (multiSup.length) p.set('supplier', multiSup.join(','));
+  else if ($('fSupplier').value) p.set('supplier', $('fSupplier').value);
+  if (multiDates.length) p.set('dates', multiDates.join(','));   // 挑几天，后端会忽略起止区间
   if ($('fCategory').value) p.set('category', $('fCategory').value);
   if ($('fCustomer').value) p.set('customer', $('fCustomer').value);
   if ($('fInvoice').value) p.set('invoice', $('fInvoice').value);
   if ($('fStatus').value) p.set('status', $('fStatus').value);
   if ($('fSearch').value.trim()) p.set('search', $('fSearch').value.trim());
   return p.toString();
+}
+
+/* ==================== 多选筛选：多个供应商 + 多个具体日期 ==================== */
+var multiSup = [], multiDates = [];
+function supOpen(){ return $('supPick').innerHTML !== ''; }
+function toggleSupPick(){
+  $('supPick').innerHTML = supOpen() ? '' : supPanelHtml();
+}
+function supPanelHtml(){
+  var list = (opts.suppliers || []).slice();
+  if (!list.length) {
+    return '<div class="mp-panel"><div class="mp-empty">还没有供应商，先去台账录入或导入档案</div></div>';
+  }
+  return '<div class="mp-panel"><div class="mp-hd">选择供应商（可多选）'
+    + '<span class="grow"></span>'
+    + '<button class="btn-outline btn-sm" onclick="pickAllSup()">全选</button>'
+    + '<button class="btn-outline btn-sm" onclick="clearSup()">清空</button>'
+    + '<button class="btn-outline btn-sm" onclick="toggleSupPick()">收起</button></div>'
+    + '<div class="mp-list">' + list.map(function(s){
+        return '<span class="mchip' + (multiSup.indexOf(s) >= 0 ? ' on' : '')
+          + '" onclick="toggleSup(' + q1(s) + ')">' + esc(s) + '</span>';
+      }).join('') + '</div></div>';
+}
+function q1(s){ return "'" + String(s).replace(/\\/g, '\\\\').replace(/'/g, "\\'") + "'"; }
+function toggleSup(s){
+  var i = multiSup.indexOf(s);
+  if (i >= 0) multiSup.splice(i, 1); else multiSup.push(s);
+  if (supOpen()) $('supPick').innerHTML = supPanelHtml();
+  renderMultiChips();
+  curPage = 1; reload();
+}
+function pickAllSup(){ multiSup = (opts.suppliers || []).slice(); afterSupChange(); }
+function clearSup(){ multiSup = []; afterSupChange(); }
+function afterSupChange(){
+  if (supOpen()) $('supPick').innerHTML = supPanelHtml();
+  renderMultiChips();
+  curPage = 1; reload();
+}
+function addMultiDay(){
+  var d = $('mDay').value;
+  if (!d) { toast('先选一个日期'); return; }
+  if (multiDates.indexOf(d) < 0) { multiDates.push(d); multiDates.sort(); }
+  $('mDay').value = '';
+  renderMultiChips();
+  curPage = 1; reload();
+}
+function delMultiDay(d){
+  multiDates = multiDates.filter(function(x){ return x !== d; });
+  renderMultiChips();
+  curPage = 1; reload();
+}
+function clearMulti(){
+  multiSup = []; multiDates = [];
+  if (supOpen()) $('supPick').innerHTML = supPanelHtml();
+  renderMultiChips();
+  curPage = 1; reload();
+}
+function renderMultiChips(){
+  var s = multiSup.map(function(x){
+    return '<span class="mchip on">供应商：' + esc(x)
+      + '<b class="x" onclick="toggleSup(' + q1(x) + ')">×</b></span>';
+  }).join('');
+  var d = multiDates.map(function(x){
+    return '<span class="mchip on">' + x + '<b class="x" onclick="delMultiDay(\'' + x + '\')">×</b></span>';
+  }).join('');
+  $('multiChips').innerHTML = s + d;
+  $('supPickCount').textContent = multiSup.length ? '（' + multiSup.length + '）' : '';
 }
 /* ---- 分页 ---- */
 var curPage = 1;
@@ -875,12 +975,13 @@ function renderStats(s){
 /* 点统计表里的名称 → 直接下钻成筛选条件（时间点成该期间） */
 function pickDim(name){
   if (name === '（未填）') { toast('这一组没有填名称，无法下钻'); return; }
-  if (statDim === 'supplier') $('fSupplier').value = name;
-  else if (statDim === 'category') $('fCategory').value = name;
+  // 点供应商名下钻 → 走多选（和上面「选择供应商」同一套状态），避免两处互相打架
+  if (statDim === 'supplier') { multiSup = [name]; afterSupChange(); return; }
+  if (statDim === 'category') $('fCategory').value = name;
   else if (statDim === 'customer') $('fCustomer').value = name;
   else if (statDim === 'invoice') $('fInvoice').value = name;
   else if (/^\d{4}-\d{2}$/.test(name)) { $('fStart').value = name + '-01'; $('fEnd').value = name + '-31'; markChip(null); }
-  else if (/^\d{4}-\d{2}-\d{2}$/.test(name)) { $('fStart').value = name; $('fEnd').value = name; markChip(null); }
+  else if (/^\d{4}-\d{2}-\d{2}$/.test(name)) { multiDates = [name]; renderMultiChips(); markChip(null); }
   else if (/^\d{4}$/.test(name)) { $('fStart').value = name + '-01-01'; $('fEnd').value = name + '-12-31'; markChip(null); }
   curPage = 1;
   reload();
@@ -1045,6 +1146,9 @@ function resetFilter(){
   ['fStart','fEnd','fSearch'].forEach(function(id){ $(id).value=''; });
   $('fSupplier').value = ''; $('fCategory').value = '';
   $('fInvoice').value = ''; $('fStatus').value = ''; $('fCustomer').value = '';
+  multiSup = []; multiDates = [];              // 多选条件一起清掉（不重复发请求）
+  if (supOpen()) $('supPick').innerHTML = supPanelHtml();
+  renderMultiChips();
   curPage = 1;
   markChip('all');
   reload();

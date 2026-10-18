@@ -513,35 +513,50 @@ def init_db():
         raise
 
 
+def _multi_values(raw, limit: int = 60) -> list[str]:
+    """'A,B,C' → ['A','B','C']（去空去重、限个数），用于多选筛选"""
+    out: list[str] = []
+    seen: set[str] = set()
+    for v in str(raw or '').split(','):
+        v = v.strip()
+        if v and v not in seen:
+            seen.add(v)
+            out.append(v)
+        if len(out) >= limit:
+            break
+    return out
+
+
 def _filters(args) -> tuple[list[str], list]:
     where: list[str] = ['1=1']
     params: list = []
     start = str(args.get('start') or '').strip()
     end = str(args.get('end') or '').strip()
-    supplier = str(args.get('supplier') or '').strip()
-    category = str(args.get('category') or '').strip()
-    invoice = str(args.get('invoice') or '').strip()
-    customer = str(args.get('customer') or '').strip()
     status = str(args.get('status') or '').strip()
     search = str(args.get('search') or '').strip()
-    if start and DATE_RE.match(start):
-        where.append('date >= ?')
-        params.append(start)
-    if end and DATE_RE.match(end):
-        where.append('date <= ?')
-        params.append(end)
-    if supplier:
-        where.append('supplier = ?')
-        params.append(supplier)
-    if category:
-        where.append('category = ?')
-        params.append(category)
-    if invoice:
-        where.append('invoice_type = ?')
-        params.append(invoice)
-    if customer:
-        where.append('customer = ?')
-        params.append(customer)
+    # 多选具体日期（dates=2026-10-06,2026-10-08）：挑几天对比时用，
+    # 有值就忽略起止区间，免得区间把多选的日期又并进来
+    dates = [d for d in _multi_values(args.get('dates'), 366) if DATE_RE.match(d)]
+    if dates:
+        where.append(f'date IN ({",".join("?" * len(dates))})')
+        params.extend(dates)
+    else:
+        if start and DATE_RE.match(start):
+            where.append('date >= ?')
+            params.append(start)
+        if end and DATE_RE.match(end):
+            where.append('date <= ?')
+            params.append(end)
+    # 供应商 / 品类 / 票种 / 客户都支持多选（逗号分隔），单个值仍走等值
+    for arg_key, col in (('supplier', 'supplier'), ('category', 'category'),
+                         ('invoice', 'invoice_type'), ('customer', 'customer')):
+        vals = _multi_values(args.get(arg_key))
+        if len(vals) == 1:
+            where.append(f'{col} = ?')
+            params.append(vals[0])
+        elif vals:
+            where.append(f'{col} IN ({",".join("?" * len(vals))})')
+            params.extend(vals)
     if search:
         where.append('(supplier LIKE ? OR category LIKE ? OR summary LIKE ? OR bill_no LIKE ? '
                      'OR pay_account LIKE ? OR customer LIKE ?)')
