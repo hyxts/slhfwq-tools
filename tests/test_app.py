@@ -660,6 +660,38 @@ class TestPurchase(unittest.TestCase):
         self.assertIn('spreadsheetml', r.headers.get('Content-Type', ''))
         self.assertEqual(r.get_data()[:2], b'PK')     # 导出的是 xlsx（zip 头）
 
+    def test_pagination(self) -> None:
+        """page/page_size 分页；不带参数时保持旧行为（全部返回）"""
+        dates = ['2026-10-01', '2026-10-02', '2026-10-03', '2026-10-04', '2026-10-05']
+        for d in dates:
+            self._create({'date': d, 'supplier': '分页测试供应商', 'total_amount': 10})
+        base = 'supplier=分页测试供应商'
+
+        r = self.client.get(f'/api/purchase/records?{base}&page=1&page_size=2')
+        d = r.get_json()
+        self.assertEqual(d['total'], 5)
+        self.assertEqual(d['pages'], 3)
+        self.assertEqual([x['date'] for x in d['data']], ['2026-10-05', '2026-10-04'])
+
+        d = self.client.get(f'/api/purchase/records?{base}&page=3&page_size=2').get_json()
+        self.assertEqual([x['date'] for x in d['data']], ['2026-10-01'])
+
+        # 翻过头 → 停在最后一页
+        d = self.client.get(f'/api/purchase/records?{base}&page=99&page_size=2').get_json()
+        self.assertEqual(d['page'], 3)
+        self.assertEqual(len(d['data']), 1)
+
+        # 与筛选联动
+        d = self.client.get(f'/api/purchase/records?{base}'
+                            '&start=2026-10-02&end=2026-10-03&page=1&page_size=2').get_json()
+        self.assertEqual(d['total'], 2)
+        self.assertEqual(d['pages'], 1)
+
+        # 不带分页参数 → 旧行为，全部返回
+        d = self.client.get(f'/api/purchase/records?{base}').get_json()
+        self.assertEqual(len(d['data']), 5)
+        self.assertIsNone(d['page_size'])
+
     def test_options(self) -> None:
         r = self.client.get('/api/purchase/options')
         self.assertEqual(r.status_code, 200)

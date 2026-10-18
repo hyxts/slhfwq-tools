@@ -405,16 +405,38 @@ def _filters(args) -> tuple[list[str], list]:
 
 @bp.route('/api/purchase/records', methods=['GET'])
 def list_records():
+    """列表；带 page/page_size 时分页，否则按 limit 返回（兼容旧调用）"""
     try:
-        limit = min(int(request.args.get('limit', 500)), 5000)
         where, params = _filters(request.args)
         conn = _get_db()
-        rows = conn.execute(
-            f"SELECT * FROM purchases WHERE {' AND '.join(where)} "
-            f"ORDER BY date DESC, id DESC LIMIT ?", (*params, limit)).fetchall()
+        total = conn.execute(
+            f"SELECT COUNT(*) c FROM purchases WHERE {' AND '.join(where)}",
+            params).fetchone()['c']
+        order = ' ORDER BY date DESC, id DESC'
+        try:
+            page = max(1, int(request.args.get('page', 1)))
+            page_size = int(request.args.get('page_size', 0))
+        except ValueError:
+            return jsonify({'success': False, 'error': 'page/page_size 必须是数字'}), 400
+        if page_size > 0:                       # 分页模式
+            page_size = min(page_size, 500)
+            pages = max(1, (total + page_size - 1) // page_size)
+            page = min(page, pages)             # 翻过头了就停在最后一页
+            rows = conn.execute(
+                f"SELECT * FROM purchases WHERE {' AND '.join(where)}{order} "
+                'LIMIT ? OFFSET ?',
+                (*params, page_size, (page - 1) * page_size)).fetchall()
+        else:                                   # 兼容：一次性拉取
+            limit = min(int(request.args.get('limit', 500)), 5000)
+            pages = 1
+            rows = conn.execute(
+                f"SELECT * FROM purchases WHERE {' AND '.join(where)}{order} "
+                'LIMIT ?', (*params, limit)).fetchall()
         conn.close()
         return jsonify({'success': True,
-                        'data': [_with_derived(dict(r)) for r in rows]})
+                        'data': [_with_derived(dict(r)) for r in rows],
+                        'total': total, 'page': page, 'pages': pages,
+                        'page_size': page_size or None})
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)}), 400
 
