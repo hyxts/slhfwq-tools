@@ -778,6 +778,69 @@ class TestPurchase(unittest.TestCase):
         d = r.get_json()['data']
         self.assertIn('无票(不抵)', d['invoice_types'])
 
+    def test_company_settings(self) -> None:
+        """对账单抬头设置：保存后能读回（默认值不能丢）"""
+        old = self.client.get('/api/purchase/settings').get_json()['data']
+        try:
+            r = self.client.post('/api/purchase/settings',
+                                 json={'company_name': '抬头测试公司', 'settle_day': '15'})
+            self.assertEqual(r.status_code, 200)
+            d = r.get_json()['data']
+            self.assertEqual(d['company_name'], '抬头测试公司')
+            self.assertEqual(d['settle_day'], '15')
+            self.assertIn('recon_note', d)          # 没提交的键保留默认值
+            # 只认已知键，乱传的键不会进库
+            r = self.client.post('/api/purchase/settings', json={'hack': 'x'})
+            self.assertTrue(r.get_json()['success'])
+            self.assertNotIn('hack', r.get_json()['data'])
+        finally:
+            self.client.post('/api/purchase/settings',
+                             json={'company_name': old.get('company_name', ''),
+                                   'settle_day': old.get('settle_day', '10')})
+
+    def test_recon_opening_closing_due(self) -> None:
+        """对账单按往来账走：期初未付 + 本期应付 − 本期已付 = 期末未付；月结给最迟付款日"""
+        # 上一轮跑完供应商删不掉（有采购记录），结算方式会残留，先置空保证可重复跑
+        old = next((x for x in self.client.get('/api/purchase/suppliers').get_json()['data']
+                    if x['name'] == '对账测试供应商'), None)
+        if old:
+            self.client.post(f"/api/purchase/suppliers/{old['id']}",
+                             json={'name': '对账测试供应商', 'settle_type': ''})
+        # 上期（9月）：采购 1000，已付 300 → 未付 700
+        self._create({'date': '2026-09-05', 'supplier': '对账测试供应商',
+                      'total_amount': 1000, 'paid_amount': 300})
+        # 本期（10月）：采购 2000 − 退货 100 − 扣款 50 = 应付 1850，已付 850 → 未付 1000
+        self._create({'date': '2026-10-05', 'supplier': '对账测试供应商', 'total_amount': 2000,
+                      'return_amount': 100, 'deduct_amount': 50, 'paid_amount': 850})
+        url = '/api/purchase/reconcile?supplier=对账测试供应商&start=2026-10-01&end=2026-10-31'
+        d = self.client.get(url).get_json()['data']
+        self.assertAlmostEqual(d['opening']['unpaid'], 700.0, places=2)
+        self.assertEqual(d['opening']['count'], 1)          # 期初那 1 笔
+        self.assertAlmostEqual(d['summary']['payable'], 1850.0, places=2)
+        self.assertAlmostEqual(d['summary']['unpaid'], 1000.0, places=2)
+        self.assertAlmostEqual(d['closing'], 1700.0, places=2)   # 700 + 1000
+        self.assertEqual(len(d['items']), 1)                # 明细只含本期
+        self.assertEqual(d['due_date'], '')                 # 没设结算方式 → 不给到期日
+
+        # 供应商设成月结 → 最迟付款日 = 次月 settle_day（默认 10）号
+        lst = self.client.get('/api/purchase/suppliers').get_json()['data']
+        row = next((x for x in lst if x['name'] == '对账测试供应商'), None)
+        if row is None:
+            row = self.client.post('/api/purchase/suppliers',
+                                   json={'name': '对账测试供应商',
+                                         'settle_type': '月结'}).get_json()['data']
+        else:
+            self.client.post(f"/api/purchase/suppliers/{row['id']}",
+                             json={'name': '对账测试供应商', 'settle_type': '月结'})
+        try:
+            d2 = self.client.get(url).get_json()['data']
+            self.assertEqual(d2['settle_type'], '月结')
+            self.assertEqual(d2['due_date'], '2026-11-10')
+            self.assertAlmostEqual(d2['closing'], 1700.0, places=2)
+        finally:
+            # 有采购记录的供应商删不掉（后端限制），失败的清理不影响断言
+            self.client.delete(f"/api/purchase/suppliers/{row['id']}")
+
     def test_anonymous_blocked(self) -> None:
         anon = app.test_client()
         self.assertNotEqual(

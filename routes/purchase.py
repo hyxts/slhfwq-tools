@@ -74,6 +74,60 @@ _INVOICE_MIGRATE = {'专票': '专票(税额手填)', '普票': '普票(税额�
 # 供应商结算方式（生鲜多为月结）
 SETTLE_TYPES = ('现结', '周结', '月结', '压批结')
 
+# 对账单抬头设置（我方公司信息 + 月结付款日 + 单据条款），存 purchase_settings
+SETTING_KEYS = ('company_name', 'company_tax_no', 'company_address',
+                'company_phone', 'settle_day', 'recon_note')
+DEFAULT_SETTINGS = {
+    'company_name': '',
+    'company_tax_no': '',
+    'company_address': '',
+    'company_phone': '',
+    'settle_day': '10',          # 月结：次月几号前付款
+    'recon_note': '请核对无误后签字盖章回传，逾期 3 日未回复视为确认无误。',
+}
+
+
+def _due_date(end: str, settle: str, settle_day: str) -> str:
+    """按结算方式算最迟付款日
+
+    现结=期末当天 / 周结=期末+7天 / 月结=次月 settle_day 日 / 压批结=约定不清，返回空
+    """
+    if not end or not DATE_RE.match(end):
+        return ''
+    try:
+        d = datetime.date.fromisoformat(end)
+    except ValueError:
+        return ''
+    if settle == '现结':
+        return d.isoformat()
+    if settle == '周结':
+        return (d + datetime.timedelta(days=7)).isoformat()
+    if settle == '月结':
+        try:
+            day = max(1, min(28, int(str(settle_day or '10').strip() or 10)))
+        except ValueError:
+            day = 10
+        y, m = d.year, d.month + 1
+        if m > 12:
+            y, m = y + 1, 1
+        return datetime.date(y, m, day).isoformat()
+    return ''
+
+
+def _load_settings(conn=None) -> dict:
+    """读取抬头设置：没有的键用默认值补齐"""
+    own = conn is None
+    conn = conn or _get_db()
+    try:
+        rows = conn.execute('SELECT key, value FROM purchase_settings').fetchall()
+    except Exception:
+        rows = []
+    if own:
+        conn.close()
+    out = dict(DEFAULT_SETTINGS)
+    out.update({r['key']: r['value'] for r in rows})
+    return out
+
 
 def _num(val, default: float = 0.0) -> float:
     """宽松解析数字：容忍千分位逗号与空串"""
@@ -446,6 +500,11 @@ def init_db():
             sort INTEGER NOT NULL DEFAULT 0,
             UNIQUE(kind, name)
         )''')
+        # 对账单抬头设置：我方公司信息 / 月结付款日 / 单据条款（key-value）
+        conn.execute('''CREATE TABLE IF NOT EXISTS purchase_settings (
+            key TEXT PRIMARY KEY,
+            value TEXT DEFAULT ''
+        )''')
         conn.commit()
         conn.close()
         _log('purchase_db 初始化完成')
@@ -772,6 +831,22 @@ def reconcile():
                 FROM purchases WHERE {w} GROUP BY period ORDER BY period''',
             params).fetchall()
 
+        # 期初未付：本期开始日之前的历史欠款（同供应商），往来对账要从上期结转开始
+        opening_unpaid = 0.0
+        opening_cnt = 0
+        start_arg = str(request.args.get('start') or '').strip()
+        if start_arg and DATE_RE.match(start_arg):
+            ow, op = ['date < ?'], [start_arg]
+            if supplier:
+                ow.append('supplier = ?')
+                op.append(supplier)
+            op_row = conn.execute(
+                f'''SELECT COUNT(*) cnt,
+                    COALESCE(SUM(total_amount-return_amount-deduct_amount-paid_amount),0) unpaid
+                    FROM purchases WHERE {' AND '.join(ow)}''', op).fetchone()
+            opening_unpaid = op_row['unpaid']
+            opening_cnt = op_row['cnt']
+
         # 该供应商全部历史的未付余额（对账看的是「还欠多少」，不只看本期）
         out_where, out_params = ['1=1'], []
         if supplier:
@@ -788,6 +863,7 @@ def reconcile():
         if supplier:
             p = conn.execute('SELECT * FROM suppliers WHERE name=?', (supplier,)).fetchone()
             profile = dict(p) if p else None
+        company = _load_settings(conn)
         conn.close()
 
         total = _round2(agg['total'])
@@ -808,14 +884,22 @@ def reconcile():
             'recon_cnt': agg['recon_cnt'],
             'unrecon_cnt': agg['cnt'] - agg['recon_cnt'],
         }
+        end_arg = str(request.args.get('end') or '').strip()
+        unpaid_now = _round2(payable - agg['paid'])
+        settle = (profile or {}).get('settle_type') or ''
         return jsonify({'success': True, 'data': {
             'supplier': supplier,
             'profile': profile,
-            'start': str(request.args.get('start') or '').strip(),
-            'end': str(request.args.get('end') or '').strip(),
+            'company': company,
+            'start': start_arg,
+            'end': end_arg,
+            'settle_type': settle,
+            'due_date': _due_date(end_arg, settle, company.get('settle_day', '10')),
             'generated_at': now_str(),
             'items': items,
             'summary': summary,
+            'opening': {'count': opening_cnt, 'unpaid': _round2(opening_unpaid)},
+            'closing': _round2(opening_unpaid + unpaid_now),
             'by_invoice': [_round_summary(dict(r)) for r in by_invoice],
             'by_month': [_round_summary(dict(r)) for r in by_month],
             'outstanding': {
@@ -854,12 +938,19 @@ def reconcile_export():
         wb = Workbook()
         ws = wb.active
         ws.title = '对账单'
-        ws.append(['采购对账单'])
+        company = _load_settings()
+        end_arg = str(request.args.get('end') or '').strip()
+        start_arg = str(request.args.get('start') or '').strip()
+        due = _due_date(end_arg, settle, company.get('settle_day', '10'))
+        ws.append([company.get('company_name') or '采购对账单', '', '', '', '', '采购对账单'])
         ws['A1'].font = Font(bold=True, size=14)
-        ws.append(['供应商', supplier or '（全部供应商）', '生成时间', now_str()])
-        ws.append(['对账期间', f"{request.args.get('start') or '最早'} 至 "
-                               f"{request.args.get('end') or '最新'}",
-                   '结算方式', settle or '未设置'])
+        ws['F1'].font = Font(bold=True, size=14)
+        if company.get('company_tax_no'):
+            ws.append(['税号', company['company_tax_no'], '', '地址',
+                       company.get('company_address', ''), '电话', company.get('company_phone', '')])
+        ws.append(['致（供应商）', supplier or '（全部供应商）', '', '生成时间', now_str()])
+        ws.append(['对账期间', f"{start_arg or '最早'} 至 {end_arg or '最新'}",
+                   '', '结算方式', settle or '未设置', '最迟付款日', due or '按约定'])
         ws.append([])
         ws.append(['日期', '单据号', '品类', '客户/门店', '采购内容摘要', '发票类型',
                    '采购总金额', '进项税额', '不含税成本', '退货金额', '扣款金额',
@@ -888,6 +979,26 @@ def reconcile_export():
                    sum(d['unpaid_balance'] for d in items)])
         last = ws.max_row
         _style_money(ws, last, last, (7, 8, 9, 10, 11, 12, 13, 14, 15))
+        # 往来三段：期初未付 + 本期应付 - 本期已付 = 期末未付
+        opening_unpaid = 0.0
+        if start_arg and DATE_RE.match(start_arg):
+            ow, op = ['date < ?'], [start_arg]
+            if supplier:
+                ow.append('supplier = ?')
+                op.append(supplier)
+            conn = _get_db()
+            opening_unpaid = conn.execute(
+                f'''SELECT COALESCE(SUM(total_amount-return_amount-deduct_amount-paid_amount),0) u
+                    FROM purchases WHERE {' AND '.join(ow)}''', op).fetchone()['u']
+            conn.close()
+        period_unpaid = sum(d['unpaid_balance'] for d in items)
+        ws.append(['期初未付（上期结转）', _round2(opening_unpaid)])
+        ws.append(['本期未付', _round2(period_unpaid)])
+        ws.append(['期末未付（应付合计）', _round2(opening_unpaid + period_unpaid)])
+        for r in range(ws.max_row - 2, ws.max_row + 1):
+            ws.cell(row=r, column=1).font = Font(bold=True)
+        ws.append([company.get('recon_note', '')])
+        ws.append(['供应商签章：', '', '', '', '财务审核：', '', '', '制单：'])
         for c in range(1, 19):
             ws.cell(row=last, column=c).font = Font(bold=True)
         _set_widths(ws, [12, 14, 10, 12, 26, 14, 13, 12, 13, 11, 11, 13, 12, 12, 12, 12, 10, 8])
@@ -957,6 +1068,34 @@ def options():
             'invoice_defs': [{'name': n, 'rate': r, 'mode': m or ''}
                              for n, r, m in _INVOICE_DEFS],
             'settle_types': list(SETTLE_TYPES)}})
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 400
+
+
+@bp.route('/api/purchase/settings', methods=['GET'])
+def get_settings():
+    """对账单抬头设置：我方公司信息 / 月结付款日 / 单据条款"""
+    try:
+        return jsonify({'success': True, 'data': _load_settings()})
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 400
+
+
+@bp.route('/api/purchase/settings', methods=['POST'])
+def save_settings():
+    """保存抬头设置：只认 SETTING_KEYS 里的键，其余忽略（不报 400）"""
+    try:
+        data = request.get_json(silent=True) or {}
+        conn = _get_db()
+        for k in SETTING_KEYS:
+            if k not in data:
+                continue
+            v = str(data.get(k) or '').strip()[:200]
+            conn.execute('''INSERT INTO purchase_settings(key, value) VALUES(?,?)
+                            ON CONFLICT(key) DO UPDATE SET value=excluded.value''', (k, v))
+        conn.commit()
+        conn.close()
+        return jsonify({'success': True, 'data': _load_settings()})
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)}), 400
 

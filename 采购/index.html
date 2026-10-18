@@ -154,6 +154,33 @@ td.empty::before { display:none; }
 .doc-sum .cell.hl .v { color:var(--primary); }
 .doc-sum .cell.warn { background:var(--warn-weak); border-color:#fde68a; }
 .doc-sum .cell.warn .v { color:var(--warn); }
+/* 单据头：标题 + 单号（左右分栏，下面一条粗分隔线） */
+.doc-head { display:flex; align-items:flex-end; justify-content:space-between; gap:12px; border-bottom:2px solid var(--text); padding-bottom:8px; margin-bottom:12px; }
+.doc-head .ttl { font-size:22px; font-weight:800; letter-spacing:4px; }
+.doc-head .sub { font-size:11.5px; color:var(--text-thin); margin-top:4px; }
+.doc-head .no { font-size:11.5px; color:var(--text-thin); text-align:right; font-variant-numeric:tabular-nums; line-height:1.6; }
+/* 双方信息：付款方 / 收款方 两栏 */
+.doc-parties { display:grid; grid-template-columns:repeat(auto-fit,minmax(260px,1fr)); border:1px solid var(--border); border-radius:10px; overflow:hidden; margin-bottom:10px; }
+.doc-parties .side { padding:10px 14px; font-size:12.5px; min-width:0; }
+.doc-parties .side + .side { border-left:1px solid var(--border); }
+.doc-parties .ttl { font-size:10.5px; color:var(--text-thin); font-weight:700; letter-spacing:1px; margin-bottom:5px; }
+.doc-parties .nm { font-size:15px; font-weight:800; margin-bottom:4px; word-break:break-all; }
+.doc-parties .row { color:var(--text-secondary); font-size:12px; margin-top:2px; overflow:hidden; text-overflow:ellipsis; }
+.doc-parties .k { color:var(--text-thin); margin-right:6px; }
+/* 账期信息条 */
+.doc-meta { display:grid; grid-template-columns:repeat(auto-fit,minmax(160px,1fr)); gap:6px 16px; padding:10px 14px; border:1px solid var(--border); border-radius:10px; background:#f8fafc; font-size:12.5px; margin-bottom:12px; }
+.doc-meta .k { color:var(--text-thin); margin-right:6px; }
+/* 往来汇总：期初 → 本期 → 期末 */
+.doc-ledger { width:100%; border-collapse:collapse; font-size:13px; margin-bottom:8px; }
+.doc-ledger td { padding:6px 10px; border-bottom:1px dashed var(--border); }
+.doc-ledger td.lbl { color:var(--text-secondary); }
+.doc-ledger td.amt { text-align:right; font-variant-numeric:tabular-nums; font-weight:600; width:170px; }
+.doc-ledger td.minus { color:var(--danger); }
+.doc-ledger tr.total td { border-top:1px solid var(--border-strong); border-bottom:2px solid var(--border-strong); font-weight:800; font-size:14.5px; padding:8px 10px; }
+.doc-ledger tr.total td.amt { color:var(--primary); }
+.doc-terms { font-size:11.5px; color:var(--text-secondary); line-height:1.75; margin-top:10px; background:#f8fafc; border:1px dashed var(--border); border-radius:8px; padding:8px 12px; }
+.doc-chk { width:15px; height:15px; accent-color:var(--primary); }
+.seq { color:var(--text-thin); font-variant-numeric:tabular-nums; }
 .doc-sign { display:grid; grid-template-columns:repeat(auto-fit,minmax(190px,1fr)); gap:24px; margin-top:20px; font-size:12.5px; color:var(--text-secondary); }
 .doc-sign .line { border-bottom:1px solid var(--border-strong); height:30px; margin-top:4px; }
 .doc-foot { margin-top:14px; padding-top:10px; border-top:1px dashed var(--border); font-size:11px; color:var(--text-thin); display:flex; justify-content:space-between; gap:10px; flex-wrap:wrap; }
@@ -257,6 +284,11 @@ td.empty::before { display:none; }
     .modal-overlay { padding:10px; }
     .doc { padding:12px 14px; }
     .doc-title { font-size:17px; letter-spacing:2px; }
+    .doc-head .ttl { font-size:18px; letter-spacing:2px; }
+    .doc-parties { grid-template-columns:1fr; }
+    .doc-parties .side + .side { border-left:none; border-top:1px solid var(--border); }
+    .doc-ledger td.amt { width:auto; }
+    .doc-ledger { font-size:12.5px; }
 }
 </style>
 </head>
@@ -464,6 +496,7 @@ td.empty::before { display:none; }
       <button class="cfg-tab" id="tabCategory" onclick="switchTab('category')">品类</button>
       <button class="cfg-tab" id="tabAccount" onclick="switchTab('account')">付款账户</button>
       <button class="cfg-tab" id="tabCustomer" onclick="switchTab('customer')">客户/门店</button>
+      <button class="cfg-tab" id="tabCompany" onclick="switchTab('company')">公司抬头</button>
     </div>
 
     <div id="cfgSupplier">
@@ -519,6 +552,29 @@ td.empty::before { display:none; }
         </div>
       </div>
       <div class="cfg-list" id="dictList"></div>
+    </div>
+
+    <div id="cfgCompany" style="display:none">
+      <div class="cfg-form">
+        <div class="form-row">
+          <div class="field"><label>本单位名称（付款方）</label><input id="cName" placeholder="如 恩施XX生鲜配送有限公司"></div>
+          <div class="field"><label>纳税人识别号</label><input id="cTax" placeholder="选填"></div>
+        </div>
+        <div class="form-row">
+          <div class="field"><label>单位地址</label><input id="cAddr" placeholder="选填"></div>
+          <div class="field"><label>联系电话</label><input id="cPhone" placeholder="选填"></div>
+        </div>
+        <div class="form-row">
+          <div class="field"><label>月结付款日（每月几号）</label><input id="cDay" type="number" min="1" max="28" inputmode="numeric" placeholder="10">
+            <div class="hint">月结供应商：次月该日前付款；现结取期末当天，周结 +7 天</div></div>
+          <div class="field"><label>对账单条款</label><input id="cNote" placeholder="印在对账单底部的确认条款"></div>
+        </div>
+        <div class="modal-actions" style="margin-top:8px">
+          <button class="btn-outline" style="flex:0 0 90px" onclick="loadCompany()">重读</button>
+          <button class="btn-primary" style="flex:1" onclick="saveCompany()">保存抬头</button>
+        </div>
+      </div>
+      <div class="hint">保存后，对账单与导出的对账单都会用这套抬头、最迟付款日和条款。</div>
     </div>
     </div>
     <div class="modal-ft">
@@ -997,6 +1053,7 @@ function uploadImport(input){
 var cfgTab = 'supplier';
 var editSid = null, editDid = null;
 var supplierMap = {}, supplierRows = [], dictRows = [];
+var company = {};                    // 对账单抬头设置（付款方信息 / 月结付款日 / 条款）
 
 function openConfig(){
   $('cfgModal').classList.add('show');
@@ -1005,17 +1062,47 @@ function openConfig(){
 function closeConfig(){ $('cfgModal').classList.remove('show'); resetSupplierForm(); resetDictForm(); }
 function switchTab(tab){
   cfgTab = tab;
-  ['supplier','category','account','customer'].forEach(function(t){
+  ['supplier','category','account','customer','company'].forEach(function(t){
     $('tab' + t.charAt(0).toUpperCase() + t.slice(1)).classList.toggle('on', t === tab);
   });
   $('cfgSupplier').style.display = tab === 'supplier' ? '' : 'none';
-  $('cfgDict').style.display = tab === 'supplier' ? 'none' : '';
+  $('cfgCompany').style.display = tab === 'company' ? '' : 'none';
+  $('cfgDict').style.display = (tab === 'supplier' || tab === 'company') ? 'none' : '';
   var labels = { category: ['品类', '如 蔬菜 / 调料'], account: ['付款账户', '如 微信 / 农行卡'],
                  customer: ['客户/门店', '如 一中食堂 / 旗舰店'] }[tab] || ['品类', ''];
   $('dictLabel').textContent = labels[0] + '名称 *';
   $('dName').placeholder = labels[1];
   resetDictForm();
-  if (tab !== 'supplier') loadDicts();
+  if (tab === 'supplier') loadSuppliers();
+  else if (tab === 'company') loadCompany();
+  else loadDicts();
+}
+/* ---- 公司抬头（对账单付款方） ---- */
+function loadCompany(){
+  fetch('/api/purchase/settings').then(function(r){ return r.json(); }).then(function(d){
+    if (!d.success) return;
+    company = d.data;
+    $('cName').value = company.company_name || '';
+    $('cTax').value = company.company_tax_no || '';
+    $('cAddr').value = company.company_address || '';
+    $('cPhone').value = company.company_phone || '';
+    $('cDay').value = company.settle_day || '10';
+    $('cNote').value = company.recon_note || '';
+  });
+}
+function saveCompany(){
+  fetch('/api/purchase/settings', { method: 'POST', headers: {'Content-Type':'application/json'},
+    body: JSON.stringify({ company_name: $('cName').value.trim(),
+                           company_tax_no: $('cTax').value.trim(),
+                           company_address: $('cAddr').value.trim(),
+                           company_phone: $('cPhone').value.trim(),
+                           settle_day: $('cDay').value.trim(),
+                           recon_note: $('cNote').value.trim() }) })
+    .then(function(r){ return r.json(); }).then(function(d){
+      if (!d.success) { toast(d.error || '保存失败'); return; }
+      company = d.data;
+      toast('抬头已保存，对账单将用新抬头');
+    });
 }
 
 /* ---- 供应商 ---- */
@@ -1239,74 +1326,99 @@ function cny(n){
   return intToCn(yuan) + '元' + (tail || '整');
 }
 function renderRecon(d){
-  var s = d.summary, o = d.outstanding;
-  var prof = d.profile || {};
-  var info = function(k, v){ return v ? '<div><span class="k">' + k + '</span>' + esc(v) + '</div>' : ''; };
-  var cell = function(l, v, cls){ return '<div class="cell ' + (cls || '') + '"><div class="l">' + l + '</div><div class="v">' + v + '</div></div>'; };
+  var s = d.summary, o = d.outstanding, prof = d.profile || {}, co = d.company || {};
+  var op = d.opening || { count: 0, unpaid: 0 };
   var no = 'DZ' + String(d.start || '').replace(/-/g, '') + '-' + (d.supplier ? String(d.supplier).slice(0, 4) : 'ALL');
-  var head = '<div class="doc">'
-    + '<div class="doc-title">采购对账单</div>'
-    + '<div class="doc-no">单号 ' + esc(no) + ' · 生成于 ' + esc(d.generated_at) + '</div>'
-    + '<div class="doc-info">'
-    + info('供应商', d.supplier || '全部供应商')
-    + info('供应商类型', prof.s_type) + info('批发市场', prof.market)
-    + info('经营地址', prof.address) + info('负责人', prof.contact)
-    + info('联系电话', prof.phone) + info('结算方式', prof.settle_type || '未设置')
-    + info('对账期间', (d.start || '最早') + ' 至 ' + (d.end || '最新'))
+  var line = function(k, v){ return v ? '<div class="row"><span class="k">' + k + '</span>' + esc(v) + '</div>' : ''; };
+  var period = (d.start || '最早') + ' 至 ' + (d.end || '最新');
+
+  /* 单据头：标题 + 单号 / 制单日期 */
+  var head = '<div class="doc"><div class="doc-head">'
+    + '<div><div class="ttl">采购对账单</div><div class="sub">对账期间 ' + esc(period) + '</div></div>'
+    + '<div class="no">单号 ' + esc(no) + '<br>制单日期 ' + esc((d.generated_at || '').slice(0, 10)) + '</div>'
     + '</div>';
-  var cards = '<div class="doc-sum">'
-    + cell('笔数', s.count) + cell('采购总额', fmt(s.total))
-    + cell('进项税额', fmt(s.tax)) + cell('不含税成本', fmt(s.net_cost))
-    + cell('退货', fmt(s.returned || 0)) + cell('扣款', fmt(s.deducted || 0))
-    + cell('应付净额', fmt(s.payable || 0), 'hl')
-    + cell('已开票', fmt(s.invoiced)) + cell('待开票', fmt(s.uninvoiced))
-    + cell('已付', fmt(s.paid))
-    + cell('本期未付', fmt(s.unpaid), s.unpaid > 0 ? 'warn' : '')
+
+  /* 双方信息：付款方（本单位） / 收款方（供应商） */
+  var parties = '<div class="doc-parties">'
+    + '<div class="side"><div class="ttl">付款方（本单位）</div>'
+    + '<div class="nm">' + esc(co.company_name || '（未设置公司名称）') + '</div>'
+    + line('税号', co.company_tax_no) + line('地址', co.company_address)
+    + line('电话', co.company_phone) + '</div>'
+    + '<div class="side"><div class="ttl">收款方（供应商）</div>'
+    + '<div class="nm">' + esc(d.supplier || '（全部供应商）') + '</div>'
+    + line('编码', prof.code) + line('联系人', prof.contact)
+    + line('电话', prof.phone) + line('地址', prof.address)
+    + line('类型', [prof.s_type, prof.market].filter(Boolean).join(' / '))
+    + '</div></div>';
+
+  /* 账期信息条 */
+  var meta = '<div class="doc-meta">'
+    + '<div><span class="k">结算方式</span>' + esc(d.settle_type || '未设置') + '</div>'
+    + '<div><span class="k">最迟付款日</span>' + esc(d.due_date || '按双方约定') + '</div>'
+    + '<div><span class="k">本期笔数</span>' + s.count + ' 笔</div>'
+    + '<div><span class="k">对账进度</span>' + s.recon_cnt + ' / ' + s.count + '</div>'
+    + '<div><span class="k">上期结转</span>' + op.count + ' 笔</div>'
     + '</div>';
-  var rows = (d.items || []).map(function(r){
-    return '<tr><td>' + esc(r.date) + '</td><td>' + esc(r.bill_no) + '</td>'
+
+  /* 往来汇总：期初未付 + 本期发生 - 本期已付 = 期末未付 */
+  var lg = function(lbl, val, minus){
+    return '<tr><td class="lbl">' + lbl + '</td><td class="amt' + (minus ? ' minus' : '') + '">'
+      + (minus ? '-' : '') + fmt(Math.abs(val)) + '</td></tr>';
+  };
+  var ledger = '<table class="doc-ledger">'
+    + lg('期初未付（上期结转）', op.unpaid || 0)
+    + lg('加：本期采购额', s.total || 0)
+    + lg('减：本期退货', s.returned || 0, true)
+    + lg('减：本期扣款', s.deducted || 0, true)
+    + lg('本期应付净额', s.payable || 0)
+    + lg('减：本期已付', s.paid || 0, true)
+    + '<tr class="total"><td>期末未付（应付合计）</td><td class="amt">'
+    + fmt(d.closing || ((op.unpaid || 0) + (s.unpaid || 0))) + '</td></tr>'
+    + '</table>';
+
+  /* 明细：逐笔可勾选核对 */
+  var items = d.items || [];
+  var rows = items.map(function(r, i){
+    return '<tr><td class="seq">' + (i + 1) + '</td><td>' + esc(r.date) + '</td><td>' + esc(r.bill_no) + '</td>'
       + '<td>' + esc(r.category) + '</td><td>' + esc(r.customer || '') + '</td>'
-      + '<td>' + esc(r.summary) + '</td>'
-      + '<td>' + esc(r.invoice_type) + '</td><td class="num">' + fmt(r.total_amount) + '</td>'
-      + '<td class="num">' + fmt(r.input_tax) + '</td>'
-      + '<td class="num">' + fmt(r.return_amount || 0) + '</td>'
-      + '<td class="num">' + fmt(r.deduct_amount || 0) + '</td>'
+      + '<td>' + esc(r.summary) + '</td><td>' + esc(r.invoice_type) + '</td>'
+      + '<td class="num">' + fmt(r.total_amount) + '</td>'
+      + '<td class="num">' + (r.return_amount ? fmt(r.return_amount) : '-') + '</td>'
+      + '<td class="num">' + (r.deduct_amount ? fmt(r.deduct_amount) : '-') + '</td>'
       + '<td class="num">' + fmt(r.payable) + '</td>'
-      + '<td class="num">' + fmt(r.invoiced_amount) + '</td>'
-      + '<td class="num">' + fmt(r.paid_amount) + '</td><td class="num">' + fmt(r.unpaid_balance) + '</td>'
-      + '<td>' + statusBadge(r.pay_status) + '</td>'
-      + '<td>' + (r.reconciled
-          ? '<span class="tag-recon">已对账</span> <button class="btn-outline btn-sm" onclick="markRecon(' + r.id + ',0)">撤销</button>'
-          : '<span class="tag-unrecon">未对账</span> <button class="btn-outline btn-sm" onclick="markRecon(' + r.id + ',1)">核对</button>')
-      + '</td></tr>';
+      + '<td class="num">' + fmt(r.paid_amount) + '</td>'
+      + '<td class="num' + (r.unpaid_balance > 0 ? ' neg' : '') + '">' + fmt(r.unpaid_balance) + '</td>'
+      + '<td style="text-align:center"><input type="checkbox" class="doc-chk"'
+      + (r.reconciled ? ' checked' : '') + ' onchange="markRecon(' + r.id + ', this.checked?1:0)"></td></tr>';
   }).join('');
-  var foot = '<tfoot><tr><td colspan="6">合计 ' + (d.items || []).length + ' 笔</td>'
-    + '<td class="num">' + fmt(s.total) + '</td><td class="num">' + fmt(s.tax) + '</td>'
+  var foot = '<tfoot><tr><td colspan="7">合计 ' + items.length + ' 笔</td>'
+    + '<td class="num">' + fmt(s.total) + '</td>'
     + '<td class="num">' + fmt(s.returned || 0) + '</td><td class="num">' + fmt(s.deducted || 0) + '</td>'
     + '<td class="num">' + fmt(s.payable || 0) + '</td>'
-    + '<td class="num">' + fmt(s.invoiced) + '</td><td class="num">' + fmt(s.paid) + '</td>'
-    + '<td class="num">' + fmt(s.unpaid) + '</td><td colspan="2"></td></tr></tfoot>';
+    + '<td class="num">' + fmt(s.paid) + '</td><td class="num">' + fmt(s.unpaid) + '</td>'
+    + '<td></td></tr></tfoot>';
   var tbl = '<div class="doc-tbl-wrap" style="overflow-x:auto"><table class="recon-tbl"><thead><tr>'
-    + '<th>日期</th><th>单据号</th><th>品类</th><th>客户/门店</th><th>摘要</th><th>发票类型</th>'
-    + '<th class="num">采购额</th><th class="num">进项税</th><th class="num">退货</th>'
-    + '<th class="num">扣款</th><th class="num">应付净额</th><th class="num">已开票</th>'
-    + '<th class="num">已付</th><th class="num">未付</th><th>状态</th><th>对账</th>'
-    + '</tr></thead><tbody>' + (rows || '<tr><td colspan="16" class="empty">该期间没有采购记录</td></tr>')
+    + '<th class="seq">#</th><th>日期</th><th>单据号</th><th>品类</th><th>客户/门店</th><th>摘要</th><th>发票类型</th>'
+    + '<th class="num">采购额</th><th class="num">退货</th><th class="num">扣款</th>'
+    + '<th class="num">应付净额</th><th class="num">已付</th><th class="num">未付</th><th>核对</th>'
+    + '</tr></thead><tbody>' + (rows || '<tr><td colspan="14" class="empty">该期间没有采购记录</td></tr>')
     + '</tbody>' + foot + '</table></div>';
+
+  /* 大写金额 / 条款 / 签章 */
+  var cap = '<div class="doc-foot"><span>期末未付（大写）：<b>' + cny(d.closing || 0) + '</b></span>'
+    + '<span>累计采购 ' + fmt(o.total) + ' 元 / ' + o.count + ' 笔 · 累计未付 ' + fmt(o.unpaid) + ' 元</span></div>';
+  var terms = co.recon_note
+    ? '<div class="doc-terms">' + esc(co.recon_note) + '</div>' : '';
   var sign = '<div class="doc-sign">'
     + '<div>供应商确认（签字 / 盖章）<div class="line"></div></div>'
     + '<div>财务审核<div class="line"></div></div>'
     + '<div>付款日期<div class="line"></div></div></div>';
-  var footNote = '<div class="doc-foot">'
-    + '<span>本期应付净额（大写）：<b>' + cny(s.payable || 0) + '</b></span>'
-    + '<span>累计未付 ' + fmt(o.unpaid) + ' 元 · 累计采购 ' + fmt(o.total) + ' 元 / ' + o.count + ' 笔'
-    + ' · 对账进度 ' + s.recon_cnt + '/' + s.count + '</span></div>';
   var note = function(t, arr, f){ return (arr || []).length
     ? '<div style="font-size:11.5px;color:var(--text-secondary);margin-top:6px">' + t + '：'
       + arr.map(f).join(' · ') + '</div>' : ''; };
   var byInv = note('按发票类型', d.by_invoice, function(r){ return esc(r.invoice_type) + ' ' + fmt(r.total); });
   var byMonth = note('按月小计', d.by_month, function(r){ return esc(r.period) + ' ' + fmt(r.total); });
-  $('reconArea').innerHTML = head + cards + tbl + sign + footNote + byInv + byMonth + '</div>';
+  $('reconArea').innerHTML = head + parties + meta + ledger + tbl + cap + terms + sign + byInv + byMonth + '</div>';
 }
 function markRecon(id, flag){
   fetch('/api/purchase/records/' + id + '/reconcile', {
